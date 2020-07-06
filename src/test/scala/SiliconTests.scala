@@ -73,7 +73,6 @@ class SiliconTests extends SilSuite {
     val args = Silicon.optionsFromScalaTestConfigMap(prefixSpecificConfigMap(configMap).getOrElse("silicon", Map()))
     silicon.parseCommandLine(args :+ Silicon.dummyInputFilename)
   }
-
   val commandLineArguments: Seq[String] =
     Seq("--timeout", "300" /* seconds */)
 

@@ -51,10 +51,10 @@ class DefaultMasterVerifier(config: Config, override val reporter: PluginAwareRe
 
   protected val preambleReader = new SMTLib2PreambleReader
 
-  protected val sequencesContributor = new DefaultSequencesContributor(domainTranslator, config)
-  protected val setsContributor = new DefaultSetsContributor(domainTranslator, config)
-  protected val multisetsContributor = new DefaultMultisetsContributor(domainTranslator, config)
-  protected val domainsContributor = new DefaultDomainsContributor(symbolConverter, domainTranslator)
+//  protected val sequencesContributor = new DefaultSequencesContributor(domainTranslator, config)
+//  protected val setsContributor = new DefaultSetsContributor(domainTranslator, config)
+//  protected val multisetsContributor = new DefaultMultisetsContributor(domainTranslator, config)
+//  protected val domainsContributor = new DefaultDomainsContributor(symbolConverter, domainTranslator)
   protected val fieldValueFunctionsContributor = new DefaultFieldValueFunctionsContributor(preambleReader, symbolConverter, termConverter, config)
   protected val predSnapGenerator = new PredicateSnapGenerator(symbolConverter, snapshotSupporter)
   protected val predicateAndWandSnapFunctionsContributor = new DefaultPredicateAndWandSnapFunctionsContributor(preambleReader, termConverter, predSnapGenerator, config)
@@ -64,7 +64,7 @@ class DefaultMasterVerifier(config: Config, override val reporter: PluginAwareRe
 
   private val statefulSubcomponents = List[StatefulComponent](
     uniqueIdCounter,
-    sequencesContributor, setsContributor, multisetsContributor, domainsContributor,
+  //  sequencesContributor, setsContributor, domainsContributor,
     fieldValueFunctionsContributor,
     predSnapGenerator, predicateAndWandSnapFunctionsContributor,
     functionsSupporter, predicateSupporter,
@@ -313,10 +313,10 @@ class DefaultMasterVerifier(config: Config, override val reporter: PluginAwareRe
   /* Prover preamble: After program analysis */
 
   private val analysisOrder: Seq[PreambleContributor[_, _, _]] = Seq(
-    sequencesContributor,
+/*  sequencesContributor,
     setsContributor,
     multisetsContributor,
-    domainsContributor,
+    domainsContributor, */
     fieldValueFunctionsContributor,
     predicateAndWandSnapFunctionsContributor,
     functionsSupporter,
@@ -324,10 +324,10 @@ class DefaultMasterVerifier(config: Config, override val reporter: PluginAwareRe
   )
 
   private val sortDeclarationOrder: Seq[PreambleContributor[_, _, _]] = Seq(
-    sequencesContributor,
+/*  sequencesContributor,
     setsContributor,
     multisetsContributor,
-    domainsContributor,
+    domainsContributor, */
     fieldValueFunctionsContributor,
     predicateAndWandSnapFunctionsContributor,
     functionsSupporter,
@@ -335,10 +335,10 @@ class DefaultMasterVerifier(config: Config, override val reporter: PluginAwareRe
   )
 
   private val sortWrapperDeclarationOrder: Seq[PreambleContributor[Sort, _, _]] = Seq(
-    sequencesContributor,
+/*  sequencesContributor,
     setsContributor,
     multisetsContributor,
-    domainsContributor,
+    domainsContributor, */
     fieldValueFunctionsContributor,
     predicateAndWandSnapFunctionsContributor,
     functionsSupporter,
@@ -350,10 +350,10 @@ class DefaultMasterVerifier(config: Config, override val reporter: PluginAwareRe
      * additionally axiomatised in the sequences axioms).
      * Multisets depend on sets ($Multiset.fromSet).
      */
+/*  sequencesContributor,
     setsContributor,
     multisetsContributor,
-    sequencesContributor,
-    domainsContributor,
+    domainsContributor, */
     fieldValueFunctionsContributor,
     predicateAndWandSnapFunctionsContributor,
     functionsSupporter,
@@ -361,10 +361,10 @@ class DefaultMasterVerifier(config: Config, override val reporter: PluginAwareRe
   )
 
   private val axiomDeclarationOrder: Seq[PreambleContributor[Sort, _, _]] = Seq(
-    sequencesContributor,
+/*  sequencesContributor,
     setsContributor,
     multisetsContributor,
-    domainsContributor,
+    domainsContributor, */
     fieldValueFunctionsContributor,
     predicateAndWandSnapFunctionsContributor,
     functionsSupporter,
@@ -391,8 +391,8 @@ class DefaultMasterVerifier(config: Config, override val reporter: PluginAwareRe
     symbolDeclarationOrder foreach (component =>
       component.declareSymbolsAfterAnalysis(sink))
 
-    sink.comment("/" * 10 + " Uniqueness assumptions from domains")
-    domainsContributor.emitUniquenessAssumptionsAfterAnalysis(sink)
+  //  sink.comment("/" * 10 + " Uniqueness assumptions from domains")
+  //  domainsContributor.emitUniquenessAssumptionsAfterAnalysis(sink)
 
     /* Note: The triggers of the axioms of snapshot functions (FVFs and PSFs) mention the
      * corresponding sort wrappers. These axioms therefore need to be emitted after the sort
