@@ -20,10 +20,8 @@ class SiliconTests extends SilSuite {
     Seq("consistency", "issue387")
 
   private val silTestDirectories =
-    Seq("all",
-        "quantifiedpermissions", "quantifiedpredicates" ,"quantifiedcombinations",
-        "termination",
-        "examples")
+    Seq("gradual",
+        )
 
 //  private val silTestDirectories = Seq("my-tests")
 
