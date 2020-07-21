@@ -66,6 +66,7 @@ trait DefaultMethodVerificationUnitProvider extends VerifierComponent { v: Verif
                          oldHeaps = OldHeaps(),
                          methodCfg = body)
 
+      
       if (Verifier.config.printMethodCFGs()) {
         viper.silicon.common.io.toFile(
           body.toDot,
@@ -74,7 +75,7 @@ trait DefaultMethodVerificationUnitProvider extends VerifierComponent { v: Verif
 
       val result =
         /* Combined the well-formedness check and the execution of the body, which are two separate
-         * rules in Smans' paper.
+         * rules in Smans paper.
          */
         executionFlowController.locally(s, v)((s1, v1) => {
           produces(s1, freshSnap, pres, ContractNotWellformed, v1)((s2, v2) => {

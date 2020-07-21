@@ -20,6 +20,9 @@ final case class State(g: Store = Store(),
                        h: Heap = Heap(),
                        oldHeaps: OldHeaps = Map.empty,
 
+                       isGradual: Boolean = false,
+                       gradualHeap: Heap = Heap(),
+
                        parallelizeBranches: Boolean = false,
 
                        recordVisited: Boolean = false,
@@ -130,6 +133,7 @@ object State {
     s1 match {
       /* Decompose state s1 */
       case State(g1, h1, oldHeaps1,
+                 isGradual, gradualHeap,
                  parallelizeBranches1,
                  recordVisited1, visited1,
                  methodCfg1, invariantContexts1,
@@ -152,6 +156,7 @@ object State {
         /* Decompose state s2: most values must match those of s1 */
         s2 match {
           case State(`g1`, `h1`, `oldHeaps1`,
+                     `isGradual`, `gradualHeap`,
                      `parallelizeBranches1`,
                      `recordVisited1`, `visited1`,
                      `methodCfg1`, `invariantContexts1`,
