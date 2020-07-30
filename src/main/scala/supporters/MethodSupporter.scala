@@ -43,9 +43,7 @@ trait DefaultMethodVerificationUnitProvider extends VerifierComponent { v: Verif
     def verify(sInit: State, method: ast.Method): Seq[VerificationResult] = {
       logger.debug("\n\n" + "-" * 10 + " METHOD " + method.name + "-" * 10 + "\n")
       decider.prover.comment("%s %s %s".format("-" * 10, method.name, "-" * 10))
-
       SymbExLogger.insertMember(method, null, v.decider.pcs)
-
       val pres = method.pres
       val posts = method.posts
 
@@ -66,7 +64,7 @@ trait DefaultMethodVerificationUnitProvider extends VerifierComponent { v: Verif
                          oldHeaps = OldHeaps(),
                          methodCfg = body)
 
-      
+
       if (Verifier.config.printMethodCFGs()) {
         viper.silicon.common.io.toFile(
           body.toDot,

@@ -41,6 +41,12 @@ trait ChunkSupportRules extends SymbolicExecutionRules {
              v: Verifier)
             (Q: (State, Heap, Term, Verifier) => VerificationResult)
             : VerificationResult
+/*
+  def inHeap(s: State,
+             h: Heap,
+             chunk: CH)
+            : Boolean
+*/
 
   def findChunk[CH <: NonQuantifiedChunk: ClassTag]
                (chunks: Iterable[Chunk],
@@ -217,6 +223,15 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
     }
   }
 
+/*
+  def inHeap(s: State,
+             h: Heap,
+             chunk: CH)
+            : Boolean = {
+
+  }
+
+*/
   def findChunk[CH <: NonQuantifiedChunk: ClassTag]
                (chunks: Iterable[Chunk],
                 id: ChunkIdentifer,

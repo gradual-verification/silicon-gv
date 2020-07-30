@@ -192,7 +192,6 @@ class DefaultMasterVerifier(config: Config, override val reporter: PluginAwareRe
       logger debug s"Silicon finished verification of predicate `${predicate.name}` in ${viper.silver.reporter.format.formatMillisReadably(elapsed)} seconds with the following result: ${condenseToViperResult(results).toString}"
       results
     })
-
     decider.prover.stop()
 
     _verificationPoolManager.pooledVerifiers.comment("-" * 60)
@@ -209,12 +208,10 @@ class DefaultMasterVerifier(config: Config, override val reporter: PluginAwareRe
     val verificationTaskFutures: Seq[Future[Seq[VerificationResult]]] =
       program.methods.filterNot(excludeMethod).map(method => {
         val s = createInitialState(method, program)/*.copy(parallelizeBranches = true)*/ /* [BRANCH-PARALLELISATION] */
-
         _verificationPoolManager.queueVerificationTask(v => {
           val startTime = System.currentTimeMillis()
           val results = v.methodSupporter.verify(s, method)
           val elapsed = System.currentTimeMillis() - startTime
-
           reporter report VerificationResultMessage(s"silicon", method, elapsed, condenseToViperResult(results))
           logger debug s"Silicon finished verification of method `${method.name}` in ${viper.silver.reporter.format.formatMillisReadably(elapsed)} seconds with the following result: ${condenseToViperResult(results).toString}"
 
@@ -222,6 +219,7 @@ class DefaultMasterVerifier(config: Config, override val reporter: PluginAwareRe
         })
       }) ++ cfgs.map(cfg => {
         val s = createInitialState(cfg, program)/*.copy(parallelizeBranches = true)*/ /* [BRANCH-PARALLELISATION] */
+
 
         _verificationPoolManager.queueVerificationTask(v => {
           val startTime = System.currentTimeMillis()
@@ -238,9 +236,13 @@ class DefaultMasterVerifier(config: Config, override val reporter: PluginAwareRe
     val methodVerificationResults = verificationTaskFutures.flatMap(_.get())
 
     /** Write JavaScript-Representation of the log if the SymbExLogger is enabled */
-    SymbExLogger.writeJSFile()
+    //SymbExLogger.writeJSFile()
     /** Write DOT-Representation of the log if the SymbExLogger is enabled */
-    SymbExLogger.writeDotFile()
+    //SymbExLogger.writeDotFile()
+  //  println("halibut")
+    //println(SymbExLogger.toSimpleTreeString)
+
+    //println(SymbExLogger.currentLog())
 
     (   functionVerificationResults
      ++ predicateVerificationResults
