@@ -201,7 +201,7 @@ class Config(args: Seq[String]) extends SilFrontendConfig(args, "Silicon") {
 
   val writeSymbexLogFile = opt[Boolean]("writeSymbexLogFile",
     descr = "Report the symbolic execution log as ExecutionTraceReport",
-    default = Some(false),
+    default = Some(true),
     noshort = true,
     hidden = true
   )

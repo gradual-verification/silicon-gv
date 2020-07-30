@@ -40,6 +40,8 @@ trait ProductionRules extends SymbolicExecutionRules {
              (Q: (State, Verifier) => VerificationResult)
              : VerificationResult
 
+
+
   /** Subsequently produces assertions `as` into state `s`.
     *
     * `produces(s, sf, as, _ => pve, v)` should (not yet tested ...) be equivalent to
@@ -204,7 +206,12 @@ object producer extends ProductionRules with Immutable {
       continuation(if (state.exhaleExt) state.copy(reserveHeaps = state.h +: state.reserveHeaps.drop(1)) else state, verifier)
 
     val produced = a match {
-      case imp @ ast.Implies(e0, a0) if !a.isPure =>
+
+      // TODO: figure out how imprecise deals with snapshots - J
+      case impr @ ast.ImpreciseExp(e) =>
+        produce(s.copy(isImprecise = true), sf, e, pve, v)(Q)
+
+/*      case imp @ ast.Implies(e0, a0) if !a.isPure =>
         val impLog = new GlobalBranchRecord(imp, s, v.decider.pcs, "produce")
         val sepIdentifier = SymbExLogger.currentLog().insert(impLog)
         SymbExLogger.currentLog().initializeBranching()
@@ -220,21 +227,21 @@ object producer extends ProductionRules with Immutable {
                 res1}),
               (s2, v2) => {
                 v2.decider.assume(sf(sorts.Snap, v2) === Unit)
-                  /* TODO: Avoid creating a fresh var (by invoking) `sf` that is not used
+                  * TODO: Avoid creating a fresh var (by invoking) `sf` that is not used
                    * otherwise. In order words, only make this assumption if `sf` has
                    * already been used, e.g. in a snapshot equality such as `s0 == (s1, s2)`.
-                   */
+                   *
                 val res2 = Q(s2, v2)
                 impLog.finish_elsSubs()
                 res2})
           SymbExLogger.currentLog().collapse(null, sepIdentifier)
           branch_res})
-
+*/
       case ite @ ast.CondExp(e0, a1, a2) if !a.isPure =>
         val gbLog = new GlobalBranchRecord(ite, s, v.decider.pcs, "produce")
         val sepIdentifier = SymbExLogger.currentLog().insert(gbLog)
         SymbExLogger.currentLog().initializeBranching()
-        eval(s, e0, pve, v)((s1, t0, v1) => {
+        evalpc(s, e0, pve, v)((s1, t0, v1) => {
           gbLog.finish_cond()
           val branch_res =
             branch(s1, t0, v1)(
@@ -250,23 +257,25 @@ object producer extends ProductionRules with Immutable {
           SymbExLogger.currentLog().collapse(null, sepIdentifier)
           branch_res})
 
-      case let: ast.Let if !let.isPure =>
-        letSupporter.handle[ast.Exp](s, let, pve, v)((s1, g1, body, v1) =>
-          produceR(s1.copy(g = s1.g + g1), sf, body, pve, v1)(Q))
-
+/*      case let: ast.Let if !let.isPure =>
+ *      letSupporter.handle[ast.Exp](s, let, pve, v)((s1, g1, body, v1) =>
+ *        produceR(s1.copy(g = s1.g + g1), sf, body, pve, v1)(Q))
+ */
       case ast.FieldAccessPredicate(ast.FieldAccess(eRcvr, field), perm) =>
         eval(s, eRcvr, pve, v)((s1, tRcvr, v1) =>
           eval(s1, perm, pve, v1)((s2, tPerm, v2) => {
             val snap = sf(v2.symbolConverter.toSort(field.typ), v2)
             val gain = PermTimes(tPerm, s2.permissionScalingFactor)
-            if (s2.qpFields.contains(field)) {
-              val trigger = (sm: Term) => FieldTrigger(field.name, sm, tRcvr)
-              quantifiedChunkSupporter.produceSingleLocation(s2, field, Seq(`?r`), Seq(tRcvr), snap, gain, trigger, v2)(Q)
-            } else {
-              val ch = BasicChunk(FieldID, BasicChunkIdentifier(field.name), Seq(tRcvr), snap, gain)
+/*            if (s2.qpFields.contains(field)) {
+ *            val trigger = (sm: Term) => FieldTrigger(field.name, sm, tRcvr)
+ *            quantifiedChunkSupporter.produceSingleLocation(s2, field, Seq(`?r`), Seq(tRcvr), snap, gain, trigger, v2)(Q)
+ *          } else {
+ */
+            val ch = BasicChunk(FieldID, BasicChunkIdentifier(field.name), Seq(tRcvr), snap, gain)
               chunkSupporter.produce(s2, s2.h, ch, v2)((s3, h3, v3) =>
                 Q(s3.copy(h = h3), v3))
-            }}))
+//            }
+            }))
 
       case ast.PredicateAccessPredicate(ast.PredicateAccess(eArgs, predicateName), perm) =>
         val predicate = Verifier.program.findPredicate(predicateName)
@@ -276,12 +285,13 @@ object producer extends ProductionRules with Immutable {
               predicate.body.map(v2.snapshotSupporter.optimalSnapshotSort(_, Verifier.program)._1)
                             .getOrElse(sorts.Snap), v2)
             val gain = PermTimes(tPerm, s2.permissionScalingFactor)
-            if (s2.qpPredicates.contains(predicate)) {
-              val formalArgs = s2.predicateFormalVarMap(predicate)
-              val trigger = (sm: Term) => PredicateTrigger(predicate.name, sm, tArgs)
-              quantifiedChunkSupporter.produceSingleLocation(
-                s2, predicate, formalArgs, tArgs, snap, gain, trigger, v2)(Q)
-            } else {
+/*            if (s2.qpPredicates.contains(predicate)) {
+ *            val formalArgs = s2.predicateFormalVarMap(predicate)
+ *            val trigger = (sm: Term) => PredicateTrigger(predicate.name, sm, tArgs)
+ *            quantifiedChunkSupporter.produceSingleLocation(
+ *            s2, predicate, formalArgs, tArgs, snap, gain, trigger, v2)(Q)
+ *           } else {
+ */
               val snap1 = snap.convert(sorts.Snap)
               val ch = BasicChunk(PredicateID, BasicChunkIdentifier(predicate.name), tArgs, snap1, gain)
               chunkSupporter.produce(s2, s2.h, ch, v2)((s3, h3, v3) => {
@@ -289,8 +299,9 @@ object producer extends ProductionRules with Immutable {
                   v3.decider.assume(App(Verifier.predicateData(predicate).triggerFunction, snap1 +: tArgs))
                 }
                 Q(s3.copy(h = h3), v3)})
-            }}))
-
+//            }
+            }))
+/*
       case wand: ast.MagicWand if s.qpMagicWands.contains(MagicWandIdentifier(wand, Verifier.program)) =>
         val bodyVars = wand.subexpressionsToEvaluate(Verifier.program)
         val formalVars = bodyVars.indices.toList.map(i => Var(Identifier(s"x$i"), v.symbolConverter.toSort(bodyVars(i).typ)))
@@ -326,9 +337,9 @@ object producer extends ProductionRules with Immutable {
           chunkSupporter.produce(s1, s1.h, chWand, v1)((s2, h2, v2) =>
             Q(s2.copy(h = h2), v2)))
 
-      /* TODO: Initial handling of QPs is identical/very similar in consumer
+       * TODO: Initial handling of QPs is identical/very similar in consumer
        *       and producer. Try to unify the code.
-       */
+       *
       case QuantifiedPermissionAssertion(forall, cond, acc: ast.FieldAccessPredicate) =>
         val qid = acc.loc.field.name
         val optTrigger =
@@ -412,14 +423,14 @@ object producer extends ProductionRules with Immutable {
               v1
             )(Q)
         }
-
-      case _: ast.InhaleExhaleExp =>
-        Failure(viper.silicon.utils.consistency.createUnexpectedInhaleExhaleExpressionError(a))
-
+*/
+/*      case _: ast.InhaleExhaleExp =>
+ *      Failure(viper.silicon.utils.consistency.createUnexpectedInhaleExhaleExpressionError(a))
+ */
       /* Any regular expressions, i.e. boolean and arithmetic. */
       case _ =>
         v.decider.assume(sf(sorts.Snap, v) === Unit) /* TODO: See comment for case ast.Implies above */
-        eval(s, a, pve, v)((s1, t, v1) => {
+        evalpc(s, a, pve, v)((s1, t, v1) => {
           v1.decider.assume(t)
           Q(s1, v1)})
     }
