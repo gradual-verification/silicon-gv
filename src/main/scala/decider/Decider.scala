@@ -40,7 +40,9 @@ trait Decider {
   def assume(ts: InsertionOrderedSet[Term], enforceAssumption: Boolean = false)
   def assume(ts: Iterable[Term])
 
+  //Check to make sure Prover.scala doesn't need to be changed
   def check(t: Term, timeout: Int): Boolean
+  def check(isImprecise: Boolean, t: Term, timeout: Int): Boolean
 
   /* TODO: Consider changing assert such that
    *         1. It passes State and Operations to the continuation
@@ -198,6 +200,16 @@ trait DefaultDeciderProvider extends VerifierComponent { this: Verifier =>
     def checkSmoke() = prover.check(Verifier.config.checkTimeout.toOption) == Unsat
 
     def check(t: Term, timeout: Int) = deciderAssert(t, Some(timeout))
+
+    def check(isImprecise: Boolean, t: Term, timeout: Int) = { 
+      if (check(t, timeout)) {
+        true
+      } else if(isImprecise && (deciderAssert(t, Some(timeout)))) { //Make sure this part is correct
+        true
+      } else {
+        false
+      }
+    }
 
     def assert(t: Term, timeout: Option[Int] = Verifier.config.assertTimeout.toOption)
               (Q: Boolean => VerificationResult)
