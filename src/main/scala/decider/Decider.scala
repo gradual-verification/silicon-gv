@@ -47,6 +47,7 @@ trait Decider {
    *         2. The implementation reacts to a failing assertion by e.g. a state consolidation
    */
   def assert(t: Term, timeout: Option[Int] = None)(Q:  Boolean => VerificationResult): VerificationResult
+  //def assertgv(isImprecise: Boolean, t: Term, timeout: Option[Int] = None)(): VerificationResult
 
   def fresh(id: String, sort: Sort): Var
   def fresh(id: String, argSorts: Seq[Sort], resultSort: Sort): Function
@@ -203,6 +204,24 @@ trait DefaultDeciderProvider extends VerifierComponent { this: Verifier =>
               : VerificationResult = {
 
       val success = deciderAssert(t, timeout)
+
+      // If the SMT query was not successful, store it (possibly "overwriting"
+      // any previously saved query), otherwise discard any query we had saved
+      // previously (it did not cause a verification failure) and ignore the
+      // current one, because it cannot cause a verification error.
+      if (success)
+        SymbExLogger.currentLog().discardSMTQuery()
+      else
+        SymbExLogger.currentLog().setSMTQuery(t)
+
+      Q(success)
+    }
+
+    def assertgv(isImprecise: Boolean, t: Term, timeout: Option[Int] = Verifier.config.assertTimeout.toOption)
+              (Q: Boolean => VerificationResult)
+              : VerificationResult = {
+
+      val success = check(isImprecise, t, timeout.get)
 
       // If the SMT query was not successful, store it (possibly "overwriting"
       // any previously saved query), otherwise discard any query we had saved
