@@ -1226,7 +1226,7 @@ object evaluator extends EvaluationRules with Immutable {
                   val gain = 1 //v1
                   val ch = BasicChunk(FieldID, BasicChunkIdentifier(fa.field.name), Seq(tRcvr), snap, gain)
                   chunkSupporter.produce(s2, s2.optimisticHeap, ch, v2)((s3, h3, v3) =>
-                    Q(s3.copy(h = h3), snap, v3))
+                    Q(s2.copy(optimisticHeap = h3), snap, v3))
                   })
             } else {
               //Failure
