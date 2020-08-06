@@ -15,6 +15,7 @@ import viper.silicon.resources.{NonQuantifiedPropertyInterpreter, Resources}
 import viper.silicon.state._
 import viper.silicon.state.terms._
 import viper.silicon.state.terms.perms.IsPositive
+import viper.silicon.state.terms.perms.IsOne
 import viper.silicon.verifier.Verifier
 
 trait ChunkSupportRules extends SymbolicExecutionRules {
@@ -41,12 +42,15 @@ trait ChunkSupportRules extends SymbolicExecutionRules {
              v: Verifier)
             (Q: (State, Heap, Term, Verifier) => VerificationResult)
             : VerificationResult
-/*
-  def inHeap(s: State,
-             h: Heap,
-             chunk: CH)
+
+  def inHeap[CH <: NonQuantifiedChunk: ClassTag]
+            (h: Heap,
+             chunk: Iterable[Chunk],
+             resource: ast.Resource,
+             args: Seq[Term],
+             v: Verifier)
             : Boolean
-*/
+
 
   def findChunk[CH <: NonQuantifiedChunk: ClassTag]
                (chunks: Iterable[Chunk],
@@ -223,15 +227,32 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
     }
   }
 
-/*
-  def inHeap(s: State,
-             h: Heap,
-             chunk: CH)
+
+  def inHeap[CH <: NonQuantifiedChunk: ClassTag]
+            (h: Heap,
+             chunk: Iterable[Chunk],
+             resource: ast.Resource,
+             args: Seq[Term],
+             v: Verifier)
             : Boolean = {
 
+    val id = ChunkIdentifier(resource, Verifier.program)
+
+    //val tri: Iterable[Chunk] = h.values
+  //  val relevantChunks = findChunksWithID[NonQuantifiedChunk](chunk, id)
+  //  println(findChunkWithProver(relevantChunks, args, v))
+
+    findChunk[NonQuantifiedChunk](h.values, id, args, v) match {
+        case Some(ch) if v.decider.check(IsOne(ch.perm), Verifier.config.checkTimeout()) =>
+        //  val relevantChunks = findChunksWithID[CH](h.values, id)
+        //  println(relevantChunks)
+          true
+        case _ =>
+          false
+    }
   }
 
-*/
+
   def findChunk[CH <: NonQuantifiedChunk: ClassTag]
                (chunks: Iterable[Chunk],
                 id: ChunkIdentifer,
@@ -249,8 +270,10 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
 
   def findChunksWithID[CH <: NonQuantifiedChunk: ClassTag](chunks: Iterable[Chunk], id: ChunkIdentifer): Iterable[CH] = {
     chunks.flatMap {
-      case c: CH if id == c.id => Some(c)
-      case _ => None
+      case c: CH if id == c.id =>
+          Some(c)
+      case _ =>
+          None
     }
   }
 

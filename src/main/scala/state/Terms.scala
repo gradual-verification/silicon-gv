@@ -1440,7 +1440,7 @@ object SetIntersection extends ((Term, Term) => SetTerm) {
   def unapply(si: SetIntersection) = Some((si.p0, si.p1))
 }
 
-class SetSubset(val p0: Term, val p1: Term) extends BooleanTerm 
+class SetSubset(val p0: Term, val p1: Term) extends BooleanTerm
     with StructuralEqualityBinaryOp[Term] {
   override val op = "⊂"
 }
@@ -1989,6 +1989,12 @@ object perms {
   def IsNonPositive(p: Term): Term = p match {
     case p: PermLiteral => if (p.literal <= Rational.zero) True() else False()
     case _ => Or(p === NoPerm(), PermLess(p, NoPerm()))
+  }
+
+  // added because we are not currently dealing with fractional perms
+  def IsOne(p: Term): Term = p match {
+    case p: PermLiteral => if (p.literal == Rational.one) True() else False()
+    case _ => PermLess(NoPerm(), p)
   }
 
   def BigPermSum(it: Iterable[Term], f: Term => Term = t => t): Term =
