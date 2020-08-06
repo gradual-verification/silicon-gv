@@ -40,13 +40,16 @@ trait Decider {
   def assume(ts: InsertionOrderedSet[Term], enforceAssumption: Boolean = false)
   def assume(ts: Iterable[Term])
 
+  //Check to make sure Prover.scala doesn't need to be changed
   def check(t: Term, timeout: Int): Boolean
+  def check(isImprecise: Boolean, t: Term, timeout: Int): Boolean
 
   /* TODO: Consider changing assert such that
    *         1. It passes State and Operations to the continuation
    *         2. The implementation reacts to a failing assertion by e.g. a state consolidation
    */
   def assert(t: Term, timeout: Option[Int] = None)(Q:  Boolean => VerificationResult): VerificationResult
+  //def assertgv(isImprecise: Boolean, t: Term, timeout: Option[Int] = None)(): VerificationResult
 
   def fresh(id: String, sort: Sort): Var
   def fresh(id: String, argSorts: Seq[Sort], resultSort: Sort): Function
@@ -198,11 +201,39 @@ trait DefaultDeciderProvider extends VerifierComponent { this: Verifier =>
 
     def check(t: Term, timeout: Int) = deciderAssert(t, Some(timeout))
 
+    def check(isImprecise: Boolean, t: Term, timeout: Int) = { 
+      if (check(t, timeout)) {
+        true
+      } else if(isImprecise && (deciderAssert(t, Some(timeout)))) { //Make sure this part is correct
+        true
+      } else {
+        false
+      }
+    }
+
     def assert(t: Term, timeout: Option[Int] = Verifier.config.assertTimeout.toOption)
               (Q: Boolean => VerificationResult)
               : VerificationResult = {
 
       val success = deciderAssert(t, timeout)
+
+      // If the SMT query was not successful, store it (possibly "overwriting"
+      // any previously saved query), otherwise discard any query we had saved
+      // previously (it did not cause a verification failure) and ignore the
+      // current one, because it cannot cause a verification error.
+      if (success)
+        SymbExLogger.currentLog().discardSMTQuery()
+      else
+        SymbExLogger.currentLog().setSMTQuery(t)
+
+      Q(success)
+    }
+
+    def assertgv(isImprecise: Boolean, t: Term, timeout: Option[Int] = Verifier.config.assertTimeout.toOption)
+              (Q: Boolean => VerificationResult)
+              : VerificationResult = {
+
+      val success = check(isImprecise, t, timeout.get)
 
       // If the SMT query was not successful, store it (possibly "overwriting"
       // any previously saved query), otherwise discard any query we had saved
