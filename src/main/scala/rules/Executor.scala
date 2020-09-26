@@ -239,10 +239,10 @@ object executor extends ExecutionRules with Immutable {
       case ast.Seqn(stmts, _) =>
         execs(s, stmts, v)(Q)
 
-      case ast.Label(name, _) =>
+/*      case ast.Label(name, _) =>
         val s1 = s.copy(oldHeaps = s.oldHeaps + (name -> magicWandSupporter.getEvalHeap(s)))
         Q(s1, v)
-
+*/
       case ast.LocalVarDeclStmt(decl) =>
         val x = decl.localVar
         val t = v.decider.fresh(x.name, v.symbolConverter.toSort(x.typ))
@@ -260,7 +260,7 @@ object executor extends ExecutionRules with Immutable {
        */
 
       /* Assignment for a field that contains quantified chunks */
-      case ass @ ast.FieldAssign(fa @ ast.FieldAccess(eRcvr, field), rhs)
+/*      case ass @ ast.FieldAssign(fa @ ast.FieldAccess(eRcvr, field), rhs)
               if s.qpFields.contains(field) =>
 
         assert(!s.exhaleExt)
@@ -297,6 +297,7 @@ object executor extends ExecutionRules with Immutable {
                 Q(s3.copy(h = h3 + ch), v2)
               case (Incomplete(_), s3, _) =>
                 createFailure(pve dueTo InsufficientPermission(fa), v2, s3)}}))
+*/
 
       case ass @ ast.FieldAssign(fa @ ast.FieldAccess(eRcvr, field), rhs) =>
         assert(!s.exhaleExt)
@@ -336,9 +337,11 @@ object executor extends ExecutionRules with Immutable {
         v.decider.assume(ts)
         Q(s1, v)
 
+// commenting this out causes disjunction_fast to fail
+// also I think we have a problem with error messages
+/*
       case inhale @ ast.Inhale(a) => a match {
         case _: ast.FalseLit =>
-          /* We're done */
           Success()
         case _ =>
           produce(s, freshSnap, a, InhaleFailed(inhale), v)((s1, v1) => {
@@ -350,7 +353,7 @@ object executor extends ExecutionRules with Immutable {
         val pve = ExhaleFailed(exhale)
         consume(s, a, pve, v)((s1, _, v1) =>
           Q(s1, v1))
-
+*/
       case assert @ ast.Assert(a) =>
         val pve = AssertFailed(assert)
 
@@ -489,6 +492,7 @@ object executor extends ExecutionRules with Immutable {
             }
           }))
 
+/*
       case pckg @ ast.Package(wand, proofScript) =>
         val pve = PackageFailed(pckg)
           magicWandSupporter.packageWand(s, wand, proofScript, pve, v)((s1, chWand, v1) => {
@@ -499,16 +503,16 @@ object executor extends ExecutionRules with Immutable {
               if (s.exhaleExt) {
                 s1.copy(h = Heap(),
                         exhaleExt = true,
-                        /* It is assumed, that s.reserveHeaps.head (hUsed) is not used or changed
+                         * It is assumed, that s.reserveHeaps.head (hUsed) is not used or changed
                          * by the packageWand method. hUsed is normally used during transferring
                          * consume to store permissions that have already been consumed. The
                          * permissions on this heap should be discarded after a statement finishes
                          * execution. hUsed should therefore be empty unless the package statement
                          * was triggered by heuristics during a consume operation.
-                         */
+                         *
                         reserveHeaps = s.reserveHeaps.head +: hOps +: s1.reserveHeaps.tail)
               } else {
-                /* c1.reserveHeap is expected to be [σ.h'], i.e. the remainder of σ.h */
+                * c1.reserveHeap is expected to be [σ.h'], i.e. the remainder of σ.h *
                 s1.copy(h = hOps,
                         exhaleExt = false,
                         reserveHeaps = Nil)
@@ -535,13 +539,15 @@ object executor extends ExecutionRules with Immutable {
       case apply @ ast.Apply(e) =>
         val pve = ApplyFailed(apply)
         magicWandSupporter.applyWand(s, e, pve, v)(Q)
-
+*/
       /* These cases should not occur when working with the CFG-representation of the program. */
       case   _: ast.Goto
            | _: ast.If
            | _: ast.Label
            | _: ast.Seqn
            | _: ast.While => sys.error(s"Unexpected statement (${stmt.getClass.getName}): $stmt")
+
+
     }
 
     executed

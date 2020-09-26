@@ -3,7 +3,7 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 //
 // Copyright (c) 2011-2019 ETH Zurich.
-
+/*
 package viper.silicon.tests
 
 import org.scalatest.FunSuite
@@ -158,3 +158,4 @@ class ErrorMessageTests extends FunSuite {
     assert(result, "Files are not equivalent after transformation")
   }
 }
+*/
