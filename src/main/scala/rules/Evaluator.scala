@@ -88,7 +88,7 @@ object evaluator extends EvaluationRules with Immutable {
         evals2(s1, es.tail, t :: ts, pvef, v1)(Q))
   }
 
-  
+
   def evalspc(s: State, es: Seq[ast.Exp], pvef: ast.Exp => PartialVerificationError, v: Verifier)
           (Q: (State, List[Term], Verifier) => VerificationResult)
            : VerificationResult =
@@ -344,7 +344,7 @@ object evaluator extends EvaluationRules with Immutable {
                                     smCache = smCache1)
                     Q(s2, smLookup, v1)}
                 }
-          //}) 
+          //})
         } else {
             if (s.qpFieldsOpt.contains(fa.field)) {
                 //Swapped out h for optimisticHeap
@@ -411,7 +411,7 @@ object evaluator extends EvaluationRules with Immutable {
                         Q(s2, smLookup, v1)}
                     }
                 //})
-            } else if (s1.isImprecise) { 
+            } else if (s1.isImprecise) {
               //Below code modified from Producer.scala
               eval(s1, fa.rcv, pve, v1)((s2, tRcvr, v2) => {
                 val snap = v.decider.fresh(fa.field.name, v.symbolConverter.toSort(fa.field.typ))
@@ -1151,7 +1151,7 @@ object evaluator extends EvaluationRules with Immutable {
                                     smCache = smCache1)
                     Q(s2, smLookup, v1)}
                 }
-          //}) 
+          //})
         } else {
             if (s.qpFieldsOpt.contains(fa.field)) {
                 //Swapped out h for optimisticHeap
@@ -1219,7 +1219,7 @@ object evaluator extends EvaluationRules with Immutable {
                         Q(s2, smLookup, v1)}
                     }
                 //})
-            } else if (s1.isImprecise) { 
+            } else if (s1.isImprecise) {
             //Below code modified from Producer.scala
               eval(s1, fa.rcv, pve, v1)((s2, tRcvr, v2) => {
                   val snap = v.decider.fresh(fa.field.name, v.symbolConverter.toSort(fa.field.typ))
@@ -1947,6 +1947,23 @@ object evaluator extends EvaluationRules with Immutable {
           Q(s1, field.name, tRcvr :: Nil, v1))
       case ast.PredicateAccess(eArgs, predicateName) =>
         evals(s, eArgs, _ => pve, v)((s1, tArgs, v1) =>
+          Q(s1, predicateName, tArgs, v1))
+    }
+  }
+
+  def evalLocationAccesspc(s: State,
+                          locacc: ast.LocationAccess,
+                          pve: PartialVerificationError,
+                          v: Verifier)
+                          (Q: (State, String, Seq[Term], Verifier) => VerificationResult)
+                          : VerificationResult = {
+
+    locacc match {
+      case ast.FieldAccess(eRcvr, field) =>
+        evalpc(s, eRcvr, pve, v)((s1, tRcvr, v1) =>
+          Q(s1, field.name, tRcvr :: Nil, v1))
+      case ast.PredicateAccess(eArgs, predicateName) =>
+        evalspc(s, eArgs, _ => pve, v)((s1, tArgs, v1) =>
           Q(s1, predicateName, tArgs, v1))
     }
   }

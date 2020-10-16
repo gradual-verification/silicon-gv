@@ -201,7 +201,7 @@ trait DefaultDeciderProvider extends VerifierComponent { this: Verifier =>
 
     def check(t: Term, timeout: Int) = deciderAssert(t, Some(timeout))
 
-    def check(isImprecise: Boolean, t: Term, timeout: Int) = { 
+    def check(isImprecise: Boolean, t: Term, timeout: Int) = {
       if (check(t, timeout)) {
         true
       } else if(isImprecise && (deciderAssert(t, Some(timeout)))) { //Make sure this part is correct
