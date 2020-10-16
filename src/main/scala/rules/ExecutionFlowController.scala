@@ -43,6 +43,12 @@ trait ExecutionFlowRules extends SymbolicExecutionRules {
                         (action: (State, Verifier, (State, R1, R2, Verifier) => VerificationResult) => VerificationResult)
                         (Q: (State, R1, R2, Verifier) => VerificationResult)
                         : VerificationResult
+
+// questionable hack, should actually try to figure out what this does - Jacob
+  def tryOrFail3[R1, R2, R3](s: State, v: Verifier)
+                        (action: (State, Verifier, (State, R1, R2, R3, Verifier) => VerificationResult) => VerificationResult)
+                        (Q: (State, R1, R2, R3, Verifier) => VerificationResult)
+                        : VerificationResult
 }
 
 object executionFlowController extends ExecutionFlowRules with Immutable {
@@ -151,4 +157,11 @@ object executionFlowController extends ExecutionFlowRules with Immutable {
                         : VerificationResult =
 
       tryOrFailWithResult[(R1, R2)](s, v)((s1, v1, QS) => action(s1, v1, (s2, r21, r22, v2) => QS(s2, (r21, r22), v2)))((s2, r, v2) => Q(s2, r._1, r._2, v2))
+
+  def tryOrFail3[R1, R2, R3](s: State, v: Verifier)
+                        (action: (State, Verifier, (State, R1, R2, R3, Verifier) => VerificationResult) => VerificationResult)
+                        (Q: (State, R1, R2, R3, Verifier) => VerificationResult)
+                        : VerificationResult =
+
+      tryOrFailWithResult[(R1, R2, R3)](s, v)((s1, v1, QS) => action(s1, v1, (s2, r21, r22, r23, v2) => QS(s2, (r21, r22, r23), v2)))((s2, r, v2) => Q(s2, r._1, r._2, r._3, v2))
 }

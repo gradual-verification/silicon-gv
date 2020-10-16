@@ -71,11 +71,21 @@ object consumer extends ConsumptionRules with Immutable {
              (Q: (State, Term, Verifier) => VerificationResult)
              : VerificationResult = {
 
-    consumeR(s, s.h, a.whenExhaling, pve, v)((s1, h1, snap, v1) => {
-      val s2 = s1.copy(h = h1,
-                       partiallyConsumedHeap = s.partiallyConsumedHeap)
-      Q(s2, snap, v1)})
-  }
+    a match {
+      case impr @ ast.ImpreciseExp(e) =>
+        consumeR(s, true, s.optimisticHeap, s.h, e.whenExhaling, pve, v)((s1, oh1, h1, snap, v1) => {
+          val s2 = s1.copy(isImprecise = true, h = Heap(), optimisticHeap = Heap(),
+                           partiallyConsumedHeap = s.partiallyConsumedHeap)
+          Q(s2, snap, v1)})
+
+      case _ =>
+        consumeR(s, s.isImprecise, s.optimisticHeap, s.h, a.whenExhaling, pve, v)((s1, oh1, h1, snap, v1) => {
+          val s2 = s1.copy(h = h1, optimisticHeap = oh1,
+                           partiallyConsumedHeap = s.partiallyConsumedHeap)
+          Q(s2, snap, v1)})
+    }
+}
+
 
   /** @inheritdoc */
   def consumes(s: State,
@@ -96,7 +106,8 @@ object consumer extends ConsumptionRules with Immutable {
       allPves ++= pves
     })
 
-    consumeTlcs(s, s.h, allTlcs.result(), allPves.result(), v)((s1, h1, snap1, v1) => {
+// bad hardcoding that will need to be fixed - Jacob
+    consumeTlcs(s, false, s.optimisticHeap, s.h, allTlcs.result(), allPves.result(), v)((s1, oh1, h1, snap1, v1) => {
       val s2 = s1.copy(h = h1,
                        partiallyConsumedHeap = s.partiallyConsumedHeap)
       Q(s2, snap1, v1)
@@ -104,36 +115,38 @@ object consumer extends ConsumptionRules with Immutable {
   }
 
   private def consumeTlcs(s: State,
+                          impr: Boolean,
+                          oh: Heap,
                           h: Heap,
                           tlcs: Seq[ast.Exp],
                           pves: Seq[PartialVerificationError],
                           v: Verifier)
-                         (Q: (State, Heap, Term, Verifier) => VerificationResult)
+                         (Q: (State, Heap, Heap, Term, Verifier) => VerificationResult)
                          : VerificationResult = {
 
     if (tlcs.isEmpty)
-      Q(s, h, Unit, v)
+      Q(s, oh, h, Unit, v)
     else {
       val a = tlcs.head
       val pve = pves.head
 
       if (tlcs.tail.isEmpty)
-        wrappedConsumeTlc(s, h, a, pve, v)(Q)
+        wrappedConsumeTlc(s, impr, oh, h, a, pve, v)(Q)
       else
-        wrappedConsumeTlc(s, h, a, pve, v)((s1, h1, snap1, v1) =>
-          consumeTlcs(s1, h1, tlcs.tail, pves.tail, v1)((s2, h2, snap2, v2) =>
-            Q(s2, h2, Combine(snap1, snap2), v2)))
+        wrappedConsumeTlc(s, impr, oh, h, a, pve, v)((s1, oh1, h1, snap1, v1) =>
+          consumeTlcs(s1, impr, oh1, h1, tlcs.tail, pves.tail, v1)((s2, oh2, h2, snap2, v2) =>
+            Q(s2, oh2, h2, Combine(snap1, snap2), v2)))
     }
   }
 
-  private def consumeR(s: State, h: Heap, a: ast.Exp, pve: PartialVerificationError, v: Verifier)
-                      (Q: (State, Heap, Term, Verifier) => VerificationResult)
+  private def consumeR(s: State, impr: Boolean, oh: Heap, h: Heap, a: ast.Exp, pve: PartialVerificationError, v: Verifier)
+                      (Q: (State, Heap, Heap, Term, Verifier) => VerificationResult)
                       : VerificationResult = {
 
     val tlcs = a.topLevelConjuncts
     val pves = Seq.fill(tlcs.length)(pve)
 
-    consumeTlcs(s, h, tlcs, pves, v)(Q)
+    consumeTlcs(s, impr, oh, h, tlcs, pves, v)(Q)
   }
 
   /** Wrapper/decorator for consume that injects the following operations:
@@ -141,19 +154,21 @@ object consumer extends ConsumptionRules with Immutable {
     *   - Failure-driven state consolidation
     */
   protected def wrappedConsumeTlc(s: State,
+                                  impr: Boolean,
+                                  oh: Heap,
                                   h: Heap,
                                   a: ast.Exp,
                                   pve: PartialVerificationError,
                                   v: Verifier)
-                                 (Q: (State, Heap, Term, Verifier) => VerificationResult)
+                                 (Q: (State, Heap, Heap, Term, Verifier) => VerificationResult)
                                  : VerificationResult = {
-
+// Do we need to do this stuff on oh? - Jacob
     /* tryOrFail effects the "main" heap s.h, so we temporarily set the consume-heap h to be the
      * main heap. Note that the main heap is used for evaluating expressions during an ongoing
      * consume.
      */
     val sInit = s.copy(h = h)
-    executionFlowController.tryOrFail2[Heap, Term](sInit, v)((s0, v1, QS) => {
+    executionFlowController.tryOrFail3[Heap, Heap, Term](sInit, v)((s0, v1, QS) => {
       val h0 = s0.h /* h0 is h, but potentially consolidated */
       val s1 = s0.copy(h = s.h) /* s1 is s, but the retrying flag might be set */
 
@@ -162,14 +177,14 @@ object consumer extends ConsumptionRules with Immutable {
        */
       val SEP_identifier = SymbExLogger.currentLog().insert(new ConsumeRecord(a, s1, v.decider.pcs))
 
-      consumeTlc(s1, h0, a, pve, v1)((s2, h2, snap2, v2) => {
+      consumeTlc(s1, impr, oh, h0, a, pve, v1)((s2, oh2, h2, snap2, v2) => {
         SymbExLogger.currentLog().collapse(a, SEP_identifier)
-        QS(s2, h2, snap2, v2)})
+        QS(s2, oh2, h2, snap2, v2)})
     })(Q)
   }
 
-  private def consumeTlc(s: State, h: Heap, a: ast.Exp, pve: PartialVerificationError, v: Verifier)
-                        (Q: (State, Heap, Term, Verifier) => VerificationResult)
+  private def consumeTlc(s: State, impr: Boolean, oh: Heap, h: Heap, a: ast.Exp, pve: PartialVerificationError, v: Verifier)
+                        (Q: (State, Heap, Heap, Term, Verifier) => VerificationResult)
                         : VerificationResult = {
 
     /* ATTENTION: Expressions such as `perm(...)` must be evaluated in-place,
@@ -215,13 +230,13 @@ object consumer extends ConsumptionRules with Immutable {
           gbLog.finish_cond()
           val branch_res =
             branch(s1, t0, v1)(
-              (s2, v2) => consumeR(s2, h, a1, pve, v2)((s3, h3, snap3, v3) => {
-                val res1 = Q(s3, h3, snap3, v3)
+              (s2, v2) => consumeR(s2, impr, oh, h, a1, pve, v2)((s3, oh3, h3, snap3, v3) => {
+                val res1 = Q(s3, oh3, h3, snap3, v3)
                 gbLog.finish_thnSubs()
                 SymbExLogger.currentLog().prepareOtherBranch(gbLog)
                 res1}),
-              (s2, v2) => consumeR(s2, h, a2, pve, v2)((s3, h3, snap3, v3) => {
-                val res2 = Q(s3, h3, snap3, v3)
+              (s2, v2) => consumeR(s2, impr, oh, h, a2, pve, v2)((s3, oh3, h3, snap3, v3) => {
+                val res2 = Q(s3, oh3, h3, snap3, v3)
                 gbLog.finish_elsSubs()
                 res2}))
           SymbExLogger.currentLog().collapse(null, sepIdentifier)
@@ -402,7 +417,7 @@ object consumer extends ConsumptionRules with Immutable {
 */
       case ast.AccessPredicate(locacc: ast.LocationAccess, perm) =>
         eval(s, perm, pve, v)((s1, tPerm, v1) =>
-          evalLocationAccess(s1, locacc, pve, v1)((s2, _, tArgs, v2) =>
+          evalLocationAccesspc(s1.copy(isImprecise = impr), locacc, pve, v1)((s2, _, tArgs, v2) =>
             v2.decider.assert(perms.IsNonNegative(tPerm)){
               case true =>
                 val resource = locacc.res(Verifier.program)
@@ -412,7 +427,7 @@ object consumer extends ConsumptionRules with Immutable {
                 chunkSupporter.consume(s2, h, resource, tArgs, loss, ve, v2, description)((s3, h1, snap1, v3) => {
                   val s4 = s3.copy(partiallyConsumedHeap = Some(h1),
                                    constrainableARPs = s.constrainableARPs)
-                  Q(s4, h1, snap1, v3)})
+                  Q(s4, oh, h1, snap1, v3)})
               case false =>
                 createFailure(pve dueTo NegativePermission(perm), v2, s2)}))
 
@@ -457,7 +472,7 @@ object consumer extends ConsumptionRules with Immutable {
 */
       case _ =>
         evalAndAssert(s, a, pve, v)((s1, t, v1) => {
-          Q(s1, h, t, v1)
+          Q(s1, oh, h, t, v1)
         })
     }
 
