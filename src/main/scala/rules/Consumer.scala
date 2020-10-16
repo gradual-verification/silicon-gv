@@ -105,9 +105,34 @@ object consumer extends ConsumptionRules with Immutable {
       allTlcs ++= tlcs
       allPves ++= pves
     })
-
-// bad hardcoding that will need to be fixed - Jacob
-    consumeTlcs(s, false, s.optimisticHeap, s.h, allTlcs.result(), allPves.result(), v)((s1, oh1, h1, snap1, v1) => {
+    /*
+    var imprecise = false
+    //Perform check for imprecision
+    as.foreach(a => {
+      a match {
+        // TODO: figure out how imprecise deals with snapshots - J
+        case impr @ ast.ImpreciseExp(e) =>
+          imprecise = true
+          /*a = a.exp NEEDS FIX: a is val & cannot be reassigned */
+        case _ =>
+      }
+    })
+    if(imprecise == true) {
+      consumeTlcs(s, s.isImprecise, s.optimisticHeap, s.h, allTlcs.result(), allPves.result(), v)((s1, h1, snap1, v1) => {
+        val s2 = s1.copy(h = h1,
+                        partiallyConsumedHeap = s.partiallyConsumedHeap)
+        Q(s2, snap1, v1)
+      })
+    } else {
+      consumeTlcs(s, true, s.optimisticHeap, s.h, allTlcs.result(), allPves.result(), v)((s1, h1, snap1, v1) => {
+        val s2 = s1.copy(h = h1,
+                        partiallyConsumedHeap = s.partiallyConsumedHeap,
+                        s.isImprecise = true) //pair
+        Q(s2, snap1, v1)
+      })
+    }
+    */
+    consumeTlcs(s, s.h, allTlcs.result(), allPves.result(), v)((s1, h1, snap1, v1) => {
       val s2 = s1.copy(h = h1,
                        partiallyConsumedHeap = s.partiallyConsumedHeap)
       Q(s2, snap1, v1)
@@ -201,7 +226,9 @@ object consumer extends ConsumptionRules with Immutable {
       v.logger.debug("hR = " + s.reserveHeaps.map(v.stateFormatter.format).mkString("", ",\n     ", ""))
 
     val consumed = a match {
-/*      case imp @ ast.Implies(e0, a0) if !a.isPure =>
+
+/*
+      case imp @ ast.Implies(e0, a0) if !a.isPure =>
         val impLog = new GlobalBranchRecord(imp, s, v.decider.pcs, "consume")
         val sepIdentifier = SymbExLogger.currentLog().insert(impLog)
         SymbExLogger.currentLog().initializeBranching()
@@ -245,7 +272,9 @@ object consumer extends ConsumptionRules with Immutable {
       /* TODO: Initial handling of QPs is identical/very similar in consumer
        *       and producer. Try to unify the code.
        */
-/*      case QuantifiedPermissionAssertion(forall, cond, acc: ast.FieldAccessPredicate) =>
+
+/*
+      case QuantifiedPermissionAssertion(forall, cond, acc: ast.FieldAccessPredicate) =>
         val field = acc.loc.field
         val qid = BasicChunkIdentifier(acc.loc.field.name)
         val optTrigger =
@@ -275,8 +304,8 @@ object consumer extends ConsumptionRules with Immutable {
               insufficientPermissionReason =InsufficientPermission(acc.loc),
               v1)(Q)
         }
-*/
-/*      case QuantifiedPermissionAssertion(forall, cond, acc: ast.PredicateAccessPredicate) =>
+
+      case QuantifiedPermissionAssertion(forall, cond, acc: ast.PredicateAccessPredicate) =>
         val predicate = Verifier.program.findPredicate(acc.loc.predicateName)
          * TODO: Quantified codomain variables are used in axioms and chunks (analogous to `?r`)
          *       and need to be instantiated in several places. Hence, they need to be known,
@@ -314,8 +343,8 @@ object consumer extends ConsumptionRules with Immutable {
               insufficientPermissionReason =InsufficientPermission(acc.loc),
               v1)(Q)
         }
-*/
-/*      case QuantifiedPermissionAssertion(forall, cond, wand: ast.MagicWand) =>
+
+      case QuantifiedPermissionAssertion(forall, cond, wand: ast.MagicWand) =>
         val bodyVars = wand.subexpressionsToEvaluate(Verifier.program)
         val formalVars = bodyVars.indices.toList.map(i => Var(Identifier(s"x$i"), v.symbolConverter.toSort(bodyVars(i).typ)))
         val qid = MagicWandIdentifier(wand, Verifier.program).toString
@@ -344,12 +373,11 @@ object consumer extends ConsumptionRules with Immutable {
               tPerm = tPerm,
               pve = pve,
               negativePermissionReason = NegativePermission(ePerm),
-              notInjectiveReason = sys.error("Quantified wand not injective"), *ReceiverNotInjective(...)*
-              insufficientPermissionReason = MagicWandChunkNotFound(wand), *InsufficientPermission(...)*
+              notInjectiveReason = sys.error("Quantified wand not injective"), /*ReceiverNotInjective(...)*/
+              insufficientPermissionReason = MagicWandChunkNotFound(wand), /*InsufficientPermission(...)*/
               v1)(Q)
         }
 */
-/*
       case ast.AccessPredicate(loc @ ast.FieldAccess(eRcvr, field), ePerm)
               if s.qpFields.contains(field) =>
 
@@ -408,13 +436,12 @@ object consumer extends ConsumptionRules with Immutable {
               val s4 = s3.copy(constrainableARPs = s1.constrainableARPs,
                                partiallyConsumedHeap = Some(h3))
               Q(s4, h3, snap, v3)})}))
-*/
-/*
+
       case let: ast.Let if !let.isPure =>
         letSupporter.handle[ast.Exp](s, let, pve, v)((s1, g1, body, v1) => {
           val s2 = s1.copy(g = s1.g + g1)
           consumeR(s2, h, body, pve, v1)(Q)})
-*/
+/*
       case ast.AccessPredicate(locacc: ast.LocationAccess, perm) =>
         eval(s, perm, pve, v)((s1, tPerm, v1) =>
           evalLocationAccesspc(s1.copy(isImprecise = impr), locacc, pve, v1)((s2, _, tArgs, v2) =>
@@ -426,16 +453,59 @@ object consumer extends ConsumptionRules with Immutable {
                 val description = s"consume ${a.pos}: $a"
                 chunkSupporter.consume(s2, h, resource, tArgs, loss, ve, v2, description)((s3, h1, snap1, v3) => {
                   val s4 = s3.copy(partiallyConsumedHeap = Some(h1),
-                                   constrainableARPs = s.constrainableARPs)
-                  Q(s4, oh, h1, snap1, v3)})
+                                   constrainableARPs = s.constrainableARPs,
+                                   isImprecise = s3.isImprecise)
+                  *
+                  if (s4.isImprecise) {
+                    //heaprem a.k.a. .consume
+                    //Q()
+                  } else if () {
+
+                  } else {
+                    //create failure
+                  }
+
+                  *
+                  Q(s4, h1, snap1, v3)})
+              case false =>
+                createFailure(pve dueTo NegativePermission(perm), v2, s2)}))
+*/
+      case ast.AccessPredicate(locacc: ast.LocationAccess, perm/*,need an overloaded copy with impreciseHeap as a parameter*/) => //add h_?; perm = 1
+        eval/*pc*/(s, perm, pve, v)((s1, tPerm, v1) =>
+          evalLocationAccess(s1, locacc, pve, v1)((s2, _, tArgs, v2) =>
+            v2.decider.assert(perms.IsOne(tPerm)){
+              case true =>
+                val resource = locacc.res(Verifier.program)
+                val loss = PermTimes(tPerm, s2.permissionScalingFactor)
+                val ve = pve dueTo InsufficientPermission(locacc)
+                val description = s"consume ${a.pos}: $a"
+                chunkSupporter.consume(s2, h, resource, tArgs, loss, ve, v2, description)((s3, h1, snap1, v3) => {
+                  val s4 = s3.copy(partiallyConsumedHeap = Some(h1),
+                                   constrainableARPs = s.constrainableARPs,
+                                   isImprecise = s3.isImprecise)
+                  /*
+                  if (s4.isImprecise) {
+                    //heaprem a.k.a. .consume
+                    //Q()
+                  } else if () {
+
+                  } else {
+                    //create failure
+                  }
+
+                  */
+                  Q(s4, h1, snap1, v3)})
               case false =>
                 createFailure(pve dueTo NegativePermission(perm), v2, s2)}))
 
-/*    case _: ast.InhaleExhaleExp =>
+/*
+      case _: ast.InhaleExhaleExp =>
         Failure(viper.silicon.utils.consistency.createUnexpectedInhaleExhaleExpressionError(a))
 */
+      /* Handle wands */
 
-/*      case wand: ast.MagicWand if s.qpMagicWands.contains(MagicWandIdentifier(wand, Verifier.program)) =>
+/*
+      case wand: ast.MagicWand if s.qpMagicWands.contains(MagicWandIdentifier(wand, Verifier.program)) =>
         val bodyVars = wand.subexpressionsToEvaluate(Verifier.program)
         val formalVars = bodyVars.indices.toList.map(i => Var(Identifier(s"x$i"), v.symbolConverter.toSort(bodyVars(i).typ)))
 
