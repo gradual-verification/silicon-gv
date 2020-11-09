@@ -82,6 +82,8 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
               description: String)
              (Q: (State, Heap, Term, Verifier) => VerificationResult)
              : VerificationResult = {
+
+// need to deal with heuristicsSupporter
     heuristicsSupporter.tryOperation[Heap, Term](description)(s, h, v)((s1, h1, v1, QS) => {
       consume(s1, h1, resource, args, perms, ve, v1)((s2, h2, optSnap, v2) =>
         optSnap match {
@@ -110,28 +112,31 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
                      : VerificationResult = {
 
     val id = ChunkIdentifier(resource, Verifier.program)
-    if (s.exhaleExt) {
+/*    if (s.exhaleExt) {
       val failure = Failure(ve).withLoad(args)
       magicWandSupporter.transfer(s, perms, failure, v)(consumeGreedy(_, _, id, args, _, _))((s1, optCh, v1) =>
         Q(s1, h, optCh.flatMap(ch => Some(ch.snap)), v1))
     } else {
-      executionFlowController.tryOrFail2[Heap, Option[Term]](s.copy(h = h), v)((s1, v1, QS) =>
-        if (s.isMethodVerification && Verifier.config.enableMoreCompleteExhale()) {
+*/
+//      executionFlowController.tryOrFail2[Heap, Option[Term]](s.copy(h = h), v)((s1, v1, QS) =>
+/*        if (s.isMethodVerification && Verifier.config.enableMoreCompleteExhale()) {
           moreCompleteExhaleSupporter.consumeComplete(s1, s1.h, resource, args, perms, ve, v1)((s2, h2, snap2, v2) => {
             QS(s2.copy(h = s.h), h2, snap2, v2)
           })
         } else {
-          consumeGreedy(s1, s1.h, id, args, perms, v1) match {
-            case (Complete(), s2, h2, optCh2) =>
-              QS(s2.copy(h = s.h), h2, optCh2.map(_.snap), v1)
-            case _ if v1.decider.checkSmoke() =>
-              Success() // TODO: Mark branch as dead?
-            case _ =>
-              createFailure(ve, v1, s1, true).withLoad(args)
-          }
-        }
-      )(Q)
+*/
+    val s1 = stateConsolidator.consolidate(s.copy(h = h), v)
+    consumeGreedy(s1, s1.h, id, args, perms, v) match {
+      case (Complete(), s2, h2, optCh2) =>
+        Q(s2.copy(h = s.h), h2, optCh2.map(_.snap), v)
+      case _ if v.decider.checkSmoke() =>
+        Success() // TODO: Mark branch as dead?
+      case _ =>
+        createFailure(ve, v, s1, true).withLoad(args)
     }
+//        }
+//      )(Q)
+//    }
   }
 
   private def consumeGreedy(s: State,
@@ -197,13 +202,14 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
              v: Verifier)
             (Q: (State, Heap, Term, Verifier) => VerificationResult)
             : VerificationResult = {
-    executionFlowController.tryOrFail2[Heap, Term](s.copy(h = h), v)((s1, v1, QS) => {
+//    executionFlowController.tryOrFail2[Heap, Term](s.copy(h = h), v)((s1, v1, QS) => {
+      val s1 = stateConsolidator.consolidate(s.copy(h = h), v)
       val lookupFunction =
         if (s.isMethodVerification && Verifier.config.enableMoreCompleteExhale()) moreCompleteExhaleSupporter.lookupComplete _
         else lookupGreedy _
-      lookupFunction(s1, s1.h, resource, args, ve, v1)((s2, tSnap, v2) =>
-        QS(s2.copy(h = s.h), s2.h, tSnap, v2))
-    })(Q)
+      lookupFunction(s1, s1.h, resource, args, ve, v)((s2, tSnap, v1) =>
+        Q(s2.copy(h = s.h), s2.h, tSnap, v1))
+//    })(Q)
   }
 
   private def lookupGreedy(s: State,

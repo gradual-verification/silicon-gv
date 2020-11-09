@@ -337,9 +337,12 @@ class Config(args: Seq[String]) extends SilFrontendConfig(args, "Silicon") {
   lazy val z3Exe: String = {
     val isWindows = System.getProperty("os.name").toLowerCase.startsWith("windows")
 
+
     rawZ3Exe.toOption.getOrElse(envOrNone(Silicon.z3ExeEnvironmentVariable)
                      .getOrElse("z3" + (if (isWindows) ".exe" else "")))
   }
+
+
 
   val defaultRawZ3LogFile = "logfile"
   val z3LogFileExtension = "smt2"
