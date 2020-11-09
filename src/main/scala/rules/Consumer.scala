@@ -195,7 +195,8 @@ object consumer extends ConsumptionRules with Immutable {
      * consume.
      */
     val sInit = s.copy(h = h)
-    executionFlowController.tryOrFail3[Heap, Heap, Term](sInit, v)((s0, v1, QS) => {
+//    executionFlowController.tryOrFail3[Heap, Heap, Term](sInit, v)((s0, v1, QS) => {
+      val s0 = stateConsolidator.consolidate(sInit, v)
       val h0 = s0.h /* h0 is h, but potentially consolidated */
       val s1 = s0.copy(h = s.h) /* s1 is s, but the retrying flag might be set */
 
@@ -204,10 +205,10 @@ object consumer extends ConsumptionRules with Immutable {
        */
       val SEP_identifier = SymbExLogger.currentLog().insert(new ConsumeRecord(a, s1, v.decider.pcs))
 
-      consumeTlc(s1, impr, oh, h0, a, pve, v1)((s2, oh2, h2, snap2, v2) => {
+      consumeTlc(s1, impr, oh, h0, a, pve, v)((s2, oh2, h2, snap2, v1) => {
         SymbExLogger.currentLog().collapse(a, SEP_identifier)
-        QS(s2, oh2, h2, snap2, v2)})
-    })(Q)
+        Q(s2, oh2, h2, snap2, v1)})
+  //  })(Q)
   }
 
   private def consumeTlc(s: State, impr: Boolean, oh: Heap, h: Heap, a: ast.Exp, pve: PartialVerificationError, v: Verifier)
@@ -478,9 +479,9 @@ object consumer extends ConsumptionRules with Immutable {
                 createFailure(pve dueTo NegativePermission(perm), v2, s2)}))
 */
       case ast.AccessPredicate(locacc: ast.LocationAccess, perm/*,need an overloaded copy with impreciseHeap as a parameter*/) => //add h_?; perm = 1
-        eval/*pc*/(s, perm, pve, v)((s1, tPerm, v1) =>
+        evalpc(s.copy(isImprecise = impr), perm, pve, v)((s1, tPerm, v1) =>
           evalLocationAccess(s1.copy(isImprecise = impr), locacc, pve, v1)((s2, _, tArgs, v2) =>
-            v2.decider.assert(perms.IsOne(tPerm)){
+            v2.decider.assertgv(s.isImprecise, perms.IsOne(tPerm)){
               case true =>
                 val resource = locacc.res(Verifier.program)
                 val loss = PermTimes(tPerm, s2.permissionScalingFactor)
@@ -492,7 +493,7 @@ object consumer extends ConsumptionRules with Immutable {
                                    constrainableARPs = s.constrainableARPs,
                                    isImprecise = s3.isImprecise)
   */
-  /*                if (s4.isImprecise) {
+/*                  if (s4.isImprecise) {
                     //do we want to use s3 or s4 here?
                     //heaprem a.k.a. .consume
                     //Q()

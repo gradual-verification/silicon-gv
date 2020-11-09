@@ -20,7 +20,8 @@ class SiliconTests extends SilSuite {
     Seq("consistency", "issue387")
 
   private val silTestDirectories =
-    Seq( //"gradual/isolation"
+    Seq(
+  //"gradual/isolation"
   //"gradual" , "all"
     "all/basic"
         )

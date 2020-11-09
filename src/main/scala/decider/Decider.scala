@@ -42,14 +42,14 @@ trait Decider {
 
   //Check to make sure Prover.scala doesn't need to be changed
   def check(t: Term, timeout: Int): Boolean
-  def check(isImprecise: Boolean, t: Term, timeout: Int): Boolean
+  def checkgv(isImprecise: Boolean, t: Term, timeout: Int): Boolean
 
   /* TODO: Consider changing assert such that
    *         1. It passes State and Operations to the continuation
    *         2. The implementation reacts to a failing assertion by e.g. a state consolidation
    */
   def assert(t: Term, timeout: Option[Int] = None)(Q:  Boolean => VerificationResult): VerificationResult
-  //def assertgv(isImprecise: Boolean, t: Term, timeout: Option[Int] = None)(): VerificationResult
+  def assertgv(isImprecise: Boolean, t: Term, timeout: Option[Int] = None)(Q:  Boolean => VerificationResult): VerificationResult
 
   def fresh(id: String, sort: Sort): Var
   def fresh(id: String, argSorts: Seq[Sort], resultSort: Sort): Function
@@ -201,7 +201,7 @@ trait DefaultDeciderProvider extends VerifierComponent { this: Verifier =>
 
     def check(t: Term, timeout: Int) = deciderAssert(t, Some(timeout))
 
-    def check(isImprecise: Boolean, t: Term, timeout: Int) = {
+    def checkgv(isImprecise: Boolean, t: Term, timeout: Int) = {
       if (check(t, timeout)) {
         true
       } else if(isImprecise && (deciderAssert(t, Some(timeout)))) { //Make sure this part is correct
@@ -233,7 +233,7 @@ trait DefaultDeciderProvider extends VerifierComponent { this: Verifier =>
               (Q: Boolean => VerificationResult)
               : VerificationResult = {
 
-      val success = check(isImprecise, t, timeout.get)
+      val success = checkgv(isImprecise, t, timeout.get)
 
       // If the SMT query was not successful, store it (possibly "overwriting"
       // any previously saved query), otherwise discard any query we had saved
