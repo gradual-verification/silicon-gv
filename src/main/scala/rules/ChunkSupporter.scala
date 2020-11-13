@@ -83,22 +83,21 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
              (Q: (State, Heap, Term, Verifier) => VerificationResult)
              : VerificationResult = {
 
-// need to deal with heuristicsSupporter
-    heuristicsSupporter.tryOperation[Heap, Term](description)(s, h, v)((s1, h1, v1, QS) => {
-      consume(s1, h1, resource, args, perms, ve, v1)((s2, h2, optSnap, v2) =>
+  //  heuristicsSupporter.tryOperation[Heap, Term](description)(s, h, v)((s1, h1, v1, QS) => {
+      consume(s, h, resource, args, perms, ve, v)((s1, h1, optSnap, v1) =>
         optSnap match {
           case Some(snap) =>
-            QS(s2, h2, snap.convert(sorts.Snap), v2)
+            Q(s1, h1, snap.convert(sorts.Snap), v1)
           case None =>
             /* Not having consumed anything could mean that we are in an infeasible
              * branch, or that the permission amount to consume was zero.
              * Returning a fresh snapshot in these cases should not lose any information.
              */
-            val fresh = v2.decider.fresh(sorts.Snap)
-            val s3 = s2.copy(functionRecorder = s2.functionRecorder.recordFreshSnapshot(fresh.applicable))
-            QS(s3, h2, fresh, v2)
+            val fresh = v1.decider.fresh(sorts.Snap)
+            val s2 = s1.copy(functionRecorder = s1.functionRecorder.recordFreshSnapshot(fresh.applicable))
+            Q(s2, h1, fresh, v1)
         })
-    })(Q)
+//    })(Q)
   }
 
   private def consume(s: State,
@@ -153,19 +152,36 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
       v.decider.assume(interpreter.buildPathConditionsForChunk(chunk, resource.instanceProperties))
     }
 
+
+    var newH = h.values.foldLeft(Heap()) { (currHeap, chunk) =>
+  /*    if ((id != chunk.id) || Not(v.decider.check(chunk.perm === NoPerm() ,Verifier.config.checkTimeout()))){
+        println("got here")
+      }
+    */
+    println("chunk: " + chunk)
+
+    currHeap + chunk
+    }
+
+
     findChunk[NonQuantifiedChunk](h.values, id, args, v) match {
       case Some(ch) =>
-        if (consumeExact) {
+          println("ch: " + ch.pid)
+//        if (consumeExact) {
           val toTake = PermMin(ch.perm, perms)
           val newChunk = ch.withPerm(PermMinus(ch.perm, toTake))
+          println("newchunk: " + newChunk.id)
           val takenChunk = Some(ch.withPerm(toTake))
           var newHeap = h - ch
-          if (!v.decider.check(newChunk.perm === NoPerm(), Verifier.config.checkTimeout())) {
+          // I think this next line should only be for fractional perms
+/*          if (!v.decider.check(newChunk.perm === NoPerm(), Verifier.config.checkTimeout())) {
             newHeap = newHeap + newChunk
             assumeProperties(newChunk, newHeap)
           }
+*/
           (ConsumptionResult(PermMinus(perms, toTake), v, 0), s, newHeap, takenChunk)
-        } else {
+/*        } else {
+          // we should never be in here
           if (v.decider.check(ch.perm !== NoPerm(), Verifier.config.checkTimeout())) {
             v.decider.assume(PermLess(perms, ch.perm))
             val newChunk = ch.withPerm(PermMinus(ch.perm, perms))
@@ -177,6 +193,7 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
             (Incomplete(perms), s, h, None)
           }
         }
+*/
       case None =>
         if (consumeExact && s.retrying && v.decider.check(perms === NoPerm(), Verifier.config.checkTimeout())) {
           (Complete(), s, h, None)
