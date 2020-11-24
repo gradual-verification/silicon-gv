@@ -152,23 +152,30 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
       v.decider.assume(interpreter.buildPathConditionsForChunk(chunk, resource.instanceProperties))
     }
 
+//    println("h")
+//    h.values.foreach(chunk => print(chunk + "\n"))
 
-    var newH = h.values.foldLeft(Heap()) { (currHeap, chunk) =>
+    var newH: Heap = h.values.foldLeft(Heap()) { (currHeap, chunk) =>
       chunk match {
         case c: NonQuantifiedChunk =>
-          if ((id != c.id) || (!v.decider.check(c.perm === NoPerm(), Verifier.config.checkTimeout()))){
-                println("got here")
-        }
+        //  println("id: " + id + " c.id: " + c.id)
+        //  println("args: " + args + " c.args: " + c.args)
 
+          // I'm pretty sure the checkgv function is right, but I'd like to check it with Jenna - J
+
+          if ((id != c.id) || (!v.decider.checkgv(s.isImprecise, And(c.args zip args map (x => x._1 === x._2)), Verifier.config.checkTimeout()))){
+                currHeap + c
+          }
+          else {
+            currHeap
+          }
       case _ =>
-        None
+        currHeap
+      }
     }
 
-//    println("chunk: " + chunk)
-
-    currHeap + chunk
-    }
-
+//    println("new chunk")
+//    newH.values.foreach(chunk => print(chunk + "\n"))
 
     findChunk[NonQuantifiedChunk](h.values, id, args, v) match {
       case Some(ch) =>
