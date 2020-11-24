@@ -154,11 +154,17 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
 
 
     var newH = h.values.foldLeft(Heap()) { (currHeap, chunk) =>
-  /*    if ((id != chunk.id) || Not(v.decider.check(chunk.perm === NoPerm() ,Verifier.config.checkTimeout()))){
-        println("got here")
-      }
-    */
-    println("chunk: " + chunk)
+      chunk match {
+        case c: NonQuantifiedChunk =>
+          if ((id != c.id) || (!v.decider.check(c.perm === NoPerm(), Verifier.config.checkTimeout()))){
+                println("got here")
+        }
+
+      case _ =>
+        None
+    }
+
+//    println("chunk: " + chunk)
 
     currHeap + chunk
     }
@@ -166,11 +172,11 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
 
     findChunk[NonQuantifiedChunk](h.values, id, args, v) match {
       case Some(ch) =>
-          println("ch: " + ch.pid)
+//          println("ch: " + ch.id)
 //        if (consumeExact) {
           val toTake = PermMin(ch.perm, perms)
           val newChunk = ch.withPerm(PermMinus(ch.perm, toTake))
-          println("newchunk: " + newChunk.id)
+//          println("newchunk: " + newChunk.id)
           val takenChunk = Some(ch.withPerm(toTake))
           var newHeap = h - ch
           // I think this next line should only be for fractional perms
@@ -282,6 +288,7 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
                 args: Iterable[Term],
                 v: Verifier)
                : Option[CH] = {
+
     val relevantChunks = findChunksWithID[CH](chunks, id)
     findChunkLiterally(relevantChunks, args) orElse findChunkWithProver(relevantChunks, args, v)
   }
@@ -296,6 +303,7 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
       case c: CH if id == c.id =>
           Some(c)
       case _ =>
+
           None
     }
   }
