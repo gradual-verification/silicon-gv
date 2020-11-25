@@ -84,15 +84,20 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
              : VerificationResult = {
 
   //  heuristicsSupporter.tryOperation[Heap, Term](description)(s, h, v)((s1, h1, v1, QS) => {
+
+
       consume(s, h, resource, args, perms, ve, v)((s1, h1, optSnap, v1) =>
         optSnap match {
           case Some(snap) =>
             Q(s1, h1, snap.convert(sorts.Snap), v1, true)
+
           case None =>
             /* Not having consumed anything could mean that we are in an infeasible
              * branch, or that the permission amount to consume was zero.
              * Returning a fresh snapshot in these cases should not lose any information.
              */
+
+            print("got here \n")
             val fresh = v1.decider.fresh(sorts.Snap)
             val s2 = s1.copy(functionRecorder = s1.functionRecorder.recordFreshSnapshot(fresh.applicable))
             Q(s2, h1, fresh, v1, false)
@@ -133,10 +138,13 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
       case _ if v.decider.checkSmoke() =>
         Success() // TODO: Mark branch as dead?
 
-      case (Incomplete(p), s2, h2, optCh2) =>
-        Q(s2.copy(h = s.h), h2, optCh2.map(_.snap), v)
+      case (Incomplete(p), s2, h2, None) =>
+        Q(s2.copy(h = s.h), h2, None, v)
+
+/*
       case _ =>
         createFailure(ve, v, s1, true).withLoad(args)
+*/
     }
 //        }
 //      )(Q)
@@ -149,8 +157,11 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
                             args: Seq[Term],
                             perms: Term,
                             v: Verifier) = {
+    // no longer used
     val consumeExact = terms.utils.consumeExactRead(perms, s.constrainableARPs)
 
+
+    // no longer used
     def assumeProperties(chunk: NonQuantifiedChunk, heap: Heap) = {
       val interpreter = new NonQuantifiedPropertyInterpreter(heap.values, v)
       val resource = Resources.resourceDescriptions(chunk.resourceID)
@@ -160,14 +171,15 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
 //    println("h")
 //    h.values.foreach(chunk => print(chunk + "\n"))
 
+/* the foldl portion of heap-rem
+ * builds a new heap of chunks that definitely do not
+ * contain the info to remove
+ */
     var newH: Heap = h.values.foldLeft(Heap()) { (currHeap, chunk) =>
       chunk match {
         case c: NonQuantifiedChunk =>
-        //  println("id: " + id + " c.id: " + c.id)
-        //  println("args: " + args + " c.args: " + c.args)
 
-          // I'm pretty sure the checkgv function is right, but I'd like to check it with Jenna - J
-
+            // The term in checkgv uses infix notation I got from a different check to see if the args are equal
           if ((id != c.id) || (!v.decider.checkgv(s.isImprecise, And(c.args zip args map (x => x._1 === x._2)), Verifier.config.checkTimeout()))){
                 currHeap + c
           }
@@ -182,11 +194,11 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
 //    println("new chunk")
 //    newH.values.foreach(chunk => print(chunk + "\n"))
 
+    // tries to find the chunk in h
     findChunk[NonQuantifiedChunk](h.values, id, args, v) match {
 
-      // There must be a way to simplify this
-      case Some(ch) if v.decider.check(And(ch.args zip args map (x => x._1 === x._2)), Verifier.config.checkTimeout()) && v.decider.check(ch.perm === perms, Verifier.config.checkTimeout()) && v.decider.check(perms === FullPerm(), Verifier.config.checkTimeout()) =>
-
+      // I'm not sure if I need these checks but I included them to be safe - J
+      case Some(ch) if v.decider.check(ch.perm === perms, Verifier.config.checkTimeout()) && v.decider.check(perms === FullPerm(), Verifier.config.checkTimeout()) =>
           (Complete(), s, newH, Some(ch))
 /*
 //          println("ch: " + ch.id)
