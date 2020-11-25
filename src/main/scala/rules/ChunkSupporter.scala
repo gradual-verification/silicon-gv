@@ -27,7 +27,7 @@ trait ChunkSupportRules extends SymbolicExecutionRules {
               ve: VerificationError,
               v: Verifier,
               description: String)
-             (Q: (State, Heap, Term, Verifier) => VerificationResult)
+             (Q: (State, Heap, Term, Verifier, Boolean) => VerificationResult)
              : VerificationResult
 
   def produce(s: State, h: Heap, ch: NonQuantifiedChunk, v: Verifier)
@@ -80,14 +80,14 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
               ve: VerificationError,
               v: Verifier,
               description: String)
-             (Q: (State, Heap, Term, Verifier) => VerificationResult)
+             (Q: (State, Heap, Term, Verifier, Boolean) => VerificationResult)
              : VerificationResult = {
 
   //  heuristicsSupporter.tryOperation[Heap, Term](description)(s, h, v)((s1, h1, v1, QS) => {
       consume(s, h, resource, args, perms, ve, v)((s1, h1, optSnap, v1) =>
         optSnap match {
           case Some(snap) =>
-            Q(s1, h1, snap.convert(sorts.Snap), v1)
+            Q(s1, h1, snap.convert(sorts.Snap), v1, true)
           case None =>
             /* Not having consumed anything could mean that we are in an infeasible
              * branch, or that the permission amount to consume was zero.
@@ -95,7 +95,7 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
              */
             val fresh = v1.decider.fresh(sorts.Snap)
             val s2 = s1.copy(functionRecorder = s1.functionRecorder.recordFreshSnapshot(fresh.applicable))
-            Q(s2, h1, fresh, v1)
+            Q(s2, h1, fresh, v1, false)
         })
 //    })(Q)
   }
@@ -128,8 +128,13 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
     consumeGreedy(s1, s1.h, id, args, perms, v) match {
       case (Complete(), s2, h2, optCh2) =>
         Q(s2.copy(h = s.h), h2, optCh2.map(_.snap), v)
+
+      // they indicate this branch may be dead, what should we do with it? - J
       case _ if v.decider.checkSmoke() =>
         Success() // TODO: Mark branch as dead?
+
+      case (Incomplete(p), s2, h2, optCh2) =>
+        Q(s2.copy(h = s.h), h2, optCh2.map(_.snap), v)
       case _ =>
         createFailure(ve, v, s1, true).withLoad(args)
     }
@@ -178,7 +183,12 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
 //    newH.values.foreach(chunk => print(chunk + "\n"))
 
     findChunk[NonQuantifiedChunk](h.values, id, args, v) match {
-      case Some(ch) =>
+
+      // There must be a way to simplify this
+      case Some(ch) if v.decider.check(And(ch.args zip args map (x => x._1 === x._2)), Verifier.config.checkTimeout()) && v.decider.check(ch.perm === perms, Verifier.config.checkTimeout()) && v.decider.check(perms === FullPerm(), Verifier.config.checkTimeout()) =>
+
+          (Complete(), s, newH, Some(ch))
+/*
 //          println("ch: " + ch.id)
 //        if (consumeExact) {
           val toTake = PermMin(ch.perm, perms)
@@ -187,13 +197,13 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
           val takenChunk = Some(ch.withPerm(toTake))
           var newHeap = h - ch
           // I think this next line should only be for fractional perms
-/*          if (!v.decider.check(newChunk.perm === NoPerm(), Verifier.config.checkTimeout())) {
+*          if (!v.decider.check(newChunk.perm === NoPerm(), Verifier.config.checkTimeout())) {
             newHeap = newHeap + newChunk
             assumeProperties(newChunk, newHeap)
           }
-*/
+*
           (ConsumptionResult(PermMinus(perms, toTake), v, 0), s, newHeap, takenChunk)
-/*        } else {
+*        } else {
           // we should never be in here
           if (v.decider.check(ch.perm !== NoPerm(), Verifier.config.checkTimeout())) {
             v.decider.assume(PermLess(perms, ch.perm))
@@ -206,13 +216,22 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
             (Incomplete(perms), s, h, None)
           }
         }
+*
 */
+      case _ =>
+        (Incomplete(perms), s, newH, None)
+
+
+
+/*
       case None =>
         if (consumeExact && s.retrying && v.decider.check(perms === NoPerm(), Verifier.config.checkTimeout())) {
           (Complete(), s, h, None)
         } else {
           (Incomplete(perms), s, h, None)
         }
+*/
+
     }
   }
 
