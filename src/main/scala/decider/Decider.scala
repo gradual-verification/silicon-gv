@@ -49,7 +49,7 @@ trait Decider {
    *         2. The implementation reacts to a failing assertion by e.g. a state consolidation
    */
   def assert(t: Term, timeout: Option[Int] = None)(Q:  Boolean => VerificationResult): VerificationResult
-  //def assertgv(isImprecise: Boolean, t: Term, timeout: Option[Int] = None)(): VerificationResult
+  def assertgv(isImprecise: Boolean, t: Term, timeout: Option[Int] = None)(): VerificationResult
 
   def fresh(id: String, sort: Sort): Var
   def fresh(id: String, argSorts: Seq[Sort], resultSort: Sort): Function
