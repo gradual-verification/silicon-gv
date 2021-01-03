@@ -49,7 +49,8 @@ trait Decider {
    *         2. The implementation reacts to a failing assertion by e.g. a state consolidation
    */
   def assert(t: Term, timeout: Option[Int] = None)(Q:  Boolean => VerificationResult): VerificationResult
-  def assertgv(isImprecise: Boolean, t: Term, timeout: Option[Int] = None)(): VerificationResult
+  def assertgv(isImprecise: Boolean, t: Term, timeout: Option[Int] = None)(Q:  Boolean => VerificationResult): VerificationResult
+  //Overloading assert is not working?
 
   def fresh(id: String, sort: Sort): Var
   def fresh(id: String, argSorts: Seq[Sort], resultSort: Sort): Function
@@ -204,7 +205,7 @@ trait DefaultDeciderProvider extends VerifierComponent { this: Verifier =>
     def check(isImprecise: Boolean, t: Term, timeout: Int) = {
       if (check(t, timeout)) {
         true
-      } else if(isImprecise && !(deciderAssert(!t, Some(timeout)))){ //Check that pcs --> not t is false
+      } else if(isImprecise && !(deciderAssert(Not(t), Some(timeout)))){ //Check that pcs --> not t is false
         true
       } else {
         false
@@ -228,7 +229,7 @@ trait DefaultDeciderProvider extends VerifierComponent { this: Verifier =>
 
       Q(success)
     }
-
+    
     def assertgv(isImprecise: Boolean, t: Term, timeout: Option[Int] = Verifier.config.assertTimeout.toOption)
               (Q: Boolean => VerificationResult)
               : VerificationResult = {
@@ -246,7 +247,7 @@ trait DefaultDeciderProvider extends VerifierComponent { this: Verifier =>
 
       Q(success)
     }
-
+    
     private def deciderAssert(t: Term, timeout: Option[Int]) = {
       val asserted = isKnownToBeTrue(t)
 
