@@ -1,0 +1,18 @@
+2020.12.21 13:31:07 INFO  Started: Metals version 0.9.6 in workspace 'C:\Users\jacob\Desktop\REUSE\silicon-gv' for client vscode.
+2020.12.21 13:31:08 INFO  time: initialize in 1.25s
+2020.12.21 13:31:09 WARN  Build server is not auto-connectable.
+2020.12.21 13:31:09 WARN  no build target for: C:\Users\jacob\Desktop\REUSE\silicon-gv\src\main\scala\rules\ChunkSupporter.scala
+2020.12.21 13:31:11 INFO  no build target: using presentation compiler with only scala-library
+2020.12.21 13:31:29 WARN  no build target for: C:\Users\jacob\Desktop\REUSE\silicon-gv\src\main\scala\decider\Z3ProverStdIO.scala
+2020.12.21 13:31:35 WARN  no build target for: C:\Users\jacob\Desktop\REUSE\silicon-gv\project\project\metals.sbt
+2020.12.21 13:31:40 WARN  no build target for: C:\Users\jacob\Desktop\REUSE\silicon-gv\src\main\scala\verifier\DefaultMasterVerifier.scala
+2020.12.21 13:31:42 WARN  no build target for: C:\Users\jacob\Desktop\REUSE\silicon-gv\src\main\scala\SymbExLogger.scala
+2020.12.21 13:32:38 INFO  shutting down Metals
+2020.12.21 13:42:26 INFO  Started: Metals version 0.9.8 in workspace 'C:\Users\jacob\Desktop\REUSE\silicon-gv' for client vscode.
+2020.12.21 13:42:27 INFO  time: initialize in 1.28s
+2020.12.21 13:42:27 WARN  Build server is not auto-connectable.
+2020.12.21 13:42:27 WARN  no build target for: C:\Users\jacob\Desktop\REUSE\silicon-gv\src\main\scala\supporters\PredicateVerificationUnit.scala
+2020.12.21 13:42:28 INFO  skipping build import with status 'Requested'
+2020.12.21 13:42:30 INFO  no build target: using presentation compiler with only scala-library
+2020.12.21 13:42:36 WARN  no build target for: C:\Users\jacob\Desktop\REUSE\silicon-gv\src\main\scala\rules\Producer.scala
+2020.12.21 13:43:07 INFO  shutting down Metals
