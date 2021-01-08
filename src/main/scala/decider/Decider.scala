@@ -1,4 +1,4 @@
-// This Source Code Form is subject to the terms of the Mozilla Public
+ // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 //
@@ -49,11 +49,7 @@ trait Decider {
    *         2. The implementation reacts to a failing assertion by e.g. a state consolidation
    */
   def assert(t: Term, timeout: Option[Int] = None)(Q:  Boolean => VerificationResult): VerificationResult
-<<<<<<< HEAD
   def assertgv(isImprecise: Boolean, t: Term, timeout: Option[Int] = None)(Q:  Boolean => VerificationResult): VerificationResult
-=======
-  def assertgv(isImprecise: Boolean, t: Term, timeout: Option[Int] = None)(): VerificationResult
->>>>>>> 9b49c37e0d9a72e201978832cfed21397b2640f4
 
   def fresh(id: String, sort: Sort): Var
   def fresh(id: String, argSorts: Seq[Sort], resultSort: Sort): Function
