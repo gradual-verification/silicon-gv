@@ -123,7 +123,7 @@ object evaluator extends EvaluationRules with Immutable {
           : VerificationResult = {
 
     val sepIdentifier = SymbExLogger.currentLog().insert(new EvaluateRecord(e, s, v.decider.pcs))
-    eval3(s, e, pve, v)((s1, t, v1) => {
+    eval3pc(s, e, pve, v)((s1, t, v1) => {
       SymbExLogger.currentLog().collapse(e, sepIdentifier)
       Q(s1, t, v1)})
   }
@@ -214,7 +214,7 @@ object evaluator extends EvaluationRules with Immutable {
                     reserveHeaps = Nil,
                     exhaleExt = false)
 
-    eval2(s1, e, pve, v)((s2, t, v1) => {
+    eval2pc(s1, e, pve, v)((s2, t, v1) => {
       val s3 =
         if (s2.recordPossibleTriggers)
           e match {
