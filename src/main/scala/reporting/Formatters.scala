@@ -26,8 +26,10 @@ trait StateFormatter {
 
 class DefaultStateFormatter extends StateFormatter {
   def format(s: State, pcs: RecordedPathConditions): String = {
+    val isImpStr = s.isImprecise.toString
     val gStr = format(s.g)
     val hStr = format(s.h)
+    val optHeapStr = format(s.optimisticHeap)
     val oldHeapsStr = format(s.oldHeaps)
 
     val pcsStr =
@@ -39,8 +41,10 @@ class DefaultStateFormatter extends StateFormatter {
       else
         ""
 
-    s"""Store: $gStr,
+    s"""Imprecise: $isImpStr,
+       |Store: $gStr,
        |Heap: $hStr,
+       |OptHeap: $optHeapStr,
        |OHs: $oldHeapsStr,
        |PCs: $pcsStr)""".stripMargin
   }
@@ -65,14 +69,21 @@ class DefaultStateFormatter extends StateFormatter {
 
   //Methods for SymbexLogger
   def toJson(s: State, π: Set[Term]): String = {
+    val isImpStr = s.isImprecise.toString
     val γStr = toJson(s.g)
     val hStr = toJson(s.h)
+    val optHeapStr = toJson(s.optimisticHeap)
     val gStr = s.oldHeaps.get(Verifier.PRE_STATE_LABEL) match {
       case Some(o) => toJson(o)
       case _ => "[]"
     }
     val πStr = toJson(π)
-    s"""{"store":$γStr,"heap":$hStr,"oldHeap":$gStr,"pcs":$πStr}""".stripMargin
+    s"""{"imprecise":$isImpStr,
+       |"store":$γStr,
+       |"heap":$hStr,
+       | "optHeap":$optHeapStr,
+       | "oldHeap":$gStr,
+       | "pcs":$πStr}""".stripMargin
   }
 
   private def toJson(γ: Store): String = {
