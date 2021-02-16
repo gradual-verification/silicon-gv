@@ -256,7 +256,7 @@ object consumer extends ConsumptionRules with Immutable {
         val gbLog = new GlobalBranchRecord(ite, s, v.decider.pcs, "consume")
         val sepIdentifier = SymbExLogger.currentLog().insert(gbLog)
         SymbExLogger.currentLog().initializeBranching()
-        eval(s.copy(isImprecise = impr), e0, pve, v)((s1, t0, v1) => {
+        evalpc(s.copy(isImprecise = impr), e0, pve, v)((s1, t0, v1) => {
           val s2 = s1.copy(isImprecise = s.isImprecise)
           gbLog.finish_cond()
           val branch_res =
@@ -479,8 +479,18 @@ object consumer extends ConsumptionRules with Immutable {
                 createFailure(pve dueTo NegativePermission(perm), v2, s2)}))
 */
       case ast.AccessPredicate(locacc: ast.LocationAccess, perm/*,need an overloaded copy with impreciseHeap as a parameter*/) => //add h_?; perm = 1
+
+        // determines if a is a pred or field
+        val pred = a match {
+          case ast.PredicateAccessPredicate(ast.PredicateAccess(eArgs, predicateName), perm) =>
+            true
+          case _ =>
+            false
+        }
+
+       //eval for expression and perm (perm should always be 1)
         evalpc(s.copy(isImprecise = impr), perm, pve, v)((s1, tPerm, v1) =>
-          evalLocationAccess(s1.copy(isImprecise = impr), locacc, pve, v1)((s2, _, tArgs, v2) =>
+          evalLocationAccesspc(s1.copy(isImprecise = impr), locacc, pve, v1)((s2, _, tArgs, v2) =>
             v2.decider.assertgv(s.isImprecise, perms.IsOne(tPerm)){
               case true =>
                 val resource = locacc.res(Verifier.program)
@@ -488,6 +498,9 @@ object consumer extends ConsumptionRules with Immutable {
                 val ve = pve dueTo InsufficientPermission(locacc)
                 val description = s"consume ${a.pos}: $a"
                 var s3 = s2.copy(isImprecise = s.isImprecise)
+
+
+
                 chunkSupporter.consume(s3, h, resource, tArgs, loss, ve, v2, description)((s4, h1, snap1, v3, chunkExisted) => {
 /*                  val s4 = s3.copy(partiallyConsumedHeap = Some(h1),
                                    constrainableARPs = s.constrainableARPs,
@@ -506,7 +519,7 @@ object consumer extends ConsumptionRules with Immutable {
 */
                   Q(s4, oh, h1, snap1, v3)})
               case false =>
-                createFailure(pve dueTo NegativePermission(perm), v2, s2)}))
+                createFailure(pve dueTo InsufficientPermission(locacc), v2, s2)}))
 
 /*
       case _: ast.InhaleExhaleExp =>

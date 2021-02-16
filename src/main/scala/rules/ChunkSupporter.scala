@@ -117,9 +117,9 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
       case (Complete(), s2, h2, optCh2) =>
         Q(s2.copy(h = s.h), h2, optCh2.map(_.snap), v)
 
-      // they indicate this branch may be dead, what should we do with it? - J
+      // should never reach this case
       case _ if v.decider.checkSmoke() =>
-        Success() // TODO: Mark branch as dead?
+        Success()
 
       case (Incomplete(p), s2, h2, None) =>
         Q(s2.copy(h = s.h), h2, None, v)
@@ -206,8 +206,11 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
     findChunk[NonQuantifiedChunk](h.values, id, args, v) match {
       case Some(ch) if v.decider.check(IsPositive(ch.perm), Verifier.config.checkTimeout()) =>
         Q(s, ch.snap, v)
+
+      // should never reach this case
       case _ if v.decider.checkSmoke() =>
-        Success() // TODO: Mark branch as dead?
+        Success() 
+
       case _ =>
         createFailure(ve, v, s, true).withLoad(args)
     }

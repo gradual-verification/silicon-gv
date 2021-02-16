@@ -265,9 +265,8 @@ object producer extends ProductionRules with Immutable {
       case ast.FieldAccessPredicate(ast.FieldAccess(eRcvr, field), perm) =>
         evalpc(s, eRcvr, pve, v)((s1, tRcvr, v1) =>
           evalpc(s1, perm, pve, v1)((s2, tPerm, v2) => {
-          //  println("\n" + eRcvr + " " + field.name)
             if(chunkSupporter.inHeap(s2.h, s2.h.values, field, Seq(tRcvr), v2)) {
-              // Actually because it's not in the heap, but don't know how to do that yet)
+              // NEED: Actually because it's not in the heap, but don't know how to do that yet)
               createFailure(pve dueTo NegativePermission(perm), v2, s2) }
             else {
               val snap = sf(v2.symbolConverter.toSort(field.typ), v2)
@@ -278,8 +277,9 @@ object producer extends ProductionRules with Immutable {
  *          } else {
  */
               val ch = BasicChunk(FieldID, BasicChunkIdentifier(field.name), Seq(tRcvr), snap, gain)
-                chunkSupporter.produce(s2, s2.h, ch, v2)((s3, h3, v3) =>
-                  Q(s3.copy(h = h3), v3))
+                chunkSupporter.produce(s2, s2.h, ch, v2)((s3, h3, v3) => {
+                  v3.decider.assume(tRcvr !== Null())
+                  Q(s3.copy(h = h3), v3)})
             }
         }))
 

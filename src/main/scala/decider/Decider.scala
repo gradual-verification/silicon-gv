@@ -178,6 +178,7 @@ trait DefaultDeciderProvider extends VerifierComponent { this: Verifier =>
       assume(InsertionOrderedSet(terms), false)
 
     def assume(terms: InsertionOrderedSet[Term], enforceAssumption: Boolean = false): Unit = {
+      println(pathConditions)
       val filteredTerms =
         if (enforceAssumption) terms
         else terms filterNot isKnownToBeTrue
