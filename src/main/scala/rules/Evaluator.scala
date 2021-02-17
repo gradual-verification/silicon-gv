@@ -1051,7 +1051,6 @@ object evaluator extends EvaluationRules with Immutable {
   protected def eval2pc(s: State, e: ast.Exp, pve: PartialVerificationError, v: Verifier)
                      (Q: (State, Term, Verifier) => VerificationResult)
                      : VerificationResult = {
-    println("eval " + e)
     val resultTerm = e match {
       case _: ast.TrueLit => Q(s, True(), v)
       case _: ast.FalseLit => Q(s, False(), v)
