@@ -42,7 +42,7 @@ trait Decider {
 
   //Check to make sure Prover.scala doesn't need to be changed
   def check(t: Term, timeout: Int): Boolean
-  def checkgv(isImprecise: Boolean, t: Term, timeout: Int): Boolean
+  def checkgv(isImprecise: Boolean, t: Term, timeout: Option[Int]): Boolean
 
   /* TODO: Consider changing assert such that
    *         1. It passes State and Operations to the continuation
@@ -202,10 +202,10 @@ trait DefaultDeciderProvider extends VerifierComponent { this: Verifier =>
 
     def check(t: Term, timeout: Int) = deciderAssert(t, Some(timeout))
 
-    def checkgv(isImprecise: Boolean, t: Term, timeout: Int) = {
-      if (check(t, timeout)) {
+    def checkgv(isImprecise: Boolean, t: Term, timeout: Option[Int]) = {
+      if (deciderAssert(t, timeout)) {
         true
-      } else if(isImprecise && (deciderAssert(t, Some(timeout)))) { //Make sure this part is correct
+      } else if(isImprecise && (deciderAssert(t, timeout))) { //Make sure this part is correct
         true
       } else {
         false
@@ -233,13 +233,14 @@ trait DefaultDeciderProvider extends VerifierComponent { this: Verifier =>
     def assertgv(isImprecise: Boolean, t: Term, timeout: Option[Int] = Verifier.config.assertTimeout.toOption)
               (Q: Boolean => VerificationResult)
               : VerificationResult = {
-
-      val success = checkgv(isImprecise, t, timeout.get)
+      val success = checkgv(isImprecise, t, timeout)
 
       // If the SMT query was not successful, store it (possibly "overwriting"
       // any previously saved query), otherwise discard any query we had saved
       // previously (it did not cause a verification failure) and ignore the
       // current one, because it cannot cause a verification error.
+
+
       if (success)
         SymbExLogger.currentLog().discardSMTQuery()
       else

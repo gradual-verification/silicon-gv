@@ -481,7 +481,6 @@ object consumer extends ConsumptionRules with Immutable {
       case ast.PredicateAccessPredicate(locacc: ast.LocationAccess, perm) =>
 
 
-      println("skipper")
        //eval for expression and perm (perm should always be 1)
         evalpc(s.copy(isImprecise = impr), perm, pve, v)((s1, tPerm, v1) =>
           evalLocationAccesspc(s1.copy(isImprecise = impr), locacc, pve, v1)((s2, _, tArgs, v2) => {
@@ -503,16 +502,12 @@ object consumer extends ConsumptionRules with Immutable {
 
       case ast.FieldAccessPredicate(locacc: ast.LocationAccess, perm) =>
 
-        println("cod")
        //eval for expression and perm (perm should always be 1)
         evalpc(s.copy(isImprecise = impr), perm, pve, v)((s1, tPerm, v1) =>
           evalLocationAccesspc(s1.copy(isImprecise = impr), locacc, pve, v1)((s2, _, tArgs, v2) => {
-            println(tArgs.head)
-
-            println("cuddlefish")
+    
             v2.decider.assertgv(s.isImprecise, And(perms.IsOne(tPerm), tArgs.head !== Null())){
               case true =>
-                println("snapper")
                 val resource = locacc.res(Verifier.program)
                 val loss = PermTimes(tPerm, s2.permissionScalingFactor)
                 val ve = pve dueTo InsufficientPermission(locacc)
@@ -524,12 +519,10 @@ object consumer extends ConsumptionRules with Immutable {
                 chunkSupporter.consume(s3, h, resource, tArgs, loss, ve, v2, description)((s4, h1, snap1, v3, chunkExisted) => {
                   Q(s4, oh, h1, snap1, v3)})
               case false =>
-                println("blowfish")
                 createFailure(pve dueTo InsufficientPermission(locacc), v2, s2)}}))
 
-
+/*
       case ast.AccessPredicate(locacc: ast.LocationAccess, perm/*,need an overloaded copy with impreciseHeap as a parameter*/) => //add h_?; perm = 1
-        println("pirahna")
 
        //eval for expression and perm (perm should always be 1)
         evalpc(s.copy(isImprecise = impr), perm, pve, v)((s1, tPerm, v1) =>
@@ -572,7 +565,7 @@ object consumer extends ConsumptionRules with Immutable {
                   Q(s4, oh, h1, snap1, v3)})
               case false =>
                 createFailure(pve dueTo InsufficientPermission(locacc), v2, s2)}}))
-
+*/
 /*
       case _: ast.InhaleExhaleExp =>
         Failure(viper.silicon.utils.consistency.createUnexpectedInhaleExhaleExpressionError(a))
