@@ -143,7 +143,7 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
         case c: NonQuantifiedChunk =>
 
             // The term in checkgv uses infix notation I got from a different check to see if the args are equal
-          if ((id != c.id) || (!v.decider.checkgv(s.isImprecise, And(c.args zip args map (x => x._1 === x._2)), Verifier.config.checkTimeout()))){
+          if ((id != c.id) || (!v.decider.checkgv(s.isImprecise, And(c.args zip args map (x => x._1 === x._2)), Some(Verifier.config.checkTimeout())))){
                 currHeap + c
           }
           else {
@@ -209,7 +209,7 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
 
       // should never reach this case
       case _ if v.decider.checkSmoke() =>
-        Success() 
+        Success()
 
       case _ =>
         createFailure(ve, v, s, true).withLoad(args)
