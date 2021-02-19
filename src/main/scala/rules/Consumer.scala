@@ -492,10 +492,19 @@ object consumer extends ConsumptionRules with Immutable {
                 val description = s"consume ${a.pos}: $a"
                 var s3 = s2.copy(isImprecise = s.isImprecise)
 
-
-
                 chunkSupporter.consume(s3, h, resource, tArgs, loss, ve, v2, description)((s4, h1, snap1, v3, chunkExisted) => {
-                  Q(s4, oh, h1, snap1, v3)})
+                  // don't know if this should be s3 or s4 - J
+                  if (s4.isImprecise) {
+                    chunkSupporter.consume(s4, oh, resource, tArgs, loss, ve, v3, description)((s5, oh1, snap2, v4, _) => {
+                      if (chunkExisted) {
+                        Q(s5, oh1, h1, snap1, v4)}
+                      else {
+                        Q(s5, oh1, h1, snap2, v4)}})}
+                  else if (chunkExisted) {
+                    Q(s4, oh, h1, snap1, v3)}
+                  else {
+                    createFailure(pve dueTo InsufficientPermission(locacc), v3, s4)}})
+
               case false =>
                 createFailure(pve dueTo InsufficientPermission(locacc), v2, s2)}}))
 
@@ -505,7 +514,6 @@ object consumer extends ConsumptionRules with Immutable {
        //eval for expression and perm (perm should always be 1)
         evalpc(s.copy(isImprecise = impr), perm, pve, v)((s1, tPerm, v1) =>
           evalLocationAccesspc(s1.copy(isImprecise = impr), locacc, pve, v1)((s2, _, tArgs, v2) => {
-    
             v2.decider.assertgv(s.isImprecise, And(perms.IsOne(tPerm), tArgs.head !== Null())){
               case true =>
                 val resource = locacc.res(Verifier.program)
@@ -514,10 +522,19 @@ object consumer extends ConsumptionRules with Immutable {
                 val description = s"consume ${a.pos}: $a"
                 var s3 = s2.copy(isImprecise = s.isImprecise)
 
-
-
                 chunkSupporter.consume(s3, h, resource, tArgs, loss, ve, v2, description)((s4, h1, snap1, v3, chunkExisted) => {
-                  Q(s4, oh, h1, snap1, v3)})
+                  // don't know if this should be s3 or s4 - J
+                  if (s4.isImprecise) {
+                    chunkSupporter.consume(s4, oh, resource, tArgs, loss, ve, v3, description)((s5, oh1, snap2, v4, _) => {
+                      if (chunkExisted) {
+                        Q(s5, oh1, h1, snap1, v4)}
+                      else {
+                        Q(s5, oh1, h1, snap2, v4)}})}
+                  else if (chunkExisted) {
+                    Q(s4, oh, h1, snap1, v3)}
+                  else {
+                    createFailure(pve dueTo InsufficientPermission(locacc), v3, s4)}})
+
               case false =>
                 createFailure(pve dueTo InsufficientPermission(locacc), v2, s2)}}))
 
