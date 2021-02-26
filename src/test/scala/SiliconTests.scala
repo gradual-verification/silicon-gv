@@ -16,13 +16,15 @@ import viper.silver.reporter.NoopReporter
 import viper.silver.plugin.PluginAwareReporter
 
 class SiliconTests extends SilSuite {
+
   private val siliconTestDirectories =
     Seq("consistency", "issue387")
 
   private val silTestDirectories =
     Seq(
-    "gradual",
-    "all"
+//    "gradual"
+   "gradual", "all",
+//    "all"
         )
 
 //  private val silTestDirectories = Seq("my-tests")
@@ -73,14 +75,15 @@ class SiliconTests extends SilSuite {
     val args = Silicon.optionsFromScalaTestConfigMap(prefixSpecificConfigMap(configMap).getOrElse("silicon", Map()))
     silicon.parseCommandLine(args :+ Silicon.dummyInputFilename)
   }
+
   val commandLineArguments: Seq[String] =
     Seq("--timeout", "300" /* seconds */)
-
 }
 
 class SiliconFrontendWithUnitTesting extends SiliconFrontend(NoopReporter) {
   /** Is overridden only to append SymbExLogging-UnitTesting-Errors to the Result. **/
   override def result: SilVerificationResult = {
+
     if(_state < DefaultStates.Verification) super.result
     else{
       val symbExLogUnitTestErrors = SymbExLogger.unitTestEngine.verify()
