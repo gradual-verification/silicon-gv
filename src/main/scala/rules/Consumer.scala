@@ -480,7 +480,6 @@ object consumer extends ConsumptionRules with Immutable {
 */
       case ast.PredicateAccessPredicate(locacc: ast.LocationAccess, perm) =>
 
-
        //eval for expression and perm (perm should always be 1)
         evalpc(s.copy(isImprecise = impr), perm, pve, v)((s1, tPerm, v1) =>
           evalLocationAccesspc(s1.copy(isImprecise = impr), locacc, pve, v1)((s2, _, tArgs, v2) => {

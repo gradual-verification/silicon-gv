@@ -236,7 +236,7 @@ class DefaultMasterVerifier(config: Config, override val reporter: PluginAwareRe
     val methodVerificationResults = verificationTaskFutures.flatMap(_.get())
 
     /** Write JavaScript-Representation of the log if the SymbExLogger is enabled */
-    //SymbExLogger.writeJSFile()
+    SymbExLogger.writeJSFile()
     /** Write DOT-Representation of the log if the SymbExLogger is enabled */
     //SymbExLogger.writeDotFile()
   //  println("halibut")
