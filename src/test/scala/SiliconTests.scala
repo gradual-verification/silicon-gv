@@ -21,7 +21,7 @@ class SiliconTests extends SilSuite {
 
   private val silTestDirectories =
     Seq(
-    "gradual"
+    "gradual",
     "all"
         )
 
