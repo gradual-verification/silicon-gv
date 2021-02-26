@@ -175,11 +175,13 @@ class Silicon(val reporter: PluginAwareReporter, private var debugInfo: Seq[(Str
      * running the test suite.
      *
      * TODO: Figure out what happens when ViperServer is used. */
+
     config.file.foreach(filename => {
       if (filename != Silicon.dummyInputFilename) {
         viper.silicon.verifier.Verifier.inputFile = Some(Paths.get(filename))
       }
     })
+
 
     // TODO: Check consistency of cfgs.
     val consistencyErrors = utils.consistency.check(program)
@@ -331,7 +333,6 @@ class SiliconFrontend(override val reporter: PluginAwareReporter,
     }
 
     super.init(verifier)
-
     _config = siliconInstance.config
   }
 }
