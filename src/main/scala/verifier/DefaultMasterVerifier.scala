@@ -238,11 +238,7 @@ class DefaultMasterVerifier(config: Config, override val reporter: PluginAwareRe
     /** Write JavaScript-Representation of the log if the SymbExLogger is enabled */
     SymbExLogger.writeJSFile()
     /** Write DOT-Representation of the log if the SymbExLogger is enabled */
-    //SymbExLogger.writeDotFile()
-  //  println("halibut")
-    //println(SymbExLogger.toSimpleTreeString)
-
-    //println(SymbExLogger.currentLog())
+    SymbExLogger.writeDotFile()
 
     (   functionVerificationResults
      ++ predicateVerificationResults
