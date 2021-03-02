@@ -625,7 +625,7 @@ object consumer extends ConsumptionRules with Immutable {
         })
 */
       case _ =>
-        evalAndAssert(s, a, pve, v)((s1, t, v1) => {
+        evalAndAssert(s, impr, a, pve, v)((s1, t, v1) => {
           Q(s1, oh, h, t, v1)
         })
     }
@@ -633,7 +633,7 @@ object consumer extends ConsumptionRules with Immutable {
     consumed
   }
 
-  private def evalAndAssert(s: State, e: ast.Exp, pve: PartialVerificationError, v: Verifier)
+  private def evalAndAssert(s: State, impr: Boolean, e: ast.Exp, pve: PartialVerificationError, v: Verifier)
                            (Q: (State, Term, Verifier) => VerificationResult)
                            : VerificationResult = {
 
@@ -651,19 +651,16 @@ object consumer extends ConsumptionRules with Immutable {
                     reserveHeaps = Nil,
                     exhaleExt = false)
 
-    executionFlowController.tryOrFail0(s1, v)((s2, v1, QS) => {
-      eval(s2, e, pve, v1)((s3, t, v2) => {
-        v2.decider.assert(t) {
-          case true =>
-            v2.decider.assume(t)
-            QS(s3, v2)
-          case false =>
-            createFailure(pve dueTo AssertionFalse(e), v2, s3)}})
-    })((s4, v4) => {
-      val s5 = s4.copy(h = s.h,
-                       reserveHeaps = s.reserveHeaps,
-                       exhaleExt = s.exhaleExt)
-      Q(s5, Unit, v4)
-    })
+    val s2 = stateConsolidator.consolidate(s1, v)
+    evalpc(s2.copy(isImprecise = impr), e, pve, v)((s3, t, v1) => {
+      v1.decider.assertgv(s2.isImprecise, t) {
+        case true =>
+          v1.decider.assume(t)
+          val s4 = s3.copy(h = s.h,
+                           reserveHeaps = s.reserveHeaps,
+                           exhaleExt = s.exhaleExt)
+          Q(s4, Unit, v1)
+        case false =>
+          createFailure(pve dueTo AssertionFalse(e), v1, s3)}})
   }
 }
