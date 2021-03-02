@@ -54,6 +54,13 @@ trait EvaluationRules extends SymbolicExecutionRules {
                         (Q: (State, String, Seq[Term], Verifier) => VerificationResult)
                         : VerificationResult
 
+  def evalLocationAccesspc(s: State,
+                         locacc: ast.LocationAccess,
+                         pve: PartialVerificationError,
+                         v: Verifier)
+                        (Q: (State, String, Seq[Term], Verifier) => VerificationResult)
+                        : VerificationResult
+
   def evalQuantified(s: State,
                      quant: Quantifier,
                      vars: Seq[ast.LocalVarDecl],
@@ -77,6 +84,12 @@ object evaluator extends EvaluationRules with Immutable {
 
     evals2(s, es, Nil, pvef, v)(Q)
 
+  def evalspc(s: State, es: Seq[ast.Exp], pvef: ast.Exp => PartialVerificationError, v: Verifier)
+          (Q: (State, List[Term], Verifier) => VerificationResult)
+           : VerificationResult =
+
+    evals2pc(s, es, Nil, pvef, v)(Q)
+
   private def evals2(s: State, es: Seq[ast.Exp], ts: List[Term], pvef: ast.Exp => PartialVerificationError, v: Verifier)
                     (Q: (State, List[Term], Verifier) => VerificationResult)
                     : VerificationResult = {
@@ -87,13 +100,6 @@ object evaluator extends EvaluationRules with Immutable {
       eval(s, es.head, pvef(es.head), v)((s1, t, v1) =>
         evals2(s1, es.tail, t :: ts, pvef, v1)(Q))
   }
-
-
-  def evalspc(s: State, es: Seq[ast.Exp], pvef: ast.Exp => PartialVerificationError, v: Verifier)
-          (Q: (State, List[Term], Verifier) => VerificationResult)
-           : VerificationResult =
-
-    evals2pc(s, es, Nil, pvef, v)(Q)
 
   private def evals2pc(s: State, es: Seq[ast.Exp], ts: List[Term], pvef: ast.Exp => PartialVerificationError, v: Verifier)
                     (Q: (State, List[Term], Verifier) => VerificationResult)
@@ -409,14 +415,14 @@ object evaluator extends EvaluationRules with Immutable {
                     }
                 //})
             } else if (s1.isImprecise) {
-            //Below code modified from Producer.scala
-              eval(s1, fa.rcv, pve, v1)((s2, tRcvr, v2) => {
-                  val snap = v.decider.fresh(fa.field.name, v.symbolConverter.toSort(fa.field.typ))
-                  val gain = 1 //v1
-                  val ch = BasicChunk(FieldID, BasicChunkIdentifier(fa.field.name), Seq(tRcvr), snap, gain)
-                  chunkSupporter.produce(s2, s2.optimisticHeap, ch, v2)((s3, h3, v3) =>
-                    Q(s2.copy(optimisticHeap = h3), snap, v3))
-                  })
+              //The code below has been modified from Producer.scala
+              val snap = v.decider.fresh(fa.field.name, v.symbolConverter.toSort(fa.field.typ))
+              val gain = 1 //v1
+              val ch = BasicChunk(FieldID, BasicChunkIdentifier(fa.field.name), Seq(tRcvr), snap, gain)
+              val s2 = s1.copy() //s1.copy(functionRecorder = fr1)
+              //v2 changed to v1, etc.
+              chunkSupporter.produce(s2, s2.optimisticHeap, ch, v1)((s3, h3, v2) =>
+                Q(s2.copy(optimisticHeap = h3), snap, v2))
             } else {
               //Failure
               evalLocationAccess(s, fa, pve, v)((s1, _, tArgs, v1) => {
@@ -1043,7 +1049,7 @@ object evaluator extends EvaluationRules with Immutable {
     resultTerm
   }
 
-  // eval2pc is copied from eval2, most of the changes are in field access
+  // eval2pc is copied from eval2, most of the changes are in the field access case
   // Changed all instances of eval to evalpc
   // Commented out eval2's cases for old, labelledold, implies, condition, domain, function, unfolding
   // sequences, multiset, inhale, exhale, applying, quantified expression
@@ -1051,7 +1057,6 @@ object evaluator extends EvaluationRules with Immutable {
   protected def eval2pc(s: State, e: ast.Exp, pve: PartialVerificationError, v: Verifier)
                      (Q: (State, Term, Verifier) => VerificationResult)
                      : VerificationResult = {
-
     val resultTerm = e match {
       case _: ast.TrueLit => Q(s, True(), v)
       case _: ast.FalseLit => Q(s, False(), v)
@@ -1223,14 +1228,13 @@ object evaluator extends EvaluationRules with Immutable {
                     }
                 //})
             } else if (s1.isImprecise) {
-              //Below code modified from Producer.scala
-              evalpc(s1, fa.rcv, pve, v1)((s2, tRcvr, v2) => {
-                val snap = v.decider.fresh(fa.field.name, v.symbolConverter.toSort(fa.field.typ))
-                   Q(s1, snap, v1)
-                })
+              //TODO: Code Review
+              val s2 = s1.copy()
+              val snap = v.decider.fresh(fa.field.name, v.symbolConverter.toSort(fa.field.typ))
+                Q(s2, snap, v1)
             } else {
               //Failure
-              evalLocationAccess(s, fa, pve, v)((s1, _, tArgs, v1) => {
+              evalLocationAccesspc(s, fa, pve, v)((s1, _, tArgs, v1) => {
                 val ve = pve dueTo InsufficientPermission(fa)
                 val resource = fa.res(Verifier.program)
                 chunkSupporter.lookup(s1, s1.h, resource, tArgs, ve, v1)((s2, h2, tSnap, v2) => {
@@ -1260,11 +1264,11 @@ object evaluator extends EvaluationRules with Immutable {
             Failure(pve dueTo LabelledStateNotReached(old))
           case _ =>
             evalInOldState(s, lbl, e0, pve, v)(Q)}
-      */
-
+      
       case ast.Let(x, e0, e1) =>
         evalpc(s, e0, pve, v)((s1, t0, v1) =>
           evalpc(s1.copy(g = s1.g + (x.localVar, t0)), e1, pve, v1)(Q))
+      */
 
       /* Strict evaluation of AND */
       case ast.And(e0, e1) if Verifier.config.disableShortCircuitingEvaluations() =>
@@ -1388,7 +1392,6 @@ object evaluator extends EvaluationRules with Immutable {
           val outSort = v1.symbolConverter.toSort(dfa.typ)
           val fi = v1.symbolConverter.toFunction(Verifier.program.findDomainFunction(funcName), inSorts :+ outSort)
           Q(s1, App(fi, tArgs), v1)})
-      */
 
       case ast.CurrentPerm(resacc) =>
         val h = s.partiallyConsumedHeap.getOrElse(s.h)
@@ -1495,6 +1498,7 @@ object evaluator extends EvaluationRules with Immutable {
             })
           }
         }
+      
 
         def bindQuantRcvrsAndEvalBody(s: State, chs: Iterable[QuantifiedBasicChunk], args: Seq[ast.Exp], ts: Seq[Term], v: Verifier)
                                      (Q: (State, Seq[Term], Verifier) => VerificationResult)
@@ -1555,7 +1559,6 @@ object evaluator extends EvaluationRules with Immutable {
           })
         }
 
-      /*
       case sourceQuant: ast.QuantifiedExp /*if config.disableLocalEvaluations()*/ =>
         val (eQuant, qantOp, eTriggers) = sourceQuant match {
           case forall: ast.Forall =>
@@ -1790,7 +1793,6 @@ object evaluator extends EvaluationRules with Immutable {
               SeqAppend(tSeq, SeqSingleton(te)))
           v1.decider.assume(SeqLength(tSeq) === IntLiteral(es.size))
           Q(s1, tSeq, v1)})
-      */
 
       /* Sets and multisets */
 
@@ -1804,14 +1806,12 @@ object evaluator extends EvaluationRules with Immutable {
               SetAdd(tSet, te))
           Q(s1, tSet, v1)})
 
-      /*
       case ast.ExplicitMultiset(es) =>
         evals2pc(s, es, Nil, _ => pve, v)((s1, tEs, v1) => {
           val tMultiset =
             tEs.tail.foldLeft[MultisetTerm](SingletonMultiset(tEs.head))((tMultiset, te) =>
               MultisetAdd(tMultiset, te))
           Q(s1, tMultiset, v1)})
-      */
 
       case ast.AnySetUnion(e0, e1) => e.typ match {
         case _: ast.SetType => evalBinOpPc(s, e0, e1, SetUnion, pve, v)(Q)
@@ -1854,6 +1854,7 @@ object evaluator extends EvaluationRules with Immutable {
         case _ => sys.error("Expected a (multi)set-typed expression but found %s (%s) of type %s"
                             .format(e0, e0.getClass.getName, e0.typ))
       }
+      */
 
       /* Unexpected nodes */
 
