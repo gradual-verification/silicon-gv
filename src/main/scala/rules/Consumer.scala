@@ -256,7 +256,7 @@ object consumer extends ConsumptionRules with Immutable {
         val gbLog = new GlobalBranchRecord(ite, s, v.decider.pcs, "consume")
         val sepIdentifier = SymbExLogger.currentLog().insert(gbLog)
         SymbExLogger.currentLog().initializeBranching()
-        eval(s.copy(isImprecise = impr), e0, pve, v)((s1, t0, v1) => {
+        evalpc(s.copy(isImprecise = impr), e0, pve, v)((s1, t0, v1) => {
           val s2 = s1.copy(isImprecise = s.isImprecise)
           gbLog.finish_cond()
           val branch_res =
@@ -478,9 +478,11 @@ object consumer extends ConsumptionRules with Immutable {
               case false =>
                 createFailure(pve dueTo NegativePermission(perm), v2, s2)}))
 */
-      case ast.AccessPredicate(locacc: ast.LocationAccess, perm/*,need an overloaded copy with impreciseHeap as a parameter*/) => //add h_?; perm = 1
+      case ast.PredicateAccessPredicate(locacc: ast.LocationAccess, perm) =>
+
+       //eval for expression and perm (perm should always be 1)
         evalpc(s.copy(isImprecise = impr), perm, pve, v)((s1, tPerm, v1) =>
-          evalLocationAccess(s1.copy(isImprecise = impr), locacc, pve, v1)((s2, _, tArgs, v2) =>
+          evalLocationAccesspc(s1.copy(isImprecise = impr), locacc, pve, v1)((s2, _, tArgs, v2) => {
             v2.decider.assertgv(s.isImprecise, perms.IsOne(tPerm)){
               case true =>
                 val resource = locacc.res(Verifier.program)
@@ -488,6 +490,78 @@ object consumer extends ConsumptionRules with Immutable {
                 val ve = pve dueTo InsufficientPermission(locacc)
                 val description = s"consume ${a.pos}: $a"
                 var s3 = s2.copy(isImprecise = s.isImprecise)
+
+                chunkSupporter.consume(s3, h, resource, tArgs, loss, ve, v2, description)((s4, h1, snap1, v3, chunkExisted) => {
+                  // don't know if this should be s3 or s4 - J
+                  if (s4.isImprecise) {
+                    chunkSupporter.consume(s4, oh, resource, tArgs, loss, ve, v3, description)((s5, oh1, snap2, v4, _) => {
+                      if (chunkExisted) {
+                        Q(s5, oh1, h1, snap1, v4)}
+                      else {
+                        Q(s5, oh1, h1, snap2, v4)}})}
+                  else if (chunkExisted) {
+                    Q(s4, oh, h1, snap1, v3)}
+                  else {
+                    createFailure(pve dueTo InsufficientPermission(locacc), v3, s4)}})
+
+              case false =>
+                createFailure(pve dueTo InsufficientPermission(locacc), v2, s2)}}))
+
+
+      case ast.FieldAccessPredicate(locacc: ast.LocationAccess, perm) =>
+
+       //eval for expression and perm (perm should always be 1)
+        evalpc(s.copy(isImprecise = impr), perm, pve, v)((s1, tPerm, v1) =>
+          evalLocationAccesspc(s1.copy(isImprecise = impr), locacc, pve, v1)((s2, _, tArgs, v2) => {
+            v2.decider.assertgv(s.isImprecise, And(perms.IsOne(tPerm), tArgs.head !== Null())){
+              case true =>
+                val resource = locacc.res(Verifier.program)
+                val loss = PermTimes(tPerm, s2.permissionScalingFactor)
+                val ve = pve dueTo InsufficientPermission(locacc)
+                val description = s"consume ${a.pos}: $a"
+                var s3 = s2.copy(isImprecise = s.isImprecise)
+
+                chunkSupporter.consume(s3, h, resource, tArgs, loss, ve, v2, description)((s4, h1, snap1, v3, chunkExisted) => {
+                  // don't know if this should be s3 or s4 - J
+                  if (s4.isImprecise) {
+                    chunkSupporter.consume(s4, oh, resource, tArgs, loss, ve, v3, description)((s5, oh1, snap2, v4, _) => {
+                      if (chunkExisted) {
+                        Q(s5, oh1, h1, snap1, v4)}
+                      else {
+                        Q(s5, oh1, h1, snap2, v4)}})}
+                  else if (chunkExisted) {
+                    Q(s4, oh, h1, snap1, v3)}
+                  else {
+                    createFailure(pve dueTo InsufficientPermission(locacc), v3, s4)}})
+
+              case false =>
+                createFailure(pve dueTo InsufficientPermission(locacc), v2, s2)}}))
+
+/*
+      case ast.AccessPredicate(locacc: ast.LocationAccess, perm/*,need an overloaded copy with impreciseHeap as a parameter*/) => //add h_?; perm = 1
+
+       //eval for expression and perm (perm should always be 1)
+        evalpc(s.copy(isImprecise = impr), perm, pve, v)((s1, tPerm, v1) =>
+          evalLocationAccesspc(s1.copy(isImprecise = impr), locacc, pve, v1)((s2, _, tArgs, v2) => {
+
+            // determines if a is a pred or field
+/*            val pred = a match {
+              case ast.PredicateAccessPredicate(locacc: ast.LocationAccess, perm) =>
+                println("salmon")
+              case _ =>
+                println("trout")
+            }
+*/
+            v2.decider.assertgv(s.isImprecise, perms.IsOne(tPerm)){
+              case true =>
+                val resource = locacc.res(Verifier.program)
+                val loss = PermTimes(tPerm, s2.permissionScalingFactor)
+                val ve = pve dueTo InsufficientPermission(locacc)
+                val description = s"consume ${a.pos}: $a"
+                var s3 = s2.copy(isImprecise = s.isImprecise)
+
+
+
                 chunkSupporter.consume(s3, h, resource, tArgs, loss, ve, v2, description)((s4, h1, snap1, v3, chunkExisted) => {
 /*                  val s4 = s3.copy(partiallyConsumedHeap = Some(h1),
                                    constrainableARPs = s.constrainableARPs,
@@ -506,8 +580,8 @@ object consumer extends ConsumptionRules with Immutable {
 */
                   Q(s4, oh, h1, snap1, v3)})
               case false =>
-                createFailure(pve dueTo NegativePermission(perm), v2, s2)}))
-
+                createFailure(pve dueTo InsufficientPermission(locacc), v2, s2)}}))
+*/
 /*
       case _: ast.InhaleExhaleExp =>
         Failure(viper.silicon.utils.consistency.createUnexpectedInhaleExhaleExpressionError(a))
@@ -551,7 +625,7 @@ object consumer extends ConsumptionRules with Immutable {
         })
 */
       case _ =>
-        evalAndAssert(s, a, pve, v)((s1, t, v1) => {
+        evalAndAssert(s, impr, a, pve, v)((s1, t, v1) => {
           Q(s1, oh, h, t, v1)
         })
     }
@@ -559,7 +633,7 @@ object consumer extends ConsumptionRules with Immutable {
     consumed
   }
 
-  private def evalAndAssert(s: State, e: ast.Exp, pve: PartialVerificationError, v: Verifier)
+  private def evalAndAssert(s: State, impr: Boolean, e: ast.Exp, pve: PartialVerificationError, v: Verifier)
                            (Q: (State, Term, Verifier) => VerificationResult)
                            : VerificationResult = {
 
@@ -577,19 +651,16 @@ object consumer extends ConsumptionRules with Immutable {
                     reserveHeaps = Nil,
                     exhaleExt = false)
 
-    executionFlowController.tryOrFail0(s1, v)((s2, v1, QS) => {
-      eval(s2, e, pve, v1)((s3, t, v2) => {
-        v2.decider.assert(t) {
-          case true =>
-            v2.decider.assume(t)
-            QS(s3, v2)
-          case false =>
-            createFailure(pve dueTo AssertionFalse(e), v2, s3)}})
-    })((s4, v4) => {
-      val s5 = s4.copy(h = s.h,
-                       reserveHeaps = s.reserveHeaps,
-                       exhaleExt = s.exhaleExt)
-      Q(s5, Unit, v4)
-    })
+    val s2 = stateConsolidator.consolidate(s1, v)
+    evalpc(s2.copy(isImprecise = impr), e, pve, v)((s3, t, v1) => {
+      v1.decider.assertgv(s2.isImprecise, t) {
+        case true =>
+          v1.decider.assume(t)
+          val s4 = s3.copy(h = s.h,
+                           reserveHeaps = s.reserveHeaps,
+                           exhaleExt = s.exhaleExt)
+          Q(s4, Unit, v1)
+        case false =>
+          createFailure(pve dueTo AssertionFalse(e), v1, s3)}})
   }
 }
