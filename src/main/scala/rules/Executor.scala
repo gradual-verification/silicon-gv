@@ -18,7 +18,7 @@ import viper.silicon.interfaces._
 import viper.silicon.resources.FieldID
 import viper.silicon.state._
 import viper.silicon.state.terms._
-import viper.silicon.state.terms.perms.IsNonNegative
+import viper.silicon.state.terms.perms.IsOne
 import viper.silicon.state.terms.predef.`?r`
 import viper.silicon.utils.freshSnap
 import viper.silicon.verifier.Verifier
@@ -149,6 +149,7 @@ object executor extends ExecutionRules with Immutable {
             (executionFlowController.locally(sBody, v)((s0, v0) => {
                 v0.decider.prover.comment("Loop head block: Check well-definedness of invariant")
                 val mark = v0.decider.setPathConditionMark()
+                //change to wellFormedness check
                 produces(s0, freshSnap, invs, ContractNotWellformed, v0)((s1, v1) => {
                   phase1data = phase1data :+ (s1,
                                               v1.decider.pcs.after(mark),
@@ -306,12 +307,12 @@ object executor extends ExecutionRules with Immutable {
           eval(s1, rhs, pve, v1)((s2, tRhs, v2) => {
             val resource = fa.res(Verifier.program)
             val ve = pve dueTo InsufficientPermission(fa)
-            val description = s"consume ${ass.pos}: $ass"
-            chunkSupporter.consume(s2, s2.h, resource, Seq(tRcvr), FullPerm(), ve, v2, description)((s3, h3, _, v3, chunkExisted) => {
+            val description = s"eval ${ass.pos}: $ass"
+            eval(s2, rhs, pve, v2)((s3, tRhs, v3) => {
               val tSnap = ssaifyRhs(tRhs, field.name, field.typ, v3)
               val id = BasicChunkIdentifier(field.name)
               val newChunk = BasicChunk(FieldID, id, Seq(tRcvr), tSnap, FullPerm())
-              chunkSupporter.produce(s3, h3, newChunk, v3)((s4, h4, v4) =>
+              chunkSupporter.produce(s3, s3.h, newChunk, v3)((s4, h4, v4) =>
                 Q(s4.copy(h = h4), v4))
             })
           })
@@ -374,9 +375,11 @@ object executor extends ExecutionRules with Immutable {
 
           case _ =>
             if (Verifier.config.disableSubsumption()) {
+              //This case resembles what's written in the PhD thesis
               val r =
                 consume(s, a, pve, v)((_, _, _) =>
                   Success())
+                  //add wellFormedness check
               r && Q(s, v)
             } else
               if (s.exhaleExt) {
@@ -388,10 +391,12 @@ object executor extends ExecutionRules with Immutable {
                * by s.h. By copying hUsed to s.h the contained permissions remain available inside the wand.
                */
               consume(s, a, pve, v)((s2, _, v1) => {
+                //add wellFormedness check
                 Q(s2.copy(h = s2.reserveHeaps.head), v1)
               })
             } else
               consume(s, a, pve, v)((s1, _, v1) => {
+                //add wellFormedness check
                 val s2 = s1.copy(h = s.h, reserveHeaps = s.reserveHeaps)
                 Q(s2, v1)})
         }
@@ -456,7 +461,7 @@ object executor extends ExecutionRules with Immutable {
         val pve = FoldFailed(fold)
         evals(s, eArgs, _ => pve, v)((s1, tArgs, v1) =>
           eval(s1, ePerm, pve, v1)((s2, tPerm, v2) => {
-            v2.decider.assert(IsNonNegative(tPerm)){
+            v2.decider.assertgv(s2.isImprecise, IsOne(tPerm)){ //The isOne check is redundant
               case true =>
                 val wildcards = s2.constrainableARPs -- s1.constrainableARPs
                 predicateSupporter.fold(s2, predicate, tArgs, tPerm, wildcards, pve, v2)(Q)
@@ -482,8 +487,8 @@ object executor extends ExecutionRules with Immutable {
             } else {
               s2.smCache
             }
-
-            v2.decider.assert(IsNonNegative(tPerm)){
+            //v2.decider.assert(IsNonNegative(tPerm)){
+            v2.decider.assertgv(s2.isImprecise, IsOne(tPerm)){ //The isOne check is redundant
               case true =>
                 val wildcards = s2.constrainableARPs -- s1.constrainableARPs
                 predicateSupporter.unfold(s2.copy(smCache = smCache1), predicate, tArgs, tPerm, wildcards, pve, v2, pa)(Q)
