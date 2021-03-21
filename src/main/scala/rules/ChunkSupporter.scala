@@ -15,7 +15,6 @@ import viper.silicon.resources.{NonQuantifiedPropertyInterpreter, Resources}
 import viper.silicon.state._
 import viper.silicon.state.terms._
 import viper.silicon.state.terms.perms.IsPositive
-import viper.silicon.state.terms.perms.IsOne
 import viper.silicon.verifier.Verifier
 
 trait ChunkSupportRules extends SymbolicExecutionRules {
@@ -232,7 +231,7 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
   //  println(findChunkWithProver(relevantChunks, args, v))
 
     findChunk[NonQuantifiedChunk](h.values, id, args, v) match {
-        case Some(ch) if v.decider.check(IsOne(ch.perm), Verifier.config.checkTimeout()) =>
+        case Some(ch) if v.decider.check(IsPositive(ch.perm), Verifier.config.checkTimeout()) =>
         //  val relevantChunks = findChunksWithID[CH](h.values, id)
         //  println(relevantChunks)
           true
