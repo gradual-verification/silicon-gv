@@ -29,8 +29,8 @@ object wellFormedness extends WellFormednessRules with Immutable {
                 (Q: (State, Verifier) => VerificationResult)
                 : VerificationResult = {
 
-    produce(s, sf, e, pve, v)((s1, v1) =>
-      produce(s, sf, e, pve, v1)((s2, v2) =>
+    produces(s, sf, e, pve, v)((s1, v1) =>
+      produces(s, sf, e, pve, v1)((s2, v2) =>
         Q(s2, v2)))
   }
 }
