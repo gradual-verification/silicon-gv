@@ -205,7 +205,7 @@ trait DefaultDeciderProvider extends VerifierComponent { this: Verifier =>
     def checkgv(isImprecise: Boolean, t: Term, timeout: Option[Int]) = {
       if (deciderAssert(t, timeout)) {
         true
-      } else if(isImprecise && (deciderAssert(t, timeout))) { //Make sure this part is correct
+      } else if(isImprecise && !(deciderAssert(Not(t), timeout))) { //Make sure this part is correct
         true
       } else {
         false

@@ -1,13 +1,13 @@
 digraph {
 node [shape=rectangle];
 
-    938041317 [label="predicate P"];
+    904388951 [label="predicate P"];
 
 
-    654348613 [label="method test1"];
+    1275145082 [label="method test1"];
 
 
-    64188074 [label="method test2"];
+    1365746654 [label="method test2"];
 
 
 }

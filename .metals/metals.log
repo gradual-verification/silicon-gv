@@ -16,3 +16,13 @@
 2020.12.21 13:42:30 INFO  no build target: using presentation compiler with only scala-library
 2020.12.21 13:42:36 WARN  no build target for: C:\Users\jacob\Desktop\REUSE\silicon-gv\src\main\scala\rules\Producer.scala
 2020.12.21 13:43:07 INFO  shutting down Metals
+[0m2021.04.06 21:16:00 INFO  Started: Metals version 0.10.1 in workspace 'C:\Users\jacob\Desktop\REUSE\silicon-gv' for client vscode 1.54.3.[0m
+[0m2021.04.06 21:16:01 INFO  time: initialize in 1.34s[0m
+[0m2021.04.06 21:16:01 WARN  resetting database: C:\Users\jacob\Desktop\REUSE\silicon-gv\.metals\metals.h2.db[0m
+[0m2021.04.06 21:16:01 WARN  Build server is not auto-connectable.[0m
+[0m2021.04.06 21:16:01 WARN  no build target for: C:\Users\jacob\Desktop\REUSE\silicon-gv\src\test\scala\SiliconTests.scala[0m
+[0m2021.04.06 21:16:05 INFO  no build target: using presentation compiler with only scala-library: 2.12.13[0m
+[0m2021.04.06 21:16:07 INFO  time: code lens generation in 5.19s[0m
+[0m2021.04.06 21:16:14 WARN  no build target for: C:\Users\jacob\Desktop\REUSE\silicon-gv\src\main\scala\rules\Evaluator.scala[0m
+[0m2021.04.06 21:16:16 INFO  time: code lens generation in 1.93s[0m
+[0m2021.04.06 21:19:11 INFO  shutting down Metals[0m

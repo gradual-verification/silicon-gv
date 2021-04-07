@@ -369,8 +369,6 @@ object executor extends ExecutionRules with Immutable {
               if (v1.decider.checkSmoke())
                 QS(s1.copy(h = s.h), v1)
               else
-                println("exec")
-                println("pve " + pve + "\ne " + a + "\nv1 " + v1 + "\ns1 " + s1)
                 createFailure(pve dueTo AssertionFalse(a), v1, s1)
               })((_, _) => Success())
 
