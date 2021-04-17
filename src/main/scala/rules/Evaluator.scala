@@ -417,7 +417,7 @@ object evaluator extends EvaluationRules with Immutable {
             } else if (s1.isImprecise) {
               //The code below has been modified from Producer.scala
               val snap = v.decider.fresh(fa.field.name, v.symbolConverter.toSort(fa.field.typ))
-              val gain = 1 //v1
+              val gain = FullPerm() //v1
               val ch = BasicChunk(FieldID, BasicChunkIdentifier(fa.field.name), Seq(tRcvr), snap, gain)
               val s2 = s1.copy() //s1.copy(functionRecorder = fr1)
               //v2 changed to v1, etc.
@@ -2038,7 +2038,7 @@ object evaluator extends EvaluationRules with Immutable {
                              (Q: (State, Term, Verifier) => VerificationResult)
                              : VerificationResult = {
 
-    v.decider.assert(tDivisor !== tZero){
+    v.decider.assertgv(s.isImprecise, tDivisor !== tZero){
       case true => Q(s, t, v)
       case false => createFailure(pve dueTo DivisionByZero(eDivisor), v, s)
     }
