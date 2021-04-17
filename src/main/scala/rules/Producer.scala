@@ -201,6 +201,8 @@ object producer extends ProductionRules with Immutable {
                         (continuation: (State, Verifier) => VerificationResult)
                         : VerificationResult = {
 
+
+
     v.logger.debug(s"\nPRODUCE ${viper.silicon.utils.ast.sourceLineColumn(a)}: $a")
     v.logger.debug(v.stateFormatter.format(s, v.decider.pcs))
 
@@ -241,7 +243,7 @@ object producer extends ProductionRules with Immutable {
           SymbExLogger.currentLog().collapse(null, sepIdentifier)
           branch_res})
 */
-      case ite @ ast.CondExp(e0, a1, a2) if !a.isPure =>
+      case ite @ ast.CondExp(e0, a1, a2) =>
         val gbLog = new GlobalBranchRecord(ite, s, v.decider.pcs, "produce")
         val sepIdentifier = SymbExLogger.currentLog().insert(gbLog)
         SymbExLogger.currentLog().initializeBranching()
