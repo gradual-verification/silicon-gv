@@ -16,6 +16,7 @@ import viper.silicon.state.terms.predef.`?r`
 import viper.silicon.state.terms._
 import viper.silicon.state._
 import viper.silicon.supporters.functions.NoopFunctionRecorder
+import viper.silicon.utils.toSf
 import viper.silicon.verifier.Verifier
 import viper.silicon.{GlobalBranchRecord, ProduceRecord, SymbExLogger}
 import viper.silver.verifier.reasons._
@@ -210,7 +211,9 @@ object producer extends ProductionRules with Immutable {
 
       // TODO: figure out how imprecise deals with snapshots - J
       case impr @ ast.ImpreciseExp(e) =>
-        produce(s.copy(isImprecise = true), sf, e, pve, v)(Q)
+      //  val (sf0, sf1) = v.snapshotSupporter.createSnapshotPair(s, sf, a, a, v)
+        val second = toSf(Second(sf(sorts.Snap, v)))
+        produce(s.copy(isImprecise = true), second, e, pve, v)(Q)
 
 /*      case imp @ ast.Implies(e0, a0) if !a.isPure =>
         val impLog = new GlobalBranchRecord(imp, s, v.decider.pcs, "produce")
@@ -266,7 +269,7 @@ object producer extends ProductionRules with Immutable {
         evalpc(s, eRcvr, pve, v)((s1, tRcvr, v1) =>
           evalpc(s1, perm, pve, v1)((s2, tPerm, v2) => {
             if(chunkSupporter.inHeap(s2.h, s2.h.values, field, Seq(tRcvr), v2)) {
-              // NEED: Actually because it's not in the heap, but don't know how to do that yet)
+              // NEED: Actually because it's in the heap, but don't know how to do that yet
               createFailure(pve dueTo NegativePermission(perm), v2, s2) }
             else {
               val snap = sf(v2.symbolConverter.toSort(field.typ), v2)
@@ -277,9 +280,9 @@ object producer extends ProductionRules with Immutable {
  *          } else {
  */
               val ch = BasicChunk(FieldID, BasicChunkIdentifier(field.name), Seq(tRcvr), snap, gain)
-                chunkSupporter.produce(s2, s2.h, ch, v2)((s3, h3, v3) => {
-                  v3.decider.assume(tRcvr !== Null())
-                  Q(s3.copy(h = h3), v3)})
+              chunkSupporter.produce(s2, s2.h, ch, v2)((s3, h3, v3) => {
+                v3.decider.assume(tRcvr !== Null())
+                Q(s3.copy(h = h3), v3)})
             }
         }))
 
@@ -288,7 +291,7 @@ object producer extends ProductionRules with Immutable {
         evalspc(s, eArgs, _ => pve, v)((s1, tArgs, v1) =>
           evalpc(s1, perm, pve, v1)((s2, tPerm, v2) => {
             if (chunkSupporter.inHeap(s2.h, s2.h.values, predicate, tArgs, v2)) {
-              // Actually because it's not in the heap, but don't know how to do that yet)
+              // Actually because it's in the heap, but don't know how to do that yet
               createFailure(pve dueTo NegativePermission(perm), v2, s2) }
             else {
               val snap = sf(
@@ -305,9 +308,9 @@ object producer extends ProductionRules with Immutable {
               val snap1 = snap.convert(sorts.Snap)
               val ch = BasicChunk(PredicateID, BasicChunkIdentifier(predicate.name), tArgs, snap1, gain)
               chunkSupporter.produce(s2, s2.h, ch, v2)((s3, h3, v3) => {
-                if (Verifier.config.enablePredicateTriggersOnInhale() && s3.functionRecorder == NoopFunctionRecorder) {
+                /* if (Verifier.config.enablePredicateTriggersOnInhale() && s3.functionRecorder == NoopFunctionRecorder) {
                   v3.decider.assume(App(Verifier.predicateData(predicate).triggerFunction, snap1 +: tArgs))
-                }
+                } */
                 Q(s3.copy(h = h3), v3)})
             }}))
 
