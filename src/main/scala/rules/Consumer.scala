@@ -76,7 +76,7 @@ object consumer extends ConsumptionRules with Immutable {
         consumeR(s, true, s.optimisticHeap, s.h, e.whenExhaling, pve, v)((s1, oh1, h1, snap, v1) => {
           val s2 = s1.copy(isImprecise = true, h = Heap(), optimisticHeap = Heap(),
                            partiallyConsumedHeap = s.partiallyConsumedHeap)
-          Q(s2, snap, v1)})
+          Q(s2, Combine(Unit, snap), v1)})
 
       case _ =>
         consumeR(s, s.isImprecise, s.optimisticHeap, s.h, a.whenExhaling, pve, v)((s1, oh1, h1, snap, v1) => {
@@ -99,36 +99,52 @@ object consumer extends ConsumptionRules with Immutable {
     val allTlcs = mutable.ListBuffer[ast.Exp]()
     val allPves = mutable.ListBuffer[PartialVerificationError]()
 
-    as.foreach(a => {
-      val tlcs = a.whenExhaling.topLevelConjuncts
-      val pves = Seq.fill(tlcs.length)(pvef(a))
-
-      allTlcs ++= tlcs
-      allPves ++= pves
-    })
-
     var imprecise = false
-    //Perform check for imprecision
+
+  //  println("as: " + as)
     as.foreach(a => {
-      var placeholder = a match {
-        // TODO: figure out how imprecise deals with snapshots - J
+    //  println("a: " + a.whenExhaling.topLevelConjuncts)
+      a match {
+        // if a is an imprecise expression we add all the expressions
+        // within it to our list ltcs's
         case impr @ ast.ImpreciseExp(e) =>
           imprecise = true
-          /*a = a.exp NEEDS FIX: a is val & cannot be reassigned */
+          val exps = e.whenExhaling.topLevelConjuncts
+          exps.foreach(exp => {
+      //      println("exp: " + exp)
+            val tlcs = exp.whenExhaling.topLevelConjuncts
+            val pves = Seq.fill(tlcs.length)(pvef(exp))
+
+            allTlcs ++= tlcs
+            allPves ++= pves
+
+          })
         case _ =>
+          val tlcs = a.whenExhaling.topLevelConjuncts
+          val pves = Seq.fill(tlcs.length)(pvef(a))
+
+          allTlcs ++= tlcs
+          allPves ++= pves
       }
     })
-    if(imprecise == true) {
-      consumeTlcs(s, s.isImprecise, s.optimisticHeap, s.h, allTlcs.result(), allPves.result(), v)((s1, oh1, h1, snap1, v1) => {
-        val s2 = s1.copy(h = h1,
-                        partiallyConsumedHeap = s.partiallyConsumedHeap)
-        Q(s2, snap1, v1)
+
+//    println("tlcs: " + allTlcs)
+//    println("tlcs result: " + allTlcs.result())
+
+
+    if(imprecise) {
+      consumeTlcs(s, true, s.optimisticHeap, s.h, allTlcs.result(), allPves.result(), v)((s1, oh1, h1, snap1, v1) => {
+        val s2 = s1.copy(h = Heap(),
+                        optimisticHeap = Heap(),
+                        partiallyConsumedHeap = s.partiallyConsumedHeap,
+                        isImprecise = true)
+        Q(s2, Combine(Unit, snap1), v1)
       })
     } else {
-      consumeTlcs(s, true, s.optimisticHeap, s.h, allTlcs.result(), allPves.result(), v)((s1, oh1, h1, snap1, v1) => {
+      consumeTlcs(s, s.isImprecise, s.optimisticHeap, s.h, allTlcs.result(), allPves.result(), v)((s1, oh1, h1, snap1, v1) => {
         val s2 = s1.copy(h = h1,
-                        partiallyConsumedHeap = s.partiallyConsumedHeap,
-                        isImprecise = true) //pair
+                        optimisticHeap = oh1,
+                        partiallyConsumedHeap = s.partiallyConsumedHeap)
         Q(s2, snap1, v1)
       })
     }
@@ -156,6 +172,7 @@ object consumer extends ConsumptionRules with Immutable {
     else {
       val a = tlcs.head
       val pve = pves.head
+
 
       if (tlcs.tail.isEmpty)
         wrappedConsumeTlc(s, impr, oh, h, a, pve, v)(Q)
@@ -196,18 +213,17 @@ object consumer extends ConsumptionRules with Immutable {
      */
     val sInit = s.copy(h = h)
 //    executionFlowController.tryOrFail3[Heap, Heap, Term](sInit, v)((s0, v1, QS) => {
-      val s0 = stateConsolidator.consolidate(sInit, v)
-      val h0 = s0.h /* h0 is h, but potentially consolidated */
-      val s1 = s0.copy(h = s.h) /* s1 is s, but the retrying flag might be set */
+    val s0 = stateConsolidator.consolidate(sInit, v)
+    val h0 = s0.h /* h0 is h, but potentially consolidated */
+    val s1 = s0.copy(h = s.h) /* s1 is s, but the retrying flag might be set */
 
-      /* TODO: To remove this cast: Add a type argument to the ConsumeRecord.
-       *       Globally the types match, but locally the type system does not know.
-       */
-      val SEP_identifier = SymbExLogger.currentLog().insert(new ConsumeRecord(a, s1, v.decider.pcs))
-
-      consumeTlc(s1, impr, oh, h0, a, pve, v)((s2, oh2, h2, snap2, v1) => {
-        SymbExLogger.currentLog().collapse(a, SEP_identifier)
-        Q(s2, oh2, h2, snap2, v1)})
+    /* TODO: To remove this cast: Add a type argument to the ConsumeRecord.
+     *       Globally the types match, but locally the type system does not know.
+     */
+    val SEP_identifier = SymbExLogger.currentLog().insert(new ConsumeRecord(a, s1, v.decider.pcs))
+    consumeTlc(s1, impr, oh, h0, a, pve, v)((s2, oh2, h2, snap2, v1) => {
+      SymbExLogger.currentLog().collapse(a, SEP_identifier)
+      Q(s2, oh2, h2, snap2, v1)})
   //  })(Q)
   }
 
@@ -483,7 +499,7 @@ object consumer extends ConsumptionRules with Immutable {
        //eval for expression and perm (perm should always be 1)
         evalpc(s.copy(isImprecise = impr), perm, pve, v)((s1, tPerm, v1) =>
           evalLocationAccesspc(s1.copy(isImprecise = impr), locacc, pve, v1)((s2, _, tArgs, v2) => {
-            v2.decider.assertgv(s.isImprecise, perms.IsOne(tPerm)){
+            v2.decider.assertgv(s.isImprecise, perms.IsPositive(tPerm)){
               case true =>
                 val resource = locacc.res(Verifier.program)
                 val loss = PermTimes(tPerm, s2.permissionScalingFactor)
@@ -492,7 +508,6 @@ object consumer extends ConsumptionRules with Immutable {
                 var s3 = s2.copy(isImprecise = s.isImprecise)
 
                 chunkSupporter.consume(s3, h, resource, tArgs, loss, ve, v2, description)((s4, h1, snap1, v3, chunkExisted) => {
-                  // don't know if this should be s3 or s4 - J
                   if (s4.isImprecise) {
                     chunkSupporter.consume(s4, oh, resource, tArgs, loss, ve, v3, description)((s5, oh1, snap2, v4, _) => {
                       if (chunkExisted) {
@@ -513,7 +528,7 @@ object consumer extends ConsumptionRules with Immutable {
        //eval for expression and perm (perm should always be 1)
         evalpc(s.copy(isImprecise = impr), perm, pve, v)((s1, tPerm, v1) =>
           evalLocationAccesspc(s1.copy(isImprecise = impr), locacc, pve, v1)((s2, _, tArgs, v2) => {
-            v2.decider.assertgv(s.isImprecise, And(perms.IsOne(tPerm), tArgs.head !== Null())){
+            v2.decider.assertgv(s.isImprecise, And(perms.IsPositive(tPerm), tArgs.head !== Null())){
               case true =>
                 val resource = locacc.res(Verifier.program)
                 val loss = PermTimes(tPerm, s2.permissionScalingFactor)
@@ -544,15 +559,7 @@ object consumer extends ConsumptionRules with Immutable {
         evalpc(s.copy(isImprecise = impr), perm, pve, v)((s1, tPerm, v1) =>
           evalLocationAccesspc(s1.copy(isImprecise = impr), locacc, pve, v1)((s2, _, tArgs, v2) => {
 
-            // determines if a is a pred or field
-/*            val pred = a match {
-              case ast.PredicateAccessPredicate(locacc: ast.LocationAccess, perm) =>
-                println("salmon")
-              case _ =>
-                println("trout")
-            }
-*/
-            v2.decider.assertgv(s.isImprecise, perms.IsOne(tPerm)){
+            v2.decider.assertgv(s.isImprecise, perms.IsPositive(tPerm)){
               case true =>
                 val resource = locacc.res(Verifier.program)
                 val loss = PermTimes(tPerm, s2.permissionScalingFactor)
@@ -647,6 +654,7 @@ object consumer extends ConsumptionRules with Immutable {
      * the tryOrFail that wraps the consumption of each top-level conjunct would not consolidate
      * the right heap.
      */
+
     val s1 = s.copy(h = magicWandSupporter.getEvalHeap(s),
                     reserveHeaps = Nil,
                     exhaleExt = false)
@@ -661,6 +669,10 @@ object consumer extends ConsumptionRules with Immutable {
                            exhaleExt = s.exhaleExt)
           Q(s4, Unit, v1)
         case false =>
-          createFailure(pve dueTo AssertionFalse(e), v1, s3)}})
+        //  println("pve " + pve + "\ne " + e + "\nv1 " + v1 + "\ns3 " + s3)
+          //println("heap: " + s.h + "\noh: " + s.optimisticHeap)
+          //val s4 = s3.copy(isImprecise = false)
+          createFailure(pve dueTo AssertionFalse(e), v1, s3)
+    }})
   }
 }

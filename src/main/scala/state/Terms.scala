@@ -1991,12 +1991,6 @@ object perms {
     case _ => Or(p === NoPerm(), PermLess(p, NoPerm()))
   }
 
-  // added because we are not currently dealing with fractional perms
-  def IsOne(p: Term): Term = p match {
-    case p: PermLiteral => if (p.literal == Rational.one) True() else False()
-    case _ => PermLess(NoPerm(), p)
-  }
-
   def BigPermSum(it: Iterable[Term], f: Term => Term = t => t): Term =
     viper.silicon.utils.mapReduceLeft(it, f, PermPlus, NoPerm())
 }

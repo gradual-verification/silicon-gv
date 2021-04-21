@@ -1264,7 +1264,7 @@ object evaluator extends EvaluationRules with Immutable {
             Failure(pve dueTo LabelledStateNotReached(old))
           case _ =>
             evalInOldState(s, lbl, e0, pve, v)(Q)}
-      
+
       case ast.Let(x, e0, e1) =>
         evalpc(s, e0, pve, v)((s1, t0, v1) =>
           evalpc(s1.copy(g = s1.g + (x.localVar, t0)), e1, pve, v1)(Q))
@@ -1498,7 +1498,7 @@ object evaluator extends EvaluationRules with Immutable {
             })
           }
         }
-      
+
 
         def bindQuantRcvrsAndEvalBody(s: State, chs: Iterable[QuantifiedBasicChunk], args: Seq[ast.Exp], ts: Seq[Term], v: Verifier)
                                      (Q: (State, Seq[Term], Verifier) => VerificationResult)
