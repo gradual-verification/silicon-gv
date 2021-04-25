@@ -172,7 +172,7 @@ object producer extends ProductionRules with Immutable {
 
     val tlcs = a.topLevelConjuncts
     val pves = Seq.fill(tlcs.length)(pve)
-
+    
     produceTlcs(s, sf, tlcs, pves, v)(Q)
   }
 
