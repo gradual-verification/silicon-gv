@@ -18,7 +18,7 @@ import viper.silicon.interfaces._
 import viper.silicon.resources.FieldID
 import viper.silicon.state._
 import viper.silicon.state.terms._
-import viper.silicon.state.terms.perms.IsOne
+import viper.silicon.state.terms.perms.IsPositive
 import viper.silicon.state.terms.predef.`?r`
 import viper.silicon.utils.freshSnap
 import viper.silicon.verifier.Verifier
@@ -44,6 +44,7 @@ object executor extends ExecutionRules with Immutable {
   import consumer._
   import evaluator._
   import producer._
+  import wellFormedness._
 
   private def follow(s: State, edge: SilverEdge, v: Verifier)
                     (Q: (State, Verifier) => VerificationResult)
@@ -378,11 +379,10 @@ object executor extends ExecutionRules with Immutable {
           case _ =>
             if (Verifier.config.disableSubsumption()) {
               //This case resembles what's written in the PhD thesis
-              val r =
-                consume(s, a, pve, v)((_, _, _) =>
-                  Success())
-                  //add wellFormedness check
-              r && Q(s, v)
+              consume(s, a, pve, v)((s1, snap1, v1) =>
+                wellformed(s1.copy(isImprecise = true), freshSnap, a, pve, v1)((s2, v2) =>
+                  Q(s, v2))
+                )
             } else
               if (s.exhaleExt) {
               Predef.assert(s.h.values.isEmpty)
@@ -392,15 +392,16 @@ object executor extends ExecutionRules with Immutable {
                * hUsed (reserveHeaps.head) instead of consuming them. hUsed is later discarded and replaced
                * by s.h. By copying hUsed to s.h the contained permissions remain available inside the wand.
                */
-              consume(s, a, pve, v)((s2, _, v1) => {
-                //add wellFormedness check
-                Q(s2.copy(h = s2.reserveHeaps.head), v1)
+              consume(s, a, pve, v)((s1, snap1, v1) => {
+                wellformed(s1.copy(isImprecise = true), freshSnap, a, pve, v1)((s2, v2) =>
+                  Q(s2.copy(h = s2.reserveHeaps.head), v2))
               })
-            } else
-              consume(s, a, pve, v)((s1, _, v1) => {
-                //add wellFormedness check
-                val s2 = s1.copy(h = s.h, reserveHeaps = s.reserveHeaps)
-                Q(s2, v1)})
+            } else {
+              consume(s, a, pve, v)((s1, snap1, v1) => {
+                wellformed(s1.copy(isImprecise = true), freshSnap, a, pve, v1)((s2, v2) => {
+                  val s3 = s2.copy(h = s.h, reserveHeaps = s.reserveHeaps)
+                  Q(s3, v2)})})
+            }
         }
 
       // A call havoc_all_R() results in Silicon efficiently havocking all instances of resource R.
@@ -463,7 +464,7 @@ object executor extends ExecutionRules with Immutable {
         val pve = FoldFailed(fold)
         evals(s, eArgs, _ => pve, v)((s1, tArgs, v1) =>
           eval(s1, ePerm, pve, v1)((s2, tPerm, v2) => {
-            v2.decider.assertgv(s2.isImprecise, IsOne(tPerm)){ //The isOne check is redundant
+            v2.decider.assertgv(s2.isImprecise, IsPositive(tPerm)){ //The isOne check is redundant
               case true =>
                 val wildcards = s2.constrainableARPs -- s1.constrainableARPs
                 predicateSupporter.fold(s2, predicate, tArgs, tPerm, wildcards, pve, v2)(Q)
@@ -490,7 +491,7 @@ object executor extends ExecutionRules with Immutable {
               s2.smCache
             }
             //v2.decider.assert(IsNonNegative(tPerm)){
-            v2.decider.assertgv(s2.isImprecise, IsOne(tPerm)){ //The isOne check is redundant
+            v2.decider.assertgv(s2.isImprecise, IsPositive(tPerm)){ //The isOne check is redundant
               case true =>
                 val wildcards = s2.constrainableARPs -- s1.constrainableARPs
                 predicateSupporter.unfold(s2.copy(smCache = smCache1), predicate, tArgs, tPerm, wildcards, pve, v2, pa)(Q)

@@ -9,7 +9,7 @@ import viper.silicon.verifier.Verifier
 
 
 trait WellFormednessRules extends SymbolicExecutionRules {
-  def wellFormed(s: State,
+  def wellformed(s: State,
                  sf: (Sort, Verifier) => Term,
                  e: ast.Exp,
                  pve: PartialVerificationError,
@@ -21,7 +21,7 @@ trait WellFormednessRules extends SymbolicExecutionRules {
 object wellFormedness extends WellFormednessRules with Immutable {
   import producer._
 
-  def wellFormed(s: State,
+  def wellformed(s: State,
                  sf: (Sort, Verifier) => Term,
                  e: ast.Exp,
                  pve: PartialVerificationError,
@@ -29,8 +29,8 @@ object wellFormedness extends WellFormednessRules with Immutable {
                 (Q: (State, Verifier) => VerificationResult)
                 : VerificationResult = {
 
-    produces(s, sf, e, pve, v)((s1, v1) =>
-      produces(s, sf, e, pve, v1)((s2, v2) =>
+    produce(s, sf, e, pve, v)((s1, v1) =>
+      produce(s, sf, e, pve, v1)((s2, v2) =>
         Q(s2, v2)))
   }
 }
