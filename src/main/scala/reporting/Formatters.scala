@@ -49,11 +49,22 @@ class DefaultStateFormatter extends StateFormatter {
        |PCs: $pcsStr)""".stripMargin
   }
 
-  def format(g: Store): String = g.values.mkString("(", ", ", ")")
-  def format(h: Heap): String = h.values.mkString("(", ", ", ")")
+  def format(s: State, pcs: Set[Term]): String = {
+    val isImpStr = s.isImprecise.toString
+    val gStr = format(s.g)
+    val hStr = format(s.h)
+    val optHeapStr = format(s.optimisticHeap)
+
+    val pcsStr = format(pcs)
+
+    s""" Imprecise: $isImpStr, Store: $gStr, Heap: $hStr, OptHeap: $optHeapStr, PCs: $pcsStr)""".stripMargin
+  }
+
+  def format(g: Store): String = g.values.mkString("[{", "}, {", "}]")
+  def format(h: Heap): String = h.values.mkString("[", ", ", "]")
 
   def format(oldHeaps: OldHeaps): String = {
-    oldHeaps.map{case (id, h) => s"$id: ${format(h)}"}.mkString("(", ",\n", ")")
+    oldHeaps.map{case (id, h) => s"$id: ${format(h)}"}.mkString("[", ", ", "]")
   }
 
   /** Attention: The current implementation hides non-null and combine terms! **/
@@ -64,7 +75,18 @@ class DefaultStateFormatter extends StateFormatter {
            => true
       case Not(BuiltinEquals(_, Null())) => true
       case _ => false
-    }.mkString("(", ", ", ")")
+    }.mkString("[", ", ", "]")
+  }
+
+  def format(pcs: Set[Term]): String = {
+    /* Attention: Hides non-null and combine terms. */
+    val filteredPcs = pcs.filterNot {
+      case c: BuiltinEquals if c.p0.isInstanceOf[Combine]
+        || c.p1.isInstanceOf[Combine] => true
+      case Not(BuiltinEquals(_, Null())) => true
+      case _ => false
+    }
+    if (filteredPcs.isEmpty) "[]" else filteredPcs.mkString("[\"", "\", \"", "\"]")
   }
 
   //Methods for SymbexLogger
