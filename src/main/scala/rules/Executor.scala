@@ -150,8 +150,7 @@ object executor extends ExecutionRules with Immutable {
             (executionFlowController.locally(sBody, v)((s0, v0) => {
                 v0.decider.prover.comment("Loop head block: Check well-definedness of invariant")
                 val mark = v0.decider.setPathConditionMark()
-                //change to wellFormedness check
-                produces(s0, freshSnap, invs, ContractNotWellformed, v0)((s1, v1) => {
+                wellformed(s0.copy(isImprecise = false, optimisticHeap = Heap()), freshSnap, invs, ContractNotWellformed, v0)((s1, v1) =>
                   phase1data = phase1data :+ (s1,
                                               v1.decider.pcs.after(mark),
                                               InsertionOrderedSet.empty[FunctionDecl] /*v2.decider.freshFunctions*/ /* [BRANCH-PARALLELISATION] */)
@@ -309,12 +308,13 @@ object executor extends ExecutionRules with Immutable {
             val resource = fa.res(Verifier.program)
             val ve = pve dueTo InsufficientPermission(fa)
             val description = s"eval ${ass.pos}: $ass"
-            eval(s2, rhs, pve, v2)((s3, tRhs, v3) => {
-              val tSnap = ssaifyRhs(tRhs, field.name, field.typ, v3)
-              val id = BasicChunkIdentifier(field.name)
-              val newChunk = BasicChunk(FieldID, id, Seq(tRcvr), tSnap, FullPerm())
-              chunkSupporter.produce(s3, s3.h, newChunk, v3)((s4, h4, v4) =>
-                Q(s4.copy(h = h4), v4))
+
+            eval(s2, tRcvr, pve, v2)((s3, variable, v3) => {
+              
+
+                //directly create symbolic value for equality between variable and tRhs
+                v3.decider.assume(Equals(variable, tRhs)) //add symbolic value to path condition
+                Q(s3, v3)
             })
           })
         )
@@ -464,7 +464,8 @@ object executor extends ExecutionRules with Immutable {
         val pve = FoldFailed(fold)
         evals(s, eArgs, _ => pve, v)((s1, tArgs, v1) =>
           eval(s1, ePerm, pve, v1)((s2, tPerm, v2) => {
-            v2.decider.assertgv(s2.isImprecise, IsPositive(tPerm)){ //The isOne check is redundant
+            //v2.decider.assert(IsNonNegative(tPerm)){
+            v2.decider.assertgv(s2.isImprecise, IsPositive(tPerm)){ //The IsPositive check is redundant
               case true =>
                 val wildcards = s2.constrainableARPs -- s1.constrainableARPs
                 predicateSupporter.fold(s2, predicate, tArgs, tPerm, wildcards, pve, v2)(Q)
@@ -491,7 +492,7 @@ object executor extends ExecutionRules with Immutable {
               s2.smCache
             }
             //v2.decider.assert(IsNonNegative(tPerm)){
-            v2.decider.assertgv(s2.isImprecise, IsPositive(tPerm)){ //The isOne check is redundant
+            v2.decider.assertgv(s2.isImprecise, IsPositive(tPerm)){ //The IsPositive check is redundant
               case true =>
                 val wildcards = s2.constrainableARPs -- s1.constrainableARPs
                 predicateSupporter.unfold(s2.copy(smCache = smCache1), predicate, tArgs, tPerm, wildcards, pve, v2, pa)(Q)
