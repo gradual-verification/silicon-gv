@@ -16,3 +16,13 @@
 2020.12.21 13:42:30 INFO  no build target: using presentation compiler with only scala-library
 2020.12.21 13:42:36 WARN  no build target for: C:\Users\jacob\Desktop\REUSE\silicon-gv\src\main\scala\rules\Producer.scala
 2020.12.21 13:43:07 INFO  shutting down Metals
+[0m2021.05.06 13:17:06 INFO  Started: Metals version 0.10.1 in workspace 'C:\Users\jacob\Desktop\REUSE\silicon-gv' for client vscode 1.55.0.[0m
+[0m2021.05.06 13:17:08 INFO  time: initialize in 1.76s[0m
+[0m2021.05.06 13:17:08 WARN  resetting database: C:\Users\jacob\Desktop\REUSE\silicon-gv\.metals\metals.h2.db[0m
+[0m2021.05.06 13:17:08 WARN  Build server is not auto-connectable.[0m
+[0m2021.05.06 13:17:08 WARN  no build target for: C:\Users\jacob\Desktop\REUSE\silicon-gv\src\test\scala\SiliconTests.scala[0m
+[0m2021.05.06 13:17:14 INFO  no build target: using presentation compiler with only scala-library: 2.12.13[0m
+[0m2021.05.06 13:17:16 INFO  time: code lens generation in 7.15s[0m
+May 06, 2021 1:17:22 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
+INFO: Unsupported notification method: $/setTraceNotification
+[0m2021.05.06 13:18:13 INFO  shutting down Metals[0m

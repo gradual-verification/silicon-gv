@@ -239,6 +239,7 @@ class DefaultMasterVerifier(config: Config, override val reporter: PluginAwareRe
     SymbExLogger.writeJSFile()
     /** Write DOT-Representation of the log if the SymbExLogger is enabled */
     SymbExLogger.writeDotFile()
+    SymbExLogger.writeTextFile()
 
     (   functionVerificationResults
      ++ predicateVerificationResults
