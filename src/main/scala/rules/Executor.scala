@@ -150,7 +150,7 @@ object executor extends ExecutionRules with Immutable {
             (executionFlowController.locally(sBody, v)((s0, v0) => {
                 v0.decider.prover.comment("Loop head block: Check well-definedness of invariant")
                 val mark = v0.decider.setPathConditionMark()
-                wellformed(s0.copy(isImprecise = false, optimisticHeap = Heap()), freshSnap, invs, ContractNotWellformed, v0)((s1, v1) =>
+                wellformed(s0.copy(isImprecise = false, optimisticHeap = Heap()), freshSnap, invs, ContractNotWellformed(viper.silicon.utils.ast.BigAnd(invs)), v0)((s1, v1) => {   //pve is a placeholder
                   phase1data = phase1data :+ (s1,
                                               v1.decider.pcs.after(mark),
                                               InsertionOrderedSet.empty[FunctionDecl] /*v2.decider.freshFunctions*/ /* [BRANCH-PARALLELISATION] */)
@@ -309,11 +309,11 @@ object executor extends ExecutionRules with Immutable {
             val ve = pve dueTo InsufficientPermission(fa)
             val description = s"eval ${ass.pos}: $ass"
 
-            eval(s2, tRcvr, pve, v2)((s3, variable, v3) => {
+            eval(s2, fa, pve, v2)((s3, snapshot, v3) => {
               
 
                 //directly create symbolic value for equality between variable and tRhs
-                v3.decider.assume(Equals(variable, tRhs)) //add symbolic value to path condition
+                v3.decider.assume(Equals(snapshot, tRhs)) //directly add symbolic value for equality to path condition
                 Q(s3, v3)
             })
           })
@@ -380,7 +380,7 @@ object executor extends ExecutionRules with Immutable {
             if (Verifier.config.disableSubsumption()) {
               //This case resembles what's written in the PhD thesis
               consume(s, a, pve, v)((s1, snap1, v1) =>
-                wellformed(s1.copy(isImprecise = true), freshSnap, a, pve, v1)((s2, v2) =>
+                wellformed(s1.copy(isImprecise = true), freshSnap, Seq(a), pve, v1)((s2, v2) =>
                   Q(s, v2))
                 )
             } else
@@ -393,12 +393,12 @@ object executor extends ExecutionRules with Immutable {
                * by s.h. By copying hUsed to s.h the contained permissions remain available inside the wand.
                */
               consume(s, a, pve, v)((s1, snap1, v1) => {
-                wellformed(s1.copy(isImprecise = true), freshSnap, a, pve, v1)((s2, v2) =>
+                wellformed(s1.copy(isImprecise = true), freshSnap, Seq(a), pve, v1)((s2, v2) =>
                   Q(s2.copy(h = s2.reserveHeaps.head), v2))
               })
             } else {
               consume(s, a, pve, v)((s1, snap1, v1) => {
-                wellformed(s1.copy(isImprecise = true), freshSnap, a, pve, v1)((s2, v2) => {
+                wellformed(s1.copy(isImprecise = true), freshSnap, Seq(a), pve, v1)((s2, v2) => {
                   val s3 = s2.copy(h = s.h, reserveHeaps = s.reserveHeaps)
                   Q(s3, v2)})})
             }
