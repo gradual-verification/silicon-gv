@@ -544,7 +544,6 @@ class JSTreeRenderer extends Renderer[String] {
 
     s match {
       case gb: GlobalBranchRecord => {
-        println("salmon")
         output += "{" + gb.toJson() + "," + open + printState(gb)
         output += "\n," + children + ": [\n"
         output += "{" + JsonHelper.pair(kind, "Branch 1") + "," + open
@@ -558,7 +557,6 @@ class JSTreeRenderer extends Renderer[String] {
         output += "]}"
       }
       case mc: MethodCallRecord => {
-        println("cod")
         output += "{" + mc.toJson() + "," + open + printState(mc)
         output += "\n," + children + ": [\n"
 
@@ -607,7 +605,7 @@ class JSTreeRenderer extends Renderer[String] {
     var res = ""
     if (s.state != null) {
       var σ = s.state.asInstanceOf[State]
-      res = ",\"prestate\":" + stateFormatter.toJson(σ, s.pcs)
+      res = ",\"prestate\":" + JsonHelper.escape(stateFormatter.toJson(σ, s.pcs))
     }
     res
   }
