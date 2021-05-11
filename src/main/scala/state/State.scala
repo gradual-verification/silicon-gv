@@ -95,8 +95,14 @@ final case class State(g: Store = Store(),
 
     copy(constrainableARPs = newConstrainableARPs)
   }
-
+/*
   def scalePermissionFactor(p: Term) =
+    copy(permissionScalingFactor = terms.PermTimes(p, permissionScalingFactor))
+  
+  //Is there anything I need to do for framed formulas? I don't think so.
+  //Overloading scale function to handle imprecision
+  def scalePermissionFactor(p: Term) = 
+    //Only scale the precise portion of the formula
     copy(permissionScalingFactor = terms.PermTimes(p, permissionScalingFactor))
 
   def merge(other: State): State =
