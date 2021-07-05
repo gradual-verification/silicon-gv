@@ -59,9 +59,7 @@ final case class State(g: Store = Store(),
                        hackIssue387DisablePermissionConsumption: Boolean = false,
 
                        qpFields: InsertionOrderedSet[ast.Field] = InsertionOrderedSet.empty,
-                       qpFieldsOpt: InsertionOrderedSet[ast.Field] = InsertionOrderedSet.empty, //for optimisticHeap
                        qpPredicates: InsertionOrderedSet[ast.Predicate] = InsertionOrderedSet.empty,
-                       qpPredicatesOpt: InsertionOrderedSet[ast.Field] = InsertionOrderedSet.empty,
                        qpMagicWands: InsertionOrderedSet[MagicWandIdentifier] = InsertionOrderedSet.empty,
                        smCache: SnapshotMapCache = SnapshotMapCache.empty,
                        pmCache: PmCache = Map.empty,
@@ -152,7 +150,7 @@ object State {
                  reserveHeaps1, reserveCfgs1, conservedPcs1, recordPcs1, exhaleExt1,
                  applyHeuristics1, heuristicsDepth1, triggerAction1,
                  ssCache1, hackIssue387DisablePermissionConsumption1,
-                 qpFields1, qpFieldsOpt1, qpPredicates1, qpPredicatesOpt1, qpMagicWands1, smCache1, pmCache1, smDomainNeeded1,
+                 qpFields1, qpPredicates1, qpMagicWands1, smCache1, pmCache1, smDomainNeeded1,
                  predicateSnapMap1, predicateFormalVarMap1, hack) =>
 
         /* Decompose state s2: most values must match those of s1 */
@@ -175,7 +173,7 @@ object State {
                      `reserveHeaps1`, `reserveCfgs1`, `conservedPcs1`, `recordPcs1`, `exhaleExt1`,
                      `applyHeuristics1`, `heuristicsDepth1`, `triggerAction1`,
                      ssCache2, `hackIssue387DisablePermissionConsumption1`,
-                     `qpFields1`, `qpFieldsOpt1`, `qpPredicates1`, `qpPredicatesOpt1`, `qpMagicWands1`, smCache2, pmCache2, `smDomainNeeded1`,
+                     `qpFields1`, `qpPredicates1`, `qpMagicWands1`, smCache2, pmCache2, `smDomainNeeded1`,
                      `predicateSnapMap1`, `predicateFormalVarMap1`, `hack`) =>
 
             val functionRecorder3 = functionRecorder1.merge(functionRecorder2)
