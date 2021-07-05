@@ -23,7 +23,6 @@ import viper.silicon.utils.ast.flattenOperator
 import viper.silicon.verifier.Verifier
 import viper.silicon.{EvaluateRecord, Map, SymbExLogger, TriggerSets}
 import viper.silicon.interfaces.state.{ChunkIdentifer, NonQuantifiedChunk}
-import viper.silicon.resources.{FieldID}
 
 /* TODO: With the current design w.r.t. parallelism, eval should never "move" an execution
  *       to a different verifier. Hence, consider not passing the verifier to continuations
@@ -284,6 +283,7 @@ object evaluator extends EvaluationRules with Immutable {
       case fa: ast.FieldAccess => {
         eval(s, fa.rcv, pve, v)((s1, tRcvr, v1) => {
         if (s.qpFields.contains(fa.field)) {
+            /* Quantified permissions are not supported by Gradual Viper; this case code is dead. */
             val (relevantChunks, _) =
               quantifiedChunkSupporter.splitHeap[QuantifiedFieldChunk](s1.h, BasicChunkIdentifier(fa.field.name))
             s1.smCache.get((fa.field, relevantChunks)) match {
@@ -348,95 +348,18 @@ object evaluator extends EvaluationRules with Immutable {
                 }
           //})
         } else {
-            if (s.qpFieldsOpt.contains(fa.field)) {
-                //Swapped out h for optimisticHeap
-              //eval(s, fa.rcv, pve, v)((s1, tRcvr, v1) => {
-                  val (relevantChunks, _) =
-                  quantifiedChunkSupporter.splitHeap[QuantifiedFieldChunk](s1.optimisticHeap, BasicChunkIdentifier(fa.field.name))
-                s1.smCache.get((fa.field, relevantChunks)) match {
-                  case Some((fvfDef: SnapshotMapDefinition, totalPermissions)) if !Verifier.config.disableValueMapCaching() =>
-                    /* The next assertion must be made if the FVF definition is taken from the cache;
-                    * in the other case it is part of quantifiedChunkSupporter.withValue.
-                    */
-                    /* Re-emit definition since the previous definition could be nested under
-                    * an auxiliary quantifier (resulting from the evaluation of some Silver
-                    * quantifier in whose body field 'fa.field' was accessed)
-                    * which is protected by a trigger term that we currently don't have.
-                    */
-                    v1.decider.assume(fvfDef.valueDefinitions)
-                    val trigger = FieldTrigger(fa.field.name, fvfDef.sm, tRcvr)
-                    v1.decider.assume(trigger)
-                    if (s1.triggerExp) {
-                      val fvfLookup = Lookup(fa.field.name, fvfDef.sm, tRcvr)
-                      val fr1 = s1.functionRecorder.recordSnapshot(fa, v1.decider.pcs.branchConditions, fvfLookup)
-                      val s2 = s1.copy(functionRecorder = fr1)
-                      Q(s2, fvfLookup, v1)
-                    } else {
-                      v1.decider.assert(IsPositive(totalPermissions.replace(`?r`, tRcvr))) {
-                        case false =>
-                          createFailure(pve dueTo InsufficientPermission(fa), v1, s1)
-                        case true =>
-                          val fvfLookup = Lookup(fa.field.name, fvfDef.sm, tRcvr)
-                          val fr1 = s1.functionRecorder.recordSnapshot(fa, v1.decider.pcs.branchConditions, fvfLookup).recordFvfAndDomain(fvfDef)
-                          val s2 = s1.copy(functionRecorder = fr1, possibleTriggers = if (s1.recordPossibleTriggers) s1.possibleTriggers + (fa -> trigger) else s1.possibleTriggers)
-                          Q(s2, fvfLookup, v1)}
-                    }
-                  case _ =>
-                    val (smDef1, smCache1) =
-                      quantifiedChunkSupporter.summarisingSnapshotMap(
-                        s = s1,
-                        resource = fa.field,
-                        codomainQVars = Seq(`?r`),
-                        relevantChunks = relevantChunks,
-                        optSmDomainDefinitionCondition =  None,
-                        optQVarsInstantiations = None,
-                        v = v1)
-                    val trigger = FieldTrigger(fa.field.name, smDef1.sm, tRcvr)
-                    v1.decider.assume(trigger)
-                    val permCheck =
-                      if (s1.triggerExp) {
-                        True()
-                      } else {
-                        val totalPermissions = smCache1.get((fa.field, relevantChunks)).get._2
-                          /* TODO: Have totalPermissions returned by quantifiedChunkSupporter.summarisingSnapshotMap */
-                        IsPositive(totalPermissions.replace(`?r`, tRcvr))
-                      }
-                    v1.decider.assert(permCheck) {
-                      case false =>
-                        createFailure(pve dueTo InsufficientPermission(fa), v1, s1)
-                      case true =>
-                        val smLookup = Lookup(fa.field.name, smDef1.sm, tRcvr)
-                        val fr2 =
-                          s1.functionRecorder.recordSnapshot(fa, v1.decider.pcs.branchConditions, smLookup)
-                                            .recordFvfAndDomain(smDef1)
-                        val s2 = s1.copy(functionRecorder = fr2,
-                                        smCache = smCache1)
-                        Q(s2, smLookup, v1)}
-                    }
-                //})
-            } else if (s1.isImprecise) {
-              //The code below has been modified from Producer.scala
-              val snap = v.decider.fresh(fa.field.name, v.symbolConverter.toSort(fa.field.typ))
-              val gain = FullPerm() //v1
-              val ch = BasicChunk(FieldID, BasicChunkIdentifier(fa.field.name), Seq(tRcvr), snap, gain)
-              val s2 = s1.copy() //s1.copy(functionRecorder = fr1)
-              //v2 changed to v1, etc.
-              chunkSupporter.produce(s2, s2.optimisticHeap, ch, v1)((s3, h3, v2) =>
-                Q(s2.copy(optimisticHeap = h3), snap, v2))
-            } else {
-              //Failure
-              evalLocationAccess(s, fa, pve, v)((s1, _, tArgs, v1) => {
-                val ve = pve dueTo InsufficientPermission(fa)
-                val resource = fa.res(Verifier.program)
-                chunkSupporter.lookup(s1, s1.h, resource, tArgs, ve, v1)((s2, h2, tSnap, v2) => {
-                  val fr = s2.functionRecorder.recordSnapshot(fa, v2.decider.pcs.branchConditions, tSnap)
-                  val s3 = s2.copy(h = h2, functionRecorder = fr)
-                  Q(s3, tSnap, v1)
-                })
-              })
-            }
-          }
-        })}
+          evalLocationAccess(s, fa, pve, v)((s1, _, tArgs, v1) => {
+            val ve = pve dueTo InsufficientPermission(fa)
+            val resource = fa.res(Verifier.program)
+            val addToOh = true /* so lookup knows whether or not to add optimistically assumed permissions to the optimistic heap */
+            chunkSupporter.lookup(s1, s1.h, s1.optimisticHeap, addToOh, resource, tArgs, pve, ve, v1)((s2, h2, oh2, tSnap, v2) => {
+              val fr = s2.functionRecorder.recordSnapshot(fa, v2.decider.pcs.branchConditions, tSnap)
+              val s3 = s2.copy(h = h2, optimisticHeap = oh2, functionRecorder = fr)
+              Q(s3, tSnap, v1)
+            })
+          })
+        }
+      })}
       case ast.Not(e0) =>
         eval(s, e0, pve, v)((s1, t0, v1) =>
           Q(s1, Not(t0), v1))
@@ -1098,6 +1021,7 @@ object evaluator extends EvaluationRules with Immutable {
       case fa: ast.FieldAccess => {
         evalpc(s, fa.rcv, pve, v)((s1, tRcvr, v1) => {
         if (s.qpFields.contains(fa.field)) {
+            /* quantified permissions are not supported in Gradual Viper, this case code is currently dead. */
             val (relevantChunks, _) =
               quantifiedChunkSupporter.splitHeap[QuantifiedFieldChunk](s1.h, BasicChunkIdentifier(fa.field.name))
             s1.smCache.get((fa.field, relevantChunks)) match {
@@ -1162,90 +1086,18 @@ object evaluator extends EvaluationRules with Immutable {
                 }
           //})
         } else {
-            if (s.qpFieldsOpt.contains(fa.field)) {
-                //Swapped out h for optimisticHeap
-                  val (relevantChunks, _) =
-                  quantifiedChunkSupporter.splitHeap[QuantifiedFieldChunk](s1.optimisticHeap, BasicChunkIdentifier(fa.field.name))
-                s1.smCache.get((fa.field, relevantChunks)) match {
-                  case Some((fvfDef: SnapshotMapDefinition, totalPermissions)) if !Verifier.config.disableValueMapCaching() =>
-                    /* The next assertion must be made if the FVF definition is taken from the cache;
-                    * in the other case it is part of quantifiedChunkSupporter.withValue.
-                    */
-                    /* Re-emit definition since the previous definition could be nested under
-                    * an auxiliary quantifier (resulting from the evaluation of some Silver
-                    * quantifier in whose body field 'fa.field' was accessed)
-                    * which is protected by a trigger term that we currently don't have.
-                    */
-                    v1.decider.assume(fvfDef.valueDefinitions)
-                    val trigger = FieldTrigger(fa.field.name, fvfDef.sm, tRcvr)
-                    v1.decider.assume(trigger)
-                    if (s1.triggerExp) {
-                      val fvfLookup = Lookup(fa.field.name, fvfDef.sm, tRcvr)
-                      val fr1 = s1.functionRecorder.recordSnapshot(fa, v1.decider.pcs.branchConditions, fvfLookup)
-                      val s2 = s1.copy(functionRecorder = fr1)
-                      Q(s2, fvfLookup, v1)
-                    } else {
-                      v1.decider.assert(IsPositive(totalPermissions.replace(`?r`, tRcvr))) {
-                        case false =>
-                          createFailure(pve dueTo InsufficientPermission(fa), v1, s1)
-                        case true =>
-                          val fvfLookup = Lookup(fa.field.name, fvfDef.sm, tRcvr)
-                          val fr1 = s1.functionRecorder.recordSnapshot(fa, v1.decider.pcs.branchConditions, fvfLookup).recordFvfAndDomain(fvfDef)
-                          val s2 = s1.copy(functionRecorder = fr1, possibleTriggers = if (s1.recordPossibleTriggers) s1.possibleTriggers + (fa -> trigger) else s1.possibleTriggers)
-                          Q(s2, fvfLookup, v1)}
-                    }
-                  case _ =>
-                    val (smDef1, smCache1) =
-                      quantifiedChunkSupporter.summarisingSnapshotMap(
-                        s = s1,
-                        resource = fa.field,
-                        codomainQVars = Seq(`?r`),
-                        relevantChunks = relevantChunks,
-                        optSmDomainDefinitionCondition =  None,
-                        optQVarsInstantiations = None,
-                        v = v1)
-                    val trigger = FieldTrigger(fa.field.name, smDef1.sm, tRcvr)
-                    v1.decider.assume(trigger)
-                    val permCheck =
-                      if (s1.triggerExp) {
-                        True()
-                      } else {
-                        val totalPermissions = smCache1.get((fa.field, relevantChunks)).get._2
-                          /* TODO: Have totalPermissions returned by quantifiedChunkSupporter.summarisingSnapshotMap */
-                        IsPositive(totalPermissions.replace(`?r`, tRcvr))
-                      }
-                    v1.decider.assert(permCheck) {
-                      case false =>
-                        createFailure(pve dueTo InsufficientPermission(fa), v1, s1)
-                      case true =>
-                        val smLookup = Lookup(fa.field.name, smDef1.sm, tRcvr)
-                        val fr2 =
-                          s1.functionRecorder.recordSnapshot(fa, v1.decider.pcs.branchConditions, smLookup)
-                                            .recordFvfAndDomain(smDef1)
-                        val s2 = s1.copy(functionRecorder = fr2,
-                                        smCache = smCache1)
-                        Q(s2, smLookup, v1)}
-                    }
-                //})
-            } else if (s1.isImprecise) {
-              //TODO: Code Review
-              val s2 = s1.copy()
-              val snap = v.decider.fresh(fa.field.name, v.symbolConverter.toSort(fa.field.typ))
-                Q(s2, snap, v1)
-            } else {
-              //Failure
-              evalLocationAccesspc(s, fa, pve, v)((s1, _, tArgs, v1) => {
-                val ve = pve dueTo InsufficientPermission(fa)
-                val resource = fa.res(Verifier.program)
-                chunkSupporter.lookup(s1, s1.h, resource, tArgs, ve, v1)((s2, h2, tSnap, v2) => {
-                  val fr = s2.functionRecorder.recordSnapshot(fa, v2.decider.pcs.branchConditions, tSnap)
-                  val s3 = s2.copy(h = h2, functionRecorder = fr)
-                  Q(s3, tSnap, v1)
-                })
-              })
-            }
-          }
-        })}
+          evalLocationAccesspc(s, fa, pve, v)((s1, _, tArgs, v1) => {
+            val ve = pve dueTo InsufficientPermission(fa)
+            val resource = fa.res(Verifier.program)
+            val addToOh = false /* so lookup knows whether or not to add optimistically assumed permissions to the optimistic heap */
+            chunkSupporter.lookup(s1, s1.h, s1.optimisticHeap, addToOh, resource, tArgs, pve, ve, v1)((s2, h2, oh2, tSnap, v2) => {
+              val fr = s2.functionRecorder.recordSnapshot(fa, v2.decider.pcs.branchConditions, tSnap)
+              val s3 = s2.copy(h = h2, optimisticHeap = oh2, functionRecorder = fr)
+              Q(s3, tSnap, v1)
+            })
+          })
+        }
+      })}
       case ast.Not(e0) =>
         evalpc(s, e0, pve, v)((s1, t0, v1) =>
           Q(s1, Not(t0), v1))
