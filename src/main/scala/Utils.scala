@@ -104,6 +104,7 @@ package object utils {
   }
 
   object ast {
+    // TODO;RGV: why is this dangerous
     /** Use with care! In particular, be sure you know the effect of `BigAnd` on
       * snapshot recording before you e.g. `consume(..., BigAnd(some_preconditions), ...)`.
       * Consider using `consumes(..., some_preconditions, ...)` instead.
@@ -197,6 +198,11 @@ package object utils {
     def sourceLineColumn(node: silver.ast.Node with silver.ast.Positioned): String = node.pos match {
       case pos: silver.ast.HasLineColumn => s"${pos.line}:${pos.column}"
       case _ => node.pos.toString
+    }
+
+    def sourceLineColumnPair(node: silver.ast.Node with silver.ast.Positioned): (Int, Int) = node.pos match {
+      case pos: silver.ast.HasLineColumn => (pos.line, pos.column)
+      case _ => sys.error(node.pos.toString)
     }
 
     /** Flattens an Exp into a list of subexpressions

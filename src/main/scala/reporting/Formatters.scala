@@ -8,11 +8,11 @@ package viper.silicon.reporting
 
 import viper.silicon.decider.RecordedPathConditions
 import viper.silicon.state.State.OldHeaps
-import viper.silicon.state.{Heap, State, Store}
+import viper.silicon.state.{Heap, State, Store, runtimeChecks}
 import viper.silicon.state.terms._
 import viper.silicon.verifier.Verifier
+import viper.silicon.supporters.Translator
 import viper.silver.ast.AbstractLocalVar
-import viper.silicon.SiliconRunner
 
 /* TODO: Use a proper pretty-printer such as the one we use for Silver AST nodes and Silicon terms */
 
@@ -31,22 +31,20 @@ class DefaultStateFormatter extends StateFormatter {
     val hStr = format(s.h)
     val optHeapStr = format(s.optimisticHeap)
     val oldHeapsStr = format(s.oldHeaps)
+    val runtimeCheckMap = runtimeChecks.getChecks
 
-    val pcsStr =
-      if (SiliconRunner.logger.isTraceEnabled())
-        /* TODO: It would be better if the choice between whether or not to include path
-         *       conditions in the output were made when instantiating the state formatter
-         */
-        s"${format(pcs)}\n"
-      else
-        ""
+    val pcsStr = s"${format(pcs)}"
+
+    val pcsVpr = s"${pcs.assumptions.map(new Translator(s, pcs).translate)}"
 
     s"""Imprecise: $isImpStr,
        |Store: $gStr,
        |Heap: $hStr,
        |OptHeap: $optHeapStr,
        |OHs: $oldHeapsStr,
-       |PCs: $pcsStr)""".stripMargin
+       |PCs: $pcsStr,
+       |Runtime PCs: $pcsVpr, 
+       |Runtime Checks: $runtimeCheckMap""".stripMargin
   }
 
   def format(s: State, pcs: Set[Term]): String = {

@@ -7,12 +7,14 @@
 package viper.silicon.state
 
 import viper.silicon.interfaces.state.Chunk
+import viper.silicon.state.terms.Term
 
 trait Heap {
   def values: Iterable[Chunk]
   def +(chunk: Chunk): Heap
   def +(other: Heap): Heap
   def -(chunk: Chunk): Heap
+  def getChunkForValue(value: Term): Option[(Term, String)]
 }
 
 trait HeapFactory[H <: Heap] {
@@ -29,6 +31,18 @@ final class ListBackedHeap private[state] (chunks: Vector[Chunk])
     extends Heap with Immutable {
 
   def values = chunks
+
+  def getChunkForValue(value: Term): Option[(Term, String)] = {
+    chunks.find(chunk => {
+      chunk match {
+        case BasicChunk(resourceID, id, args, snap, perm) => snap == value
+        case _ => sys.error("That chunk type is not supported yet!")
+      }
+    }) match {
+      case None => None
+      case Some(BasicChunk(resourceID, id, args, snap, perm)) => Some(args.head, id.toString)
+    }
+  }
 
   def +(ch: Chunk) = new ListBackedHeap(chunks :+ ch)
   def +(h: Heap) = new ListBackedHeap(chunks ++ h.values)
