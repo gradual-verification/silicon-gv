@@ -414,8 +414,12 @@ object evaluator extends EvaluationRules with Immutable {
                         Q(s2, smLookup, v1)}
                     }
                 //})
+            // TODO;RGV: Generate runtime check here
             } else if (s1.isImprecise) {
               //The code below has been modified from Producer.scala
+
+              runtimeChecks.addChecks(viper.silicon.utils.ast.sourceLineColumnPair(fa),
+                Seq(ast.FieldAccessPredicate(fa, ast.FullPerm()())()))
               val snap = v.decider.fresh(fa.field.name, v.symbolConverter.toSort(fa.field.typ))
               val gain = FullPerm() //v1
               val ch = BasicChunk(FieldID, BasicChunkIdentifier(fa.field.name), Seq(tRcvr), snap, gain)
@@ -1227,8 +1231,11 @@ object evaluator extends EvaluationRules with Immutable {
                         Q(s2, smLookup, v1)}
                     }
                 //})
+            // TODO;RGV: add runtime checks here
             } else if (s1.isImprecise) {
               //TODO: Code Review
+              runtimeChecks.addChecks(viper.silicon.utils.ast.sourceLineColumnPair(fa),
+                Seq(ast.FieldAccessPredicate(fa, ast.FullPerm()())()))
               val s2 = s1.copy()
               val snap = v.decider.fresh(fa.field.name, v.symbolConverter.toSort(fa.field.typ))
                 Q(s2, snap, v1)

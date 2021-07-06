@@ -96,6 +96,7 @@ trait DefaultDeciderProvider extends VerifierComponent { this: Verifier =>
 
     def prover: Prover = z3
 
+    // TODO;RGV: We can use this to access the 'current' path condition stack
     def pcs: PathConditionStack = pathConditions
 
 //    def setPcs(other: PathConditionStack) = { /* [BRANCH-PARALLELISATION] */
