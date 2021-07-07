@@ -8,7 +8,7 @@ package viper.silicon.decider
 
 import viper.silicon.common.collections.immutable.InsertionOrderedSet
 import viper.silicon.Stack
-import viper.silicon.state.terms.{And, Decl, Equals, Implies, Quantification, Quantifier, sorts, Term, Trigger, True, Var}
+import viper.silicon.state.terms.{And, Decl, Equals, Implies, Quantification, Quantifier, Term, Trigger, True, Var}
 import viper.silicon.utils.Counter
 
 /*
@@ -37,7 +37,7 @@ trait RecordedPathConditions {
                  ignore: Term /* TODO: Hack, implement properly */)
                 : (Seq[Quantification], Seq[Quantification])
 
-  def getEquivalentVariable(variable: Var): Option[Var] = {
+  def getEquivalentVariable(variable: Term): Option[Term] = {
     // retype this if or when we have time
     assumptions.find(term => term match {
       case Equals(Var(name1, sort1), Var(name2, sort2)) =>

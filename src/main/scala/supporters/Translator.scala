@@ -45,24 +45,28 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
       case terms.Var(name, sort) =>
         sort match {
           case terms.sorts.Snap => ast.LocalVar("snapvar", ast.Int)()
-          // TODO: sanitize variable names to safe numbers, if we have time
           case _ => variableResolver(terms.Var(name, sort))
         }
+      case terms.SortWrapper(t, sort) => variableResolver(terms.SortWrapper(t, sort))
       // how do we deal with snapshots? we need not {
+      //
       // snapshots only exist in the path condition because the latter is
       // already passed around everywhere; translated snapshot terms should
       // never be returned from diff as part of a necessary runtime check, so
       // we need not translate them
-      case terms.Unit => ast.NullLit()()
-      case terms.First(t) => translate(t)
-      case terms.Second(t) => translate(t)
-      case terms.Combine(t0, t1) => ast.And(translate(t0), translate(t1))()
+      //
+      // these cases only exist to prevent the translator from crashing during
+      // testing; the translator is tested on the path condition, which
+      // includes snapshot terms
+      case terms.Unit => ast.LocalVar("snapvar", ast.Int)()
+      case terms.First(_) => ast.LocalVar("snapvar", ast.Int)()
+      case terms.Second(_) => ast.LocalVar("snapvar", ast.Int)()
+      case terms.Combine(t0, t1) => ast.LocalVar("snapvar", ast.Int)()
       // }
-      // case 
     }
   }
 
-  private def variableResolver(variable: terms.Var): ast.Exp = {
+  private def variableResolver(variable: terms.Term): ast.Exp = {
     // TODO: this is not as efficient as it might be; we search both heaps when
     // this may not be necessary
     //
@@ -70,13 +74,13 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
     // variable lookup in the other
     
     val varType = variable match {
-      case terms.Var(_, terms.sorts.Int) => ast.Int
-      case terms.Var(_, terms.sorts.Bool) => ast.Bool
-      case terms.Var(_, terms.sorts.Ref) => ast.Ref
-      case terms.Var(_, terms.sorts.Perm) => ast.Perm
+      case terms.Var(_, terms.sorts.Int) | terms.SortWrapper(_, terms.sorts.Int) => ast.Int
+      case terms.Var(_, terms.sorts.Bool) | terms.SortWrapper(_, terms.sorts.Bool) => ast.Bool
+      case terms.Var(_, terms.sorts.Ref) | terms.SortWrapper(_, terms.sorts.Ref) => ast.Ref
+      case terms.Var(_, terms.sorts.Perm) | terms.SortWrapper(_, terms.sorts.Perm) => ast.Perm
     }
 
-    val heapOrStoreVar: terms.Var = pcs.getEquivalentVariable(variable) match {
+    val heapOrStoreVar = pcs.getEquivalentVariable(variable) match {
       case None => variable
       case Some(equivalentVariable) => equivalentVariable
     }

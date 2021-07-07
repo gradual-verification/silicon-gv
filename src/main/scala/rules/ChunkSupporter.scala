@@ -8,13 +8,14 @@ package viper.silicon.rules
 
 import scala.reflect.ClassTag
 import viper.silver.ast
-import viper.silver.verifier.VerificationError
+import viper.silver.verifier.{VerificationError, PartialVerificationError}
 import viper.silicon.interfaces.state._
 import viper.silicon.interfaces.{Failure, Success, VerificationResult}
-import viper.silicon.resources.{NonQuantifiedPropertyInterpreter, Resources}
+import viper.silicon.resources.{NonQuantifiedPropertyInterpreter, Resources, FieldID, PredicateID}
 import viper.silicon.state._
 import viper.silicon.state.terms._
 import viper.silicon.state.terms.perms.IsPositive
+import viper.silicon.utils
 import viper.silicon.verifier.Verifier
 
 trait ChunkSupportRules extends SymbolicExecutionRules {
@@ -35,11 +36,15 @@ trait ChunkSupportRules extends SymbolicExecutionRules {
 
   def lookup(s: State,
              h: Heap,
+             oh: Heap,
+             addToOh: Boolean,
              resource: ast.Resource,
+             runtimeCheckFieldTarget: ast.FieldAccess, 
              args: Seq[Term],
+             pve: PartialVerificationError,
              ve: VerificationError,
              v: Verifier)
-            (Q: (State, Heap, Term, Verifier) => VerificationResult)
+            (Q: (State, Heap, Heap, Term, Verifier) => VerificationResult)
             : VerificationResult
 
   def inHeap[CH <: NonQuantifiedChunk: ClassTag]
@@ -175,26 +180,35 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
 
   def lookup(s: State,
              h: Heap,
+             oh: Heap,
+             addToOh: Boolean,
              resource: ast.Resource,
+             runtimeCheckFieldTarget: ast.FieldAccess,
              args: Seq[Term],
+             pve: PartialVerificationError,
              ve: VerificationError,
              v: Verifier)
-            (Q: (State, Heap, Term, Verifier) => VerificationResult)
+            (Q: (State, Heap, Heap, Term, Verifier) => VerificationResult)
             : VerificationResult = {
 //    executionFlowController.tryOrFail2[Heap, Term](s.copy(h = h), v)((s1, v1, QS) => {
-      val s1 = stateConsolidator.consolidate(s.copy(h = h), v)
+      val s1 = stateConsolidator.consolidate(s.copy(h = h, optimisticHeap = oh), v)
       val lookupFunction =
         if (s.isMethodVerification && Verifier.config.enableMoreCompleteExhale()) moreCompleteExhaleSupporter.lookupComplete _
         else lookupGreedy _
-      lookupFunction(s1, s1.h, resource, args, ve, v)((s2, tSnap, v1) =>
-        Q(s2.copy(h = s.h), s2.h, tSnap, v1))
+      lookupFunction(s1, s1.h, s1.optimisticHeap, addToOh, resource,
+        runtimeCheckFieldTarget, args, pve, ve, v)((s2, tSnap, v1) =>
+        Q(s2.copy(h = s.h, optimisticHeap = s.optimisticHeap), s2.h, s2.optimisticHeap, tSnap, v1))
 //    })(Q)
   }
 
   private def lookupGreedy(s: State,
                            h: Heap,
+                           oh: Heap,
+                           addToOh: Boolean,
                            resource: ast.Resource,
+                           runtimeCheckFieldTarget: ast.FieldAccess,
                            args: Seq[Term],
+                           pve: PartialVerificationError,
                            ve: VerificationError,
                            v: Verifier)
                           (Q: (State, Term, Verifier) => VerificationResult)
@@ -210,8 +224,60 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
       case _ if v.decider.checkSmoke() =>
         Success()
 
-      case _ =>
-        createFailure(ve, v, s, true).withLoad(args)
+      case _ => {
+        findChunk[NonQuantifiedChunk](oh.values, id, args, v) match {
+          case Some(ch) if v.decider.check(IsPositive(ch.perm), Verifier.config.checkTimeout()) =>
+            Q(s, ch.snap, v)
+
+          // this is the eval case for adding runtime checks
+          case _ if s.isImprecise && addToOh =>
+            resource match {
+              case f: ast.Field => {
+                val snap = v.decider.fresh(s"${args.head}.$id", v.symbolConverter.toSort(f.typ))
+                val ch = BasicChunk(FieldID, BasicChunkIdentifier(f.name), args, snap, FullPerm())
+                val s2 = s.copy(optimisticHeap = oh)
+                
+                runtimeChecks.addChecks(utils.ast.sourceLineColumnPair(runtimeCheckFieldTarget),
+                  Seq(ast.FieldAccessPredicate(runtimeCheckFieldTarget, ast.FullPerm()())()))
+
+                chunkSupporter.produce(s2, s2.optimisticHeap, ch, v)((s3, oh2, v2) =>
+                  Q(s.copy(optimisticHeap = oh2), snap, v2))
+              }
+
+              case p : ast.Predicate => {
+                val snap = v.decider.fresh(s"$id(${args.mkString(",")})", sorts.Snap)
+                val ch = BasicChunk(PredicateID, BasicChunkIdentifier(p.name), args, snap, FullPerm())
+                val s2 = s.copy(optimisticHeap = oh)
+                chunkSupporter.produce(s2, s2.optimisticHeap, ch, v)((s3, oh2, v2) =>
+                  Q(s.copy(optimisticHeap = oh2), snap, v2))
+              }
+
+              case _ => /* should never reach this case */
+                createFailure(ve, v, s, true).withLoad(args)
+            }
+          // this is the evalpc case for adding runtime checks
+          case _ if s.isImprecise && !addToOh =>
+            resource match {
+              case f: ast.Field => {
+                val snap = v.decider.fresh(s"${args.head}.$id", v.symbolConverter.toSort(f.typ))
+
+                runtimeChecks.addChecks(utils.ast.sourceLineColumnPair(runtimeCheckFieldTarget),
+                  Seq(ast.FieldAccessPredicate(runtimeCheckFieldTarget, ast.FullPerm()())()))
+
+                Q(s, snap, v)
+              }
+              case p: ast.Predicate => {
+                val snap = v.decider.fresh(s"$id(${args.mkString(",")})", sorts.Snap)
+                Q(s, snap, v)
+              }
+              case _ => /* should never reach this case */
+                createFailure(ve, v, s, true).withLoad(args)
+            }
+
+          case _ =>
+              createFailure(ve, v, s, true).withLoad(args)
+        }
+      }
     }
   }
 
