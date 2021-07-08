@@ -390,12 +390,12 @@ object executor extends ExecutionRules with Immutable {
                */
               consume(s, a, pve, v)((s1, snap1, v1) => {
                 wellformed(s1.copy(isImprecise = true), freshSnap, Seq(a), pve, v1)((s2, v2) =>
-                  Q(s2.copy(h = s2.reserveHeaps.head), v2))
+                  Q(s2.copy(isImprecise = s.isImprecise, h = s2.reserveHeaps.head, optimisticHeap = s.optimisticHeap), v2))
               })
             } else {
               consume(s, a, pve, v)((s1, snap1, v1) => {
                 wellformed(s1.copy(isImprecise = true), freshSnap, Seq(a), pve, v1)((s2, v2) => {
-                  val s3 = s2.copy(h = s.h, reserveHeaps = s.reserveHeaps)
+                  val s3 = s2.copy(isImprecise = s.isImprecise, h = s.h, optimisticHeap = s.optimisticHeap, reserveHeaps = s.reserveHeaps)
                   Q(s3, v2)})})
             }
         }

@@ -661,18 +661,19 @@ object consumer extends ConsumptionRules with Immutable {
 
     val s2 = stateConsolidator.consolidate(s1, v)
     evalpc(s2.copy(isImprecise = impr), e, pve, v)((s3, t, v1) => {
-      v1.decider.assertgv(s2.isImprecise, t) {
+      val s4 = s3.copy(isImprecise = s2.isImprecise)
+      v1.decider.assertgv(s4.isImprecise, t) {
         case true =>
           v1.decider.assume(t)
-          val s4 = s3.copy(h = s.h,
+          val s5 = s4.copy(h = s.h,
                            reserveHeaps = s.reserveHeaps,
                            exhaleExt = s.exhaleExt)
-          Q(s4, Unit, v1)
+          Q(s5, Unit, v1)
         case false =>
         //  println("pve " + pve + "\ne " + e + "\nv1 " + v1 + "\ns3 " + s3)
           //println("heap: " + s.h + "\noh: " + s.optimisticHeap)
           //val s4 = s3.copy(isImprecise = false)
-          createFailure(pve dueTo AssertionFalse(e), v1, s3)
+          createFailure(pve dueTo AssertionFalse(e), v1, s4)
     }})
   }
 }
