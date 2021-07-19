@@ -18,6 +18,7 @@ import viper.silicon.state.terms._
 import viper.silicon.state.terms.implicits._
 import viper.silicon.state.terms.perms.{IsNonNegative, IsPositive}
 import viper.silicon.state.terms.predef.`?r`
+import viper.silicon.utils.consistency.createUnexpectedNodeError
 import viper.silicon.utils.toSf
 import viper.silicon.utils.ast.flattenOperator
 import viper.silicon.verifier.Verifier
@@ -978,7 +979,7 @@ object evaluator extends EvaluationRules with Immutable {
         Failure(viper.silicon.utils.consistency.createUnexpectedInhaleExhaleExpressionError(e))
 
       case _: ast.Exp =>
-        createFailure(pve dueTo FeatureUnsupported(e,""), v, s)
+        createFailure(createUnexpectedNodeError(e,""), v, s)
     }
 
     resultTerm
@@ -1729,7 +1730,7 @@ object evaluator extends EvaluationRules with Immutable {
         Failure(viper.silicon.utils.consistency.createUnexpectedInhaleExhaleExpressionError(e))
 
       case _: ast.Exp =>
-        createFailure(pve dueTo FeatureUnsupported(e,""), v, s)
+        createFailure(createUnexpectedNodeError(e,""), v, s)
     }
 
     resultTerm

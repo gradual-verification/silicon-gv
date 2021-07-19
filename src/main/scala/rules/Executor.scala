@@ -21,6 +21,7 @@ import viper.silicon.state.terms._
 import viper.silicon.state.terms.perms.IsPositive
 import viper.silicon.state.terms.predef.`?r`
 import viper.silicon.utils.freshSnap
+import viper.silicon.utils.consistency.createUnexpectedNodeError
 import viper.silicon.verifier.Verifier
 import viper.silicon.{ExecuteRecord, Map, MethodCallRecord, SymbExLogger}
 
@@ -565,7 +566,7 @@ object executor extends ExecutionRules with Immutable {
       case _: ast.Inhale
            | _: ast.Exhale
            | _: ast.Package
-           | _: ast.Apply => sys.error(s"Unexpected statement (${stmt.getClass.getName}): $stmt")
+           | _: ast.Apply => createFailure(createUnexpectedNodeError(stmt,""), v, s)
     }
 
     executed
