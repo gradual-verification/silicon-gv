@@ -73,55 +73,79 @@ object TermDifference {
     case t => visitor(pushNegations, Seq("Not"), t)
   }
 
-  def pullAnds(symbolicValue: terms.Term): terms.Term = symbolicValue match {
+  def eliminateNestedOrs(symbolicValue: terms.Term): terms.Term = symbolicValue match {
+    case terms.Or(ts) => terms.Or(returnOrBodies(symbolicValue))
+    case t => visitor(eliminateNestedOrs, Seq("Or"), t)
+  }
+
+  def returnOrBodies(symbolicValue: terms.Term): Seq[terms.Term] = symbolicValue match {
+    case terms.Or(ts) => ts.foldRight(Seq[terms.Term]())((term, restTerms) =>
+        term match {
+          case terms.Or(vs) => returnOrBodies(terms.Or(vs)) ++: restTerms
+          case t => visitor(eliminateNestedOrs, Seq("Or"), t) +: restTerms
+        })
+  }
+
+  // this must get called when an or is encountered, possibly or probably
+  def pullAnds(symbolicValue: terms.Term): terms.Term = eliminateNestedOrs(symbolicValue) match {
     case terms.Or(ts) => 
       ts.find(term => term match {
         case terms.And(_) => true
         case _ => false
       }) match {
         case None => terms.Or(ts.map(term => visitor(pullAnds, Seq("Or"), term)))
+        // this branch must be taken when that or term contains an and term, maybe
         case Some(t) => expandAnds(t, ts.filterNot(term => term == t))
       }
     case t => visitor(pullAnds, Seq("Or"), t)
   }
 
-  private def expandAnds(andTerm: terms.Term, orContents: Seq[terms.Term]): terms.Term = andTerm match {
+  def expandAnds(andTerm: terms.Term, orContents: Seq[terms.Term]): terms.Term = andTerm match {
     case terms.And(ts) => terms.And(ts.map(term => pullAnds(terms.Or(term +: ts))))
   }
 
-  private def eliminateAndChains(symbolicValue: terms.Term): terms.Term = symbolicValue match {
-    case terms.And(ts) => terms.And(ts.foldRight(Seq[terms.Term]())((term, restTerms) =>
-        term match {
-          case terms.And(vs) => vs.map(potentialAndTerm => eliminateAndChains(potentialAndTerm)) ++: restTerms
-          case t => t +: restTerms
-        }))
-    case t => visitor(eliminateAndChains, Seq("And"), t)
+  def eliminateNestedAnds(symbolicValue: terms.Term): terms.Term = symbolicValue match {
+    case terms.And(ts) => terms.And(returnAndBodies(terms.And(ts)))
+    case t => visitor(eliminateNestedAnds, Seq("And"), t)
   }
 
+  def returnAndBodies(symbolicValue: terms.Term): Seq[terms.Term] = symbolicValue match {
+    case terms.And(ts) => ts.foldRight(Seq[terms.Term]())((term, restTerms) =>
+        term match {
+          case terms.And(_) => returnAndBodies(term) ++: restTerms
+          case t => visitor(eliminateNestedAnds, Seq("And"), t) +: restTerms
+        })
+  }
+
+  val makeVar: String => terms.Var = (varName: String) => terms.Var(viper.silicon.state.Identifier(varName), terms.sorts.Int)
+
+  val simpleImplicationTerm = terms.Implies(makeVar("x"), makeVar("y"))
+
+  val simpleNegationTerm = terms.Not(makeVar("x"))
+
+  val moreComplexNegationTerm = terms.Not(simpleImplicationTerm)
+
+  // 3
+  val moreComplexImplicationTerm = terms.Iff(terms.Implies(makeVar("a"), makeVar("e")), moreComplexNegationTerm)
+
+  val evenMoreComplexNegationTerm = terms.Not(moreComplexNegationTerm)
+
+  val evenMoreComplexNegationTermForRealThisTime = terms.Not(moreComplexImplicationTerm)
+
+  // 10
+  val termWithIgnoredTerms =
+    terms.Iff(
+      terms.Plus(terms.Var(viper.silicon.state.Identifier("k"), terms.sorts.Int), makeVar("w")),
+      terms.Not(terms.Implies(
+        terms.Plus(
+          terms.Not(moreComplexImplicationTerm),
+          terms.Not(evenMoreComplexNegationTermForRealThisTime)),
+        terms.Not(evenMoreComplexNegationTerm))))
+
+  // 24
+  val moreComplexTermWithIgnoredTerms = terms.Implies(terms.Plus(termWithIgnoredTerms, evenMoreComplexNegationTermForRealThisTime), termWithIgnoredTerms)
+
   def testCNFTransform(): Unit = {
-
-    val makeVar: String => terms.Var = (varName: String) => terms.Var(viper.silicon.state.Identifier(varName), terms.sorts.Int)
-
-    val simpleImplicationTerm = terms.Implies(makeVar("x"), makeVar("y"))
-
-    val simpleNegationTerm = terms.Not(makeVar("x"))
-
-    val moreComplexNegationTerm = terms.Not(simpleImplicationTerm)
-
-    val moreComplexImplicationTerm = terms.Iff(terms.Implies(makeVar("a"), makeVar("e")), moreComplexNegationTerm)
-
-    val evenMoreComplexNegationTerm = terms.Not(moreComplexNegationTerm)
-
-    val evenMoreComplexNegationTermForRealThisTime = terms.Not(moreComplexImplicationTerm)
-
-    val termWithIgnoredTerms =
-      terms.Iff(
-        terms.Equals(simpleImplicationTerm, simpleNegationTerm),
-        terms.Not(terms.Implies(
-          terms.Equals(
-            terms.Not(moreComplexImplicationTerm),
-            evenMoreComplexNegationTermForRealThisTime),
-          terms.Not(evenMoreComplexNegationTerm))))
 
     println(pushNegations(eliminateImplications(simpleImplicationTerm)))
 
@@ -141,6 +165,14 @@ object TermDifference {
 
     println(pullAnds(pushNegations(eliminateImplications(termWithIgnoredTerms))))
 
-    println(eliminateAndChains(pullAnds(pushNegations(eliminateImplications(termWithIgnoredTerms)))))
+    println(eliminateNestedAnds(pullAnds(pushNegations(eliminateImplications(termWithIgnoredTerms)))))
+
+    println(moreComplexTermWithIgnoredTerms)
+
+    println(pushNegations(eliminateImplications(moreComplexTermWithIgnoredTerms)))
+
+    println(eliminateNestedAnds(pullAnds(pushNegations(eliminateImplications(moreComplexTermWithIgnoredTerms)))))
+
+    println(eliminateNestedAnds(eliminateNestedAnds(pullAnds(pushNegations(eliminateImplications(moreComplexTermWithIgnoredTerms))))))
   }
 }
