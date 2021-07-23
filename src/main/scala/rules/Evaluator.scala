@@ -34,7 +34,7 @@ trait EvaluationRules extends SymbolicExecutionRules {
            (Q: (State, List[Term], Verifier) => VerificationResult)
            : VerificationResult
 
-  def evalspc(s: State, es: Seq[ast.Exp], generateChecks: Boolean, pvef: ast.Exp => PartialVerificationError, v: Verifier)
+  def evalspc(s: State, es: Seq[ast.Exp], pvef: ast.Exp => PartialVerificationError, v: Verifier)
            (Q: (State, List[Term], Verifier) => VerificationResult)
            : VerificationResult
 
@@ -42,7 +42,7 @@ trait EvaluationRules extends SymbolicExecutionRules {
           (Q: (State, Term, Verifier) => VerificationResult)
           : VerificationResult
 
-  def evalpc(s: State, e: ast.Exp, generateChecks: Boolean, pve: PartialVerificationError, v: Verifier)
+  def evalpc(s: State, e: ast.Exp, pve: PartialVerificationError, v: Verifier)
           (Q: (State, Term, Verifier) => VerificationResult)
           : VerificationResult
 
@@ -83,7 +83,7 @@ object evaluator extends EvaluationRules with Immutable {
 
     evals2(s, es, Nil, pvef, v)(Q)
 
-  def evalspc(s: State, es: Seq[ast.Exp], generateChecks: Boolean, pvef: ast.Exp => PartialVerificationError, v: Verifier)
+  def evalspc(s: State, es: Seq[ast.Exp], pvef: ast.Exp => PartialVerificationError, v: Verifier)
           (Q: (State, List[Term], Verifier) => VerificationResult)
            : VerificationResult =
 
@@ -107,7 +107,7 @@ object evaluator extends EvaluationRules with Immutable {
     if (es.isEmpty)
       Q(s, ts.reverse, v)
     else
-      evalpc(s, es.head, true, pvef(es.head), v)((s1, t, v1) =>
+      evalpc(s, es.head, pvef(es.head), v)((s1, t, v1) =>
         evals2pc(s1, es.tail, t :: ts, pvef, v1)(Q))
   }
 
@@ -123,7 +123,7 @@ object evaluator extends EvaluationRules with Immutable {
       Q(s1, t, v1)})
   }
 
-  def evalpc(s: State, e: ast.Exp, generateChecks: Boolean, pve: PartialVerificationError, v: Verifier)
+  def evalpc(s: State, e: ast.Exp, pve: PartialVerificationError, v: Verifier)
           (Q: (State, Term, Verifier) => VerificationResult)
           : VerificationResult = {
 
@@ -1019,7 +1019,7 @@ object evaluator extends EvaluationRules with Immutable {
            .setConstrainable(Seq(tVar), true)
         Q(s1, tVar, v)
       case fa: ast.FieldAccess => {
-        evalpc(s, fa.rcv, true, pve, v)((s1, tRcvr, v1) => {
+        evalpc(s, fa.rcv, pve, v)((s1, tRcvr, v1) => {
         if (s.qpFields.contains(fa.field)) {
             /* quantified permissions are not supported in Gradual Viper, this case code is currently dead. */
             val (relevantChunks, _) =
@@ -1099,11 +1099,11 @@ object evaluator extends EvaluationRules with Immutable {
         }
       })}
       case ast.Not(e0) =>
-        evalpc(s, e0, true, pve, v)((s1, t0, v1) =>
+        evalpc(s, e0, pve, v)((s1, t0, v1) =>
           Q(s1, Not(t0), v1))
 
       case ast.Minus(e0) =>
-        evalpc(s, e0, true, pve, v)((s1, t0, v1) =>
+        evalpc(s, e0, pve, v)((s1, t0, v1) =>
           Q(s1, Minus(0, t0), v1))
 
       /*
@@ -1206,20 +1206,20 @@ object evaluator extends EvaluationRules with Immutable {
         evalBinOpPc(s, e0, e1, PermMinus, pve, v)(Q)
 
       case ast.PermMinus(e0) =>
-        evalpc(s, e0, true, pve, v)((s1, t0, v1) =>
+        evalpc(s, e0, pve, v)((s1, t0, v1) =>
           Q(s1, PermMinus(NoPerm(), t0), v1))
 
       case ast.PermMul(e0, e1) =>
         evalBinOpPc(s, e0, e1, PermTimes, pve, v)(Q)
 
       case ast.IntPermMul(e0, e1) =>
-        evalpc(s, e0, true, pve, v)((s1, t0, v1) =>
-          evalpc(s1, e1, true, pve, v1)((s2, t1, v2) =>
+        evalpc(s, e0, pve, v)((s1, t0, v1) =>
+          evalpc(s1, e1, pve, v1)((s2, t1, v2) =>
             Q(s2, IntPermTimes(t0, t1), v2)))
 
       case ast.PermDiv(e0, e1) =>
-        evalpc(s, e0, true, pve, v)((s1, t0, v1) =>
-          evalpc(s1, e1, true, pve, v1)((s2, t1, v2) =>
+        evalpc(s, e0, pve, v)((s1, t0, v1) =>
+          evalpc(s1, e1, pve, v1)((s2, t1, v2) =>
             failIfDivByZero(s2, PermIntDiv(t0, t1), e1, t1, 0, pve, v2)(Q)))
 
       case ast.PermLeCmp(e0, e1) =>
@@ -1825,10 +1825,10 @@ object evaluator extends EvaluationRules with Immutable {
 
     locacc match {
       case ast.FieldAccess(eRcvr, field) =>
-        evalpc(s, eRcvr, true, pve, v)((s1, tRcvr, v1) =>
+        evalpc(s, eRcvr, pve, v)((s1, tRcvr, v1) =>
           Q(s1, field.name, tRcvr :: Nil, v1))
       case ast.PredicateAccess(eArgs, predicateName) =>
-        evalspc(s, eArgs, true, _ => pve, v)((s1, tArgs, v1) =>
+        evalspc(s, eArgs, _ => pve, v)((s1, tArgs, v1) =>
           Q(s1, predicateName, tArgs, v1))
     }
   }
@@ -1875,8 +1875,8 @@ object evaluator extends EvaluationRules with Immutable {
                        (Q: (State, T, Verifier) => VerificationResult)
                        : VerificationResult = {
 
-    evalpc(s, e0, true, pve, v)((s1, t0, v1) =>
-      evalpc(s1, e1, true, pve, v1)((s2, t1, v2) =>
+    evalpc(s, e0, pve, v)((s1, t0, v1) =>
+      evalpc(s1, e1, pve, v1)((s2, t1, v2) =>
         Q(s2, termOp(t0, t1), v2)))
   }
 

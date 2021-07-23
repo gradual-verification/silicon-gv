@@ -247,7 +247,7 @@ object producer extends ProductionRules with Immutable {
         val gbLog = new GlobalBranchRecord(ite, s, v.decider.pcs, "produce")
         val sepIdentifier = SymbExLogger.currentLog().insert(gbLog)
         SymbExLogger.currentLog().initializeBranching()
-        evalpc(s, e0, false, pve, v)((s1, t0, v1) => {
+        evalpc(s, e0, pve, v)((s1, t0, v1) => {
           gbLog.finish_cond()
           val branch_res =
             branch(s1, t0, v1)(
@@ -268,8 +268,8 @@ object producer extends ProductionRules with Immutable {
  *        produceR(s1.copy(g = s1.g + g1), sf, body, pve, v1)(Q))
  */
       case ast.FieldAccessPredicate(ast.FieldAccess(eRcvr, field), perm) =>
-        evalpc(s, eRcvr, false, pve, v)((s1, tRcvr, v1) =>
-          evalpc(s1, perm, false, pve, v1)((s2, tPerm, v2) => {
+        evalpc(s, eRcvr, pve, v)((s1, tRcvr, v1) =>
+          evalpc(s1, perm, pve, v1)((s2, tPerm, v2) => {
             if(chunkSupporter.inHeap(s2.h, s2.h.values, field, Seq(tRcvr), v2)) {
               // NEED: Actually because it's in the heap, but don't know how to do that yet
               createFailure(pve dueTo NegativePermission(perm), v2, s2) }
@@ -290,8 +290,8 @@ object producer extends ProductionRules with Immutable {
 
       case ast.PredicateAccessPredicate(ast.PredicateAccess(eArgs, predicateName), perm) =>
         val predicate = Verifier.program.findPredicate(predicateName)
-        evalspc(s, eArgs, false, _ => pve, v)((s1, tArgs, v1) =>
-          evalpc(s1, perm, false, pve, v1)((s2, tPerm, v2) => {
+        evalspc(s, eArgs, _ => pve, v)((s1, tArgs, v1) =>
+          evalpc(s1, perm, pve, v1)((s2, tPerm, v2) => {
             if (chunkSupporter.inHeap(s2.h, s2.h.values, predicate, tArgs, v2)) {
               // Actually because it's in the heap, but don't know how to do that yet
               createFailure(pve dueTo NegativePermission(perm), v2, s2) }
@@ -445,7 +445,7 @@ object producer extends ProductionRules with Immutable {
       /* Any regular expressions, i.e. boolean and arithmetic. */
       case _ =>
         v.decider.assume(sf(sorts.Snap, v) === Unit) /* TODO: See comment for case ast.Implies above */
-        evalpc(s, a, false, pve, v)((s1, t, v1) => {
+        evalpc(s, a, pve, v)((s1, t, v1) => {
           v1.decider.assume(t)
           Q(s1, v1)})
     }
