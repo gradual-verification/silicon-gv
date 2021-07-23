@@ -273,7 +273,7 @@ object consumer extends ConsumptionRules with Immutable {
         val gbLog = new GlobalBranchRecord(ite, s, v.decider.pcs, "consume")
         val sepIdentifier = SymbExLogger.currentLog().insert(gbLog)
         SymbExLogger.currentLog().initializeBranching()
-        evalpc(s.copy(isImprecise = impr), e0, pve, v)((s1, t0, v1) => {
+        evalpc(s.copy(isImprecise = impr), e0, true, pve, v)((s1, t0, v1) => {
           val s2 = s1.copy(isImprecise = s.isImprecise)
           gbLog.finish_cond()
           val branch_res =
@@ -498,7 +498,7 @@ object consumer extends ConsumptionRules with Immutable {
       case ast.PredicateAccessPredicate(locacc: ast.LocationAccess, perm) =>
 
        //eval for expression and perm (perm should always be 1)
-        evalpc(s.copy(isImprecise = impr), perm, pve, v)((s1, tPerm, v1) =>
+        evalpc(s.copy(isImprecise = impr), perm, true, pve, v)((s1, tPerm, v1) =>
           evalLocationAccesspc(s1.copy(isImprecise = impr), locacc, pve, v1)((s2, _, tArgs, v2) => {
             v2.decider.assertgv(s.isImprecise, perms.IsPositive(tPerm)) {
               case true =>
@@ -533,7 +533,7 @@ object consumer extends ConsumptionRules with Immutable {
       case ast.FieldAccessPredicate(locacc: ast.LocationAccess, perm) =>
 
        //eval for expression and perm (perm should always be 1)
-        evalpc(s.copy(isImprecise = impr), perm, pve, v)((s1, tPerm, v1) =>
+        evalpc(s.copy(isImprecise = impr), perm, true, pve, v)((s1, tPerm, v1) =>
           evalLocationAccesspc(s1.copy(isImprecise = impr), locacc, pve, v1)((s2, _, tArgs, v2) => {
             v2.decider.assertgv(s.isImprecise, And(perms.IsPositive(tPerm), tArgs.head !== Null())){
               case true =>
@@ -679,7 +679,7 @@ object consumer extends ConsumptionRules with Immutable {
                     exhaleExt = false)
 
     val s2 = stateConsolidator.consolidate(s1, v)
-    evalpc(s2.copy(isImprecise = impr), e, pve, v)((s3, t, v1) => {
+    evalpc(s2.copy(isImprecise = impr), e, true, pve, v)((s3, t, v1) => {
       v1.decider.assertgv(s2.isImprecise, t) {
         case true =>
           v1.decider.assume(t)
