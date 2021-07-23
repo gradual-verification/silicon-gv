@@ -460,12 +460,14 @@ object executor extends ExecutionRules with Immutable {
         val pve = FoldFailed(fold)
         evals(s, eArgs, _ => pve, v)((s1, tArgs, v1) =>
           eval(s1, ePerm, pve, v1)((s2, tPerm, v2) => {
-            v2.decider.assertgv(s2.isImprecise, IsPositive(tPerm)){ //The IsPositive check is redundant
+            v2.decider.assertgv(s2.isImprecise, IsPositive(tPerm)) { //The IsPositive check is redundant
               case true =>
                 val wildcards = s2.constrainableARPs -- s1.constrainableARPs
                 predicateSupporter.fold(s2, predicate, tArgs, tPerm, wildcards, pve, v2)(Q)
               case false =>
                 createFailure(pve dueTo NegativePermission(ePerm), v2, s2)
+            } match {
+              case (verificationResult, _) => verificationResult
             }
           }))
 
@@ -486,12 +488,14 @@ object executor extends ExecutionRules with Immutable {
             } else {
               s2.smCache
             }
-            v2.decider.assertgv(s2.isImprecise, IsPositive(tPerm)){ //The IsPositive check is redundant
+            v2.decider.assertgv(s2.isImprecise, IsPositive(tPerm)) { //The IsPositive check is redundant
               case true =>
                 val wildcards = s2.constrainableARPs -- s1.constrainableARPs
                 predicateSupporter.unfold(s2.copy(smCache = smCache1), predicate, tArgs, tPerm, wildcards, pve, v2, pa)(Q)
               case false =>
                 createFailure(pve dueTo NegativePermission(ePerm), v2, s2)
+            } match {
+              case (verificationResult, _) => verificationResult
             }
           }))
 

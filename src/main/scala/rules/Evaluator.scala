@@ -1890,9 +1890,11 @@ object evaluator extends EvaluationRules with Immutable {
                              (Q: (State, Term, Verifier) => VerificationResult)
                              : VerificationResult = {
 
-    v.decider.assertgv(s.isImprecise, tDivisor !== tZero){
+    v.decider.assertgv(s.isImprecise, tDivisor !== tZero) {
       case true => Q(s, t, v)
       case false => createFailure(pve dueTo DivisionByZero(eDivisor), v, s)
+    } match {
+      case (verificationResult, _) => verificationResult
     }
   }
 

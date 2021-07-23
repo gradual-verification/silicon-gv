@@ -15,6 +15,7 @@ import viper.silicon.interfaces.{Failure, VerificationResult}
 import viper.silicon.state._
 import viper.silicon.state.terms._
 import viper.silicon.state.terms.predef.`?r`
+import viper.silicon.supporters.Translator
 import viper.silicon.verifier.Verifier
 import viper.silicon.{ConsumeRecord, GlobalBranchRecord, SymbExLogger}
 
@@ -499,7 +500,7 @@ object consumer extends ConsumptionRules with Immutable {
        //eval for expression and perm (perm should always be 1)
         evalpc(s.copy(isImprecise = impr), perm, pve, v)((s1, tPerm, v1) =>
           evalLocationAccesspc(s1.copy(isImprecise = impr), locacc, pve, v1)((s2, _, tArgs, v2) => {
-            v2.decider.assertgv(s.isImprecise, perms.IsPositive(tPerm)){
+            v2.decider.assertgv(s.isImprecise, perms.IsPositive(tPerm)) {
               case true =>
                 val resource = locacc.res(Verifier.program)
                 val loss = PermTimes(tPerm, s2.permissionScalingFactor)
@@ -507,20 +508,26 @@ object consumer extends ConsumptionRules with Immutable {
                 val description = s"consume ${a.pos}: $a"
                 var s3 = s2.copy(isImprecise = s.isImprecise)
 
-                chunkSupporter.consume(s3, h, resource, tArgs, loss, ve, v2, description)((s4, h1, snap1, v3, chunkExisted) => {
+                chunkSupporter.consume(s3, h, resource, tArgs, loss, ve, v2, description)((s4, h1, snap1, v3, status) => {
                   if (s4.isImprecise) {
-                    chunkSupporter.consume(s4, oh, resource, tArgs, loss, ve, v3, description)((s5, oh1, snap2, v4, _) => {
-                      if (chunkExisted) {
+                    chunkSupporter.consume(s4, oh, resource, tArgs, loss, ve, v3, description)((s5, oh1, snap2, v4, status1) => {
+                      if (!status && !status1) {
+                        runtimeChecks.addChecks(viper.silicon.utils.ast.sourceLineColumnPair(a), Seq(a))
+                      }
+                      if (status) {
                         Q(s5, oh1, h1, snap1, v4)}
                       else {
                         Q(s5, oh1, h1, snap2, v4)}})}
-                  else if (chunkExisted) {
+                  else if (status) {
                     Q(s4, oh, h1, snap1, v3)}
                   else {
                     createFailure(pve dueTo InsufficientPermission(locacc), v3, s4)}})
 
               case false =>
-                createFailure(pve dueTo InsufficientPermission(locacc), v2, s2)}}))
+                createFailure(pve dueTo InsufficientPermission(locacc), v2, s2)
+            } match {
+              case (verificationResult, _) => verificationResult
+            }}))
 
 
       case ast.FieldAccessPredicate(locacc: ast.LocationAccess, perm) =>
@@ -550,7 +557,19 @@ object consumer extends ConsumptionRules with Immutable {
                     createFailure(pve dueTo InsufficientPermission(locacc), v3, s4)}})
 
               case false =>
-                createFailure(pve dueTo InsufficientPermission(locacc), v2, s2)}}))
+                createFailure(pve dueTo InsufficientPermission(locacc), v2, s2)
+            } match {
+                case (verificationResult, potentialReturnedChecks) => {
+                  potentialReturnedChecks match {
+                    case None => ()
+                    case Some(returnedChecks) =>
+                      runtimeChecks.addChecks(
+                        viper.silicon.utils.ast.sourceLineColumnPair(a),
+                        Seq(new Translator(s2, v.decider.pcs).translate(returnedChecks)))
+                  }
+                  verificationResult
+                }
+            }}))
 
 /*
       case ast.AccessPredicate(locacc: ast.LocationAccess, perm/*,need an overloaded copy with impreciseHeap as a parameter*/) => //add h_?; perm = 1
@@ -673,6 +692,8 @@ object consumer extends ConsumptionRules with Immutable {
           //println("heap: " + s.h + "\noh: " + s.optimisticHeap)
           //val s4 = s3.copy(isImprecise = false)
           createFailure(pve dueTo AssertionFalse(e), v1, s3)
-    }})
+    } match {
+      case (verificationResult, _) => verificationResult
+      }})
   }
 }

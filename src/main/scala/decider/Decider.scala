@@ -17,6 +17,7 @@ import viper.silicon.interfaces._
 import viper.silicon.interfaces.decider.{Prover, Unsat}
 import viper.silicon.state._
 import viper.silicon.state.terms._
+import viper.silicon.supporters.TermDifference
 import viper.silicon.verifier.{Verifier, VerifierComponent}
 import viper.silver.reporter.{ConfigurationConfirmation, InternalWarningMessage}
 
@@ -42,14 +43,14 @@ trait Decider {
 
   //Check to make sure Prover.scala doesn't need to be changed
   def check(t: Term, timeout: Int): Boolean
-  def checkgv(isImprecise: Boolean, t: Term, timeout: Option[Int]): Boolean
+  def checkgv(isImprecise: Boolean, t: Term, timeout: Option[Int]): (Boolean, Option[Term])
 
   /* TODO: Consider changing assert such that
    *         1. It passes State and Operations to the continuation
    *         2. The implementation reacts to a failing assertion by e.g. a state consolidation
    */
   def assert(t: Term, timeout: Option[Int] = None)(Q:  Boolean => VerificationResult): VerificationResult
-  def assertgv(isImprecise: Boolean, t: Term, timeout: Option[Int] = None)(Q:  Boolean => VerificationResult): VerificationResult
+  def assertgv(isImprecise: Boolean, t: Term, timeout: Option[Int] = None)(Q:  Boolean => VerificationResult): (VerificationResult, Option[Term])
 
   def fresh(id: String, sort: Sort): Var
   def fresh(id: String, argSorts: Seq[Sort], resultSort: Sort): Function
@@ -205,11 +206,11 @@ trait DefaultDeciderProvider extends VerifierComponent { this: Verifier =>
 
     def checkgv(isImprecise: Boolean, t: Term, timeout: Option[Int]) = {
       if (deciderAssert(t, timeout)) {
-        true
+        (true, None)
       } else if(isImprecise && !(deciderAssert(Not(t), timeout))) { //Make sure this part is correct
-        true
+        (true, Some(TermDifference.termDifference(this, t)))
       } else {
-        false
+        (false, None)
       }
     }
 
@@ -233,8 +234,17 @@ trait DefaultDeciderProvider extends VerifierComponent { this: Verifier =>
 
     def assertgv(isImprecise: Boolean, t: Term, timeout: Option[Int] = Verifier.config.assertTimeout.toOption)
               (Q: Boolean => VerificationResult)
-              : VerificationResult = {
-      val success = checkgv(isImprecise, t, timeout)
+              : (VerificationResult, Option[Term]) = {
+
+      val checkResult = checkgv(isImprecise, t, timeout)
+
+      val success = checkResult match {
+        case (status, runtimeCheck) => status
+      }
+
+      val returnedCheck = checkResult match {
+        case (status, runtimeCheck) => runtimeCheck
+      }
 
       // If the SMT query was not successful, store it (possibly "overwriting"
       // any previously saved query), otherwise discard any query we had saved
@@ -247,7 +257,7 @@ trait DefaultDeciderProvider extends VerifierComponent { this: Verifier =>
       else
         SymbExLogger.currentLog().setSMTQuery(t)
 
-      Q(success)
+      (Q(success), returnedCheck)
     }
 
     private def deciderAssert(t: Term, timeout: Option[Int]) = {
