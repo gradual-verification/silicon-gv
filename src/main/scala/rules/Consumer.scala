@@ -543,15 +543,18 @@ object consumer extends ConsumptionRules with Immutable {
                 val description = s"consume ${a.pos}: $a"
                 var s3 = s2.copy(isImprecise = s.isImprecise)
 
-                chunkSupporter.consume(s3, h, resource, tArgs, loss, ve, v2, description)((s4, h1, snap1, v3, chunkExisted) => {
+                chunkSupporter.consume(s3, h, resource, tArgs, loss, ve, v2, description)((s4, h1, snap1, v3, status) => {
                   // don't know if this should be s3 or s4 - J
                   if (s4.isImprecise) {
-                    chunkSupporter.consume(s4, oh, resource, tArgs, loss, ve, v3, description)((s5, oh1, snap2, v4, _) => {
-                      if (chunkExisted) {
+                    chunkSupporter.consume(s4, oh, resource, tArgs, loss, ve, v3, description)((s5, oh1, snap2, v4, status1) => {
+                      if (!status && !status1) {
+                        runtimeChecks.addChecks(viper.silicon.utils.ast.sourceLineColumnPair(a), Seq(a))
+                      }
+                      if (status) {
                         Q(s5, oh1, h1, snap1, v4)}
                       else {
                         Q(s5, oh1, h1, snap2, v4)}})}
-                  else if (chunkExisted) {
+                  else if (status) {
                     Q(s4, oh, h1, snap1, v3)}
                   else {
                     createFailure(pve dueTo InsufficientPermission(locacc), v3, s4)}})
@@ -563,6 +566,7 @@ object consumer extends ConsumptionRules with Immutable {
                   potentialReturnedChecks match {
                     case None => ()
                     case Some(returnedChecks) =>
+                      println(s"access predicate for field, consume: ${returnedChecks}")
                       runtimeChecks.addChecks(
                         viper.silicon.utils.ast.sourceLineColumnPair(a),
                         Seq(new Translator(s2, v.decider.pcs).translate(returnedChecks)))
@@ -650,10 +654,28 @@ object consumer extends ConsumptionRules with Immutable {
           chunkSupporter.consume(s1, h, wand, tArgs, FullPerm(), ve, v1, description)(Q)
         })
 */
-      case _ =>
+      case _ => {
+
+        var returnedState: Option[(State, viper.silicon.decider.RecordedPathConditions)] = None
+
         evalAndAssert(s, impr, a, pve, v)((s1, t, v1) => {
+          returnedState = Some((s1, v1.decider.pcs))
           Q(s1, oh, h, t, v1)
-        })
+        }) match {
+          case (verificationResult, Some(returnedChecks)) =>
+            println(s"symbolic value, consume: ${returnedChecks}")
+            returnedState match {
+              case Some((s1, pcs)) => {
+                runtimeChecks.addChecks(
+                  viper.silicon.utils.ast.sourceLineColumnPair(a),
+                  Seq(new Translator(s1, pcs).translate(returnedChecks)))
+
+                verificationResult
+              }
+            }
+          case (verificationResult, None) => verificationResult
+        }
+      }
     }
 
     consumed
@@ -661,7 +683,7 @@ object consumer extends ConsumptionRules with Immutable {
 
   private def evalAndAssert(s: State, impr: Boolean, e: ast.Exp, pve: PartialVerificationError, v: Verifier)
                            (Q: (State, Term, Verifier) => VerificationResult)
-                           : VerificationResult = {
+                           : (VerificationResult, Option[Term]) = {
 
     /* It is expected that the partially consumed heap (h in the above implementation of
      * `consume`) has already been assigned to `c.partiallyConsumedHeap`.
@@ -679,6 +701,9 @@ object consumer extends ConsumptionRules with Immutable {
                     exhaleExt = false)
 
     val s2 = stateConsolidator.consolidate(s1, v)
+
+    var returnValue: Option[(VerificationResult, Option[Term])] = None
+
     evalpc(s2.copy(isImprecise = impr), e, pve, v)((s3, t, v1) => {
       v1.decider.assertgv(s2.isImprecise, t) {
         case true =>
@@ -693,7 +718,14 @@ object consumer extends ConsumptionRules with Immutable {
           //val s4 = s3.copy(isImprecise = false)
           createFailure(pve dueTo AssertionFalse(e), v1, s3)
     } match {
-      case (verificationResult, _) => verificationResult
-      }})
+      case (verificationResult, returnedCheck) => {
+        returnValue = Some((verificationResult, returnedCheck))
+        verificationResult
+      }
+    }})
+
+    returnValue match {
+      case Some((verificationResult, returnedCheck)) => (verificationResult, returnedCheck)
+    }
   }
 }
