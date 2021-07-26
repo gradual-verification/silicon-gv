@@ -34,7 +34,7 @@ trait EvaluationRules extends SymbolicExecutionRules {
            (Q: (State, List[Term], Verifier) => VerificationResult)
            : VerificationResult
 
-  def evalspc(s: State, es: Seq[ast.Exp], pvef: ast.Exp => PartialVerificationError, v: Verifier)
+  def evalspc(s: State, es: Seq[ast.Exp], pvef: ast.Exp => PartialVerificationError, v: Verifier, generateChecks: Boolean = true)
            (Q: (State, List[Term], Verifier) => VerificationResult)
            : VerificationResult
 
@@ -42,7 +42,7 @@ trait EvaluationRules extends SymbolicExecutionRules {
           (Q: (State, Term, Verifier) => VerificationResult)
           : VerificationResult
 
-  def evalpc(s: State, e: ast.Exp, pve: PartialVerificationError, v: Verifier)
+  def evalpc(s: State, e: ast.Exp, pve: PartialVerificationError, v: Verifier, generateChecks: Boolean = true)
           (Q: (State, Term, Verifier) => VerificationResult)
           : VerificationResult
 
@@ -56,7 +56,8 @@ trait EvaluationRules extends SymbolicExecutionRules {
   def evalLocationAccesspc(s: State,
                          locacc: ast.LocationAccess,
                          pve: PartialVerificationError,
-                         v: Verifier)
+                         v: Verifier,
+                         generateChecks: Boolean = true)
                         (Q: (State, String, Seq[Term], Verifier) => VerificationResult)
                         : VerificationResult
 
@@ -83,11 +84,11 @@ object evaluator extends EvaluationRules with Immutable {
 
     evals2(s, es, Nil, pvef, v)(Q)
 
-  def evalspc(s: State, es: Seq[ast.Exp], pvef: ast.Exp => PartialVerificationError, v: Verifier)
+  def evalspc(s: State, es: Seq[ast.Exp], pvef: ast.Exp => PartialVerificationError, v: Verifier, generateChecks: Boolean = true)
           (Q: (State, List[Term], Verifier) => VerificationResult)
            : VerificationResult =
 
-    evals2pc(s, es, Nil, pvef, v)(Q)
+    evals2pc(s, es, Nil, pvef, v, generateChecks)(Q)
 
   private def evals2(s: State, es: Seq[ast.Exp], ts: List[Term], pvef: ast.Exp => PartialVerificationError, v: Verifier)
                     (Q: (State, List[Term], Verifier) => VerificationResult)
@@ -100,15 +101,15 @@ object evaluator extends EvaluationRules with Immutable {
         evals2(s1, es.tail, t :: ts, pvef, v1)(Q))
   }
 
-  private def evals2pc(s: State, es: Seq[ast.Exp], ts: List[Term], pvef: ast.Exp => PartialVerificationError, v: Verifier)
+  private def evals2pc(s: State, es: Seq[ast.Exp], ts: List[Term], pvef: ast.Exp => PartialVerificationError, v: Verifier, generateChecks: Boolean)
                     (Q: (State, List[Term], Verifier) => VerificationResult)
                     : VerificationResult = {
 
     if (es.isEmpty)
       Q(s, ts.reverse, v)
     else
-      evalpc(s, es.head, pvef(es.head), v)((s1, t, v1) =>
-        evals2pc(s1, es.tail, t :: ts, pvef, v1)(Q))
+      evalpc(s, es.head, pvef(es.head), v, generateChecks)((s1, t, v1) =>
+        evals2pc(s1, es.tail, t :: ts, pvef, v1, generateChecks)(Q))
   }
 
   /** Wrapper Method for eval, for logging. See Executor.scala for explanation of analogue. **/
@@ -123,12 +124,12 @@ object evaluator extends EvaluationRules with Immutable {
       Q(s1, t, v1)})
   }
 
-  def evalpc(s: State, e: ast.Exp, pve: PartialVerificationError, v: Verifier)
+  def evalpc(s: State, e: ast.Exp, pve: PartialVerificationError, v: Verifier, generateChecks: Boolean = true)
           (Q: (State, Term, Verifier) => VerificationResult)
           : VerificationResult = {
 
     val sepIdentifier = SymbExLogger.currentLog().insert(new EvaluateRecord(e, s, v.decider.pcs))
-    eval3pc(s, e, pve, v)((s1, t, v1) => {
+    eval3pc(s, e, pve, v, generateChecks)((s1, t, v1) => {
       SymbExLogger.currentLog().collapse(e, sepIdentifier)
       Q(s1, t, v1)})
   }
@@ -185,7 +186,7 @@ object evaluator extends EvaluationRules with Immutable {
       Q(s4, t, v1)})
   }
 
-  def eval3pc(s: State, e: ast.Exp, pve: PartialVerificationError, v: Verifier)
+  def eval3pc(s: State, e: ast.Exp, pve: PartialVerificationError, v: Verifier, generateChecks: Boolean)
            (Q: (State, Term, Verifier) => VerificationResult)
            : VerificationResult = {
 
@@ -219,7 +220,7 @@ object evaluator extends EvaluationRules with Immutable {
                     reserveHeaps = Nil,
                     exhaleExt = false)
 
-    eval2pc(s1, e, pve, v)((s2, t, v1) => {
+    eval2pc(s1, e, pve, v, generateChecks)((s2, t, v1) => {
       val s3 =
         if (s2.recordPossibleTriggers)
           e match {
@@ -977,9 +978,10 @@ object evaluator extends EvaluationRules with Immutable {
   // Commented out eval2's cases for old, labelledold, implies, condition, domain, function, unfolding
   // sequences, multiset, inhale, exhale, applying, quantified expression
 
-  protected def eval2pc(s: State, e: ast.Exp, pve: PartialVerificationError, v: Verifier)
+  protected def eval2pc(s: State, e: ast.Exp, pve: PartialVerificationError, v: Verifier, generateChecks: Boolean)
                      (Q: (State, Term, Verifier) => VerificationResult)
                      : VerificationResult = {
+
     val resultTerm = e match {
       case _: ast.TrueLit => Q(s, True(), v)
       case _: ast.FalseLit => Q(s, False(), v)
@@ -987,8 +989,8 @@ object evaluator extends EvaluationRules with Immutable {
       case _: ast.NullLit => Q(s, Null(), v)
       case ast.IntLit(bigval) => Q(s, IntLiteral(bigval), v)
 
-      case ast.EqCmp(e0, e1) => evalBinOpPc(s, e0, e1, Equals, pve, v)(Q)
-      case ast.NeCmp(e0, e1) => evalBinOpPc(s, e0, e1, (p0: Term, p1: Term) => Not(Equals(p0, p1)), pve, v)(Q)
+      case ast.EqCmp(e0, e1) => evalBinOpPc(s, e0, e1, Equals, pve, v, generateChecks)(Q)
+      case ast.NeCmp(e0, e1) => evalBinOpPc(s, e0, e1, (p0: Term, p1: Term) => Not(Equals(p0, p1)), pve, v, generateChecks)(Q)
 
       case x: ast.AbstractLocalVar => Q(s, s.g(x), v)
 
@@ -997,7 +999,7 @@ object evaluator extends EvaluationRules with Immutable {
 
       case ast.FractionalPerm(e0, e1) =>
         var t1: Term = null
-        evalBinOpPc(s, e0, e1, (t0, _t1) => {t1 = _t1; FractionPerm(t0, t1)}, pve, v)((s1, tFP, v1) =>
+        evalBinOpPc(s, e0, e1, (t0, _t1) => {t1 = _t1; FractionPerm(t0, t1)}, pve, v, generateChecks)((s1, tFP, v1) =>
           failIfDivByZero(s1, tFP, e1, t1, predef.Zero, pve, v1)(Q))
 
       case _: ast.WildcardPerm =>
@@ -1019,7 +1021,7 @@ object evaluator extends EvaluationRules with Immutable {
            .setConstrainable(Seq(tVar), true)
         Q(s1, tVar, v)
       case fa: ast.FieldAccess => {
-        evalpc(s, fa.rcv, pve, v)((s1, tRcvr, v1) => {
+        evalpc(s, fa.rcv, pve, v, generateChecks)((s1, tRcvr, v1) => {
         if (s.qpFields.contains(fa.field)) {
             /* quantified permissions are not supported in Gradual Viper, this case code is currently dead. */
             val (relevantChunks, _) =
@@ -1086,11 +1088,11 @@ object evaluator extends EvaluationRules with Immutable {
                 }
           //})
         } else {
-          evalLocationAccesspc(s, fa, pve, v)((s1, _, tArgs, v1) => {
+          evalLocationAccesspc(s, fa, pve, v, generateChecks)((s1, _, tArgs, v1) => {
             val ve = pve dueTo InsufficientPermission(fa)
             val resource = fa.res(Verifier.program)
             val addToOh = false /* so lookup knows whether or not to add optimistically assumed permissions to the optimistic heap */
-            chunkSupporter.lookup(s1, s1.h, s1.optimisticHeap, addToOh, resource, fa, tArgs, pve, ve, v1)((s2, h2, oh2, tSnap, v2) => {
+            chunkSupporter.lookup(s1, s1.h, s1.optimisticHeap, addToOh, resource, fa, tArgs, pve, ve, v1, generateChecks)((s2, h2, oh2, tSnap, v2) => {
               val fr = s2.functionRecorder.recordSnapshot(fa, v2.decider.pcs.branchConditions, tSnap)
               val s3 = s2.copy(h = h2, optimisticHeap = oh2, functionRecorder = fr)
               Q(s3, tSnap, v1)
@@ -1099,11 +1101,11 @@ object evaluator extends EvaluationRules with Immutable {
         }
       })}
       case ast.Not(e0) =>
-        evalpc(s, e0, pve, v)((s1, t0, v1) =>
+        evalpc(s, e0, pve, v, generateChecks)((s1, t0, v1) =>
           Q(s1, Not(t0), v1))
 
       case ast.Minus(e0) =>
-        evalpc(s, e0, pve, v)((s1, t0, v1) =>
+        evalpc(s, e0, pve, v, generateChecks)((s1, t0, v1) =>
           Q(s1, Minus(0, t0), v1))
 
       /*
@@ -1124,7 +1126,7 @@ object evaluator extends EvaluationRules with Immutable {
 
       /* Strict evaluation of AND */
       case ast.And(e0, e1) if Verifier.config.disableShortCircuitingEvaluations() =>
-        evalBinOpPc(s, e0, e1, (t1, t2) => And(t1, t2), pve, v)(Q)
+        evalBinOpPc(s, e0, e1, (t1, t2) => And(t1, t2), pve, v, generateChecks)(Q)
 
       /* Short-circuiting evaluation of AND */
       case ae @ ast.And(_, _) =>
@@ -1134,7 +1136,7 @@ object evaluator extends EvaluationRules with Immutable {
 
       /* Strict evaluation of OR */
       case ast.Or(e0, e1) if Verifier.config.disableShortCircuitingEvaluations() =>
-        evalBinOpPc(s, e0, e1, (t1, t2) => Or(t1, t2), pve, v)(Q)
+        evalBinOpPc(s, e0, e1, (t1, t2) => Or(t1, t2), pve, v, generateChecks)(Q)
 
       /* Short-circuiting evaluation of OR */
       case oe @ ast.Or(_, _) =>
@@ -1169,70 +1171,70 @@ object evaluator extends EvaluationRules with Immutable {
       /* Integers */
 
       case ast.Add(e0, e1) =>
-        evalBinOpPc(s, e0, e1, Plus, pve, v)(Q)
+        evalBinOpPc(s, e0, e1, Plus, pve, v, generateChecks)(Q)
 
       case ast.Sub(e0, e1) =>
-        evalBinOpPc(s, e0, e1, Minus, pve, v)(Q)
+        evalBinOpPc(s, e0, e1, Minus, pve, v, generateChecks)(Q)
 
       case ast.Mul(e0, e1) =>
-        evalBinOpPc(s, e0, e1, Times, pve, v)(Q)
+        evalBinOpPc(s, e0, e1, Times, pve, v, generateChecks)(Q)
 
       case ast.Div(e0, e1) =>
-        evalBinOpPc(s, e0, e1, Div, pve, v)((s1, tDiv, v1) =>
+        evalBinOpPc(s, e0, e1, Div, pve, v, generateChecks)((s1, tDiv, v1) =>
           failIfDivByZero(s1, tDiv, e1, tDiv.p1, 0, pve, v1)(Q))
 
       case ast.Mod(e0, e1) =>
-        evalBinOpPc(s, e0, e1, Mod, pve, v)((s1, tMod, v1) =>
+        evalBinOpPc(s, e0, e1, Mod, pve, v, generateChecks)((s1, tMod, v1) =>
           failIfDivByZero(s1, tMod, e1, tMod.p1, 0, pve, v1)(Q))
 
       case ast.LeCmp(e0, e1) =>
-        evalBinOpPc(s, e0, e1, AtMost, pve, v)(Q)
+        evalBinOpPc(s, e0, e1, AtMost, pve, v, generateChecks)(Q)
 
       case ast.LtCmp(e0, e1) =>
-        evalBinOpPc(s, e0, e1, Less, pve, v)(Q)
+        evalBinOpPc(s, e0, e1, Less, pve, v, generateChecks)(Q)
 
       case ast.GeCmp(e0, e1) =>
-        evalBinOpPc(s, e0, e1, AtLeast, pve, v)(Q)
+        evalBinOpPc(s, e0, e1, AtLeast, pve, v, generateChecks)(Q)
 
       case ast.GtCmp(e0, e1) =>
-        evalBinOpPc(s, e0, e1, Greater, pve, v)(Q)
+        evalBinOpPc(s, e0, e1, Greater, pve, v, generateChecks)(Q)
 
       /* Permissions */
 
       case ast.PermAdd(e0, e1) =>
-        evalBinOpPc(s, e0, e1, PermPlus, pve, v)(Q)
+        evalBinOpPc(s, e0, e1, PermPlus, pve, v, generateChecks)(Q)
 
       case ast.PermSub(e0, e1) =>
-        evalBinOpPc(s, e0, e1, PermMinus, pve, v)(Q)
+        evalBinOpPc(s, e0, e1, PermMinus, pve, v, generateChecks)(Q)
 
       case ast.PermMinus(e0) =>
-        evalpc(s, e0, pve, v)((s1, t0, v1) =>
+        evalpc(s, e0, pve, v, generateChecks)((s1, t0, v1) =>
           Q(s1, PermMinus(NoPerm(), t0), v1))
 
       case ast.PermMul(e0, e1) =>
-        evalBinOpPc(s, e0, e1, PermTimes, pve, v)(Q)
+        evalBinOpPc(s, e0, e1, PermTimes, pve, v, generateChecks)(Q)
 
       case ast.IntPermMul(e0, e1) =>
-        evalpc(s, e0, pve, v)((s1, t0, v1) =>
-          evalpc(s1, e1, pve, v1)((s2, t1, v2) =>
+        evalpc(s, e0, pve, v, generateChecks)((s1, t0, v1) =>
+          evalpc(s1, e1, pve, v1, generateChecks)((s2, t1, v2) =>
             Q(s2, IntPermTimes(t0, t1), v2)))
 
       case ast.PermDiv(e0, e1) =>
-        evalpc(s, e0, pve, v)((s1, t0, v1) =>
-          evalpc(s1, e1, pve, v1)((s2, t1, v2) =>
+        evalpc(s, e0, pve, v, generateChecks)((s1, t0, v1) =>
+          evalpc(s1, e1, pve, v1, generateChecks)((s2, t1, v2) =>
             failIfDivByZero(s2, PermIntDiv(t0, t1), e1, t1, 0, pve, v2)(Q)))
 
       case ast.PermLeCmp(e0, e1) =>
-        evalBinOpPc(s, e0, e1, AtMost, pve, v)(Q)
+        evalBinOpPc(s, e0, e1, AtMost, pve, v, generateChecks)(Q)
 
       case ast.PermLtCmp(e0, e1) =>
-        evalBinOpPc(s, e0, e1, Less, pve, v)(Q)
+        evalBinOpPc(s, e0, e1, Less, pve, v, generateChecks)(Q)
 
       case ast.PermGeCmp(e0, e1) =>
-        evalBinOpPc(s, e0, e1, AtLeast, pve, v)(Q)
+        evalBinOpPc(s, e0, e1, AtLeast, pve, v, generateChecks)(Q)
 
       case ast.PermGtCmp(e0, e1) =>
-        evalBinOpPc(s, e0, e1, Greater, pve, v)(Q)
+        evalBinOpPc(s, e0, e1, Greater, pve, v, generateChecks)(Q)
 
       /* Others */
 
@@ -1819,13 +1821,14 @@ object evaluator extends EvaluationRules with Immutable {
   def evalLocationAccesspc(s: State,
                           locacc: ast.LocationAccess,
                           pve: PartialVerificationError,
-                          v: Verifier)
+                          v: Verifier,
+                          generateChecks: Boolean = true)
                           (Q: (State, String, Seq[Term], Verifier) => VerificationResult)
                           : VerificationResult = {
 
     locacc match {
       case ast.FieldAccess(eRcvr, field) =>
-        evalpc(s, eRcvr, pve, v)((s1, tRcvr, v1) =>
+        evalpc(s, eRcvr, pve, v, generateChecks)((s1, tRcvr, v1) =>
           Q(s1, field.name, tRcvr :: Nil, v1))
       case ast.PredicateAccess(eArgs, predicateName) =>
         evalspc(s, eArgs, _ => pve, v)((s1, tArgs, v1) =>
@@ -1871,12 +1874,13 @@ object evaluator extends EvaluationRules with Immutable {
                         e1: ast.Exp,
                         termOp: (Term, Term) => T,
                         pve: PartialVerificationError,
-                        v: Verifier)
+                        v: Verifier,
+                        generateChecks: Boolean = true)
                        (Q: (State, T, Verifier) => VerificationResult)
                        : VerificationResult = {
 
-    evalpc(s, e0, pve, v)((s1, t0, v1) =>
-      evalpc(s1, e1, pve, v1)((s2, t1, v2) =>
+    evalpc(s, e0, pve, v, generateChecks)((s1, t0, v1) =>
+      evalpc(s1, e1, pve, v1, generateChecks)((s2, t1, v2) =>
         Q(s2, termOp(t0, t1), v2)))
   }
 

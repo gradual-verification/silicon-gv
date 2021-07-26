@@ -138,7 +138,8 @@ object moreCompleteExhaleSupporter extends SymbolicExecutionRules with Immutable
                      args: Seq[Term],
                      pve: PartialVerificationError,
                      ve: VerificationError,
-                     v: Verifier)
+                     v: Verifier,
+                     generateChecks: Boolean)
                     (Q: (State, Term, Verifier) => VerificationResult)
                     : VerificationResult = {
     /* TODO: This needs updated to support imprecision whenever Gradual Viper supports

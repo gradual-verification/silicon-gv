@@ -43,7 +43,8 @@ trait ChunkSupportRules extends SymbolicExecutionRules {
              args: Seq[Term],
              pve: PartialVerificationError,
              ve: VerificationError,
-             v: Verifier)
+             v: Verifier,
+             generateChecks: Boolean = true)
             (Q: (State, Heap, Heap, Term, Verifier) => VerificationResult)
             : VerificationResult
 
@@ -191,7 +192,8 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
              args: Seq[Term],
              pve: PartialVerificationError,
              ve: VerificationError,
-             v: Verifier)
+             v: Verifier,
+             generateChecks: Boolean = true)
             (Q: (State, Heap, Heap, Term, Verifier) => VerificationResult)
             : VerificationResult = {
 //    executionFlowController.tryOrFail2[Heap, Term](s.copy(h = h), v)((s1, v1, QS) => {
@@ -200,7 +202,7 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
         if (s.isMethodVerification && Verifier.config.enableMoreCompleteExhale()) moreCompleteExhaleSupporter.lookupComplete _
         else lookupGreedy _
       lookupFunction(s1, s1.h, s1.optimisticHeap, addToOh, resource,
-        runtimeCheckFieldTarget, args, pve, ve, v)((s2, tSnap, v1) =>
+        runtimeCheckFieldTarget, args, pve, ve, v, generateChecks)((s2, tSnap, v1) =>
         Q(s2.copy(h = s.h, optimisticHeap = s.optimisticHeap), s2.h, s2.optimisticHeap, tSnap, v1))
 //    })(Q)
   }
@@ -214,7 +216,8 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
                            args: Seq[Term],
                            pve: PartialVerificationError,
                            ve: VerificationError,
-                           v: Verifier)
+                           v: Verifier,
+                           generateChecks: Boolean)
                           (Q: (State, Term, Verifier) => VerificationResult)
                           : VerificationResult = {
 
@@ -265,8 +268,11 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
               case f: ast.Field => {
                 val snap = v.decider.fresh(s"${args.head}.$id", v.symbolConverter.toSort(f.typ))
 
-                runtimeChecks.addChecks(utils.ast.sourceLineColumnPair(runtimeCheckFieldTarget),
-                  Seq(ast.FieldAccessPredicate(runtimeCheckFieldTarget, ast.FullPerm()())()))
+                if (generateChecks) {
+                  runtimeChecks.addChecks(
+                    viper.silicon.utils.ast.sourceLineColumnPair(runtimeCheckFieldTarget),
+                    Seq(ast.FieldAccessPredicate(runtimeCheckFieldTarget, ast.FullPerm()())()))
+                }
 
                 Q(s, snap, v)
               }
