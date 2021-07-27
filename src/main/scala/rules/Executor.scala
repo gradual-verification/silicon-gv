@@ -305,14 +305,14 @@ object executor extends ExecutionRules with Immutable {
         val pve = AssignmentFailed(ass)
         eval(s, eRcvr, pve, v)((s1, tRcvr, v1) =>
           eval(s1, rhs, pve, v1)((s2, tRhs, v2) => {
-            val resource = fa.res(Verifier.program)
-            val ve = pve dueTo InsufficientPermission(fa)
-            val description = s"eval ${ass.pos}: $ass"
-
-            eval(s2, fa, pve, v2)((s3, snapshot, v3) => {
-              
-                v3.decider.assume(Equals(snapshot, tRhs)) //directly add symbolic value for equality to path condition
-                Q(s3, v3)
+            val fap = ast.FieldAccessPredicate(fa, ast.FullPerm()(ass.pos))(ass.pos)
+            consume(s2, fap, pve, v2)((s3, snap, v3) => {
+              v3.decider.assume(tRcvr !== Null())
+              val tSnap = ssaifyRhs(tRhs, field.name, field.typ, v3)
+              val id = BasicChunkIdentifier(field.name)
+              val newChunk = BasicChunk(FieldID, id, Seq(tRcvr), tSnap, FullPerm())
+              chunkSupporter.produce(s3, s3.h, newChunk, v3)((s4, h4, v4) =>
+                Q(s4.copy(h = h4), v4))
             })
           })
         )
