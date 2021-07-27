@@ -21,6 +21,7 @@ import viper.silicon.state.terms._
 import viper.silicon.state.terms.perms.IsPositive
 import viper.silicon.state.terms.predef.`?r`
 import viper.silicon.utils.freshSnap
+import viper.silicon.utils.consistency.createUnexpectedNodeError
 import viper.silicon.verifier.Verifier
 import viper.silicon.{ExecuteRecord, Map, MethodCallRecord, SymbExLogger}
 
@@ -240,10 +241,12 @@ object executor extends ExecutionRules with Immutable {
       case ast.Seqn(stmts, _) =>
         execs(s, stmts, v)(Q)
 
-/*      case ast.Label(name, _) =>
+      /*
+      case ast.Label(name, _) =>
         val s1 = s.copy(oldHeaps = s.oldHeaps + (name -> magicWandSupporter.getEvalHeap(s)))
         Q(s1, v)
-*/
+      */
+
       case ast.LocalVarDeclStmt(decl) =>
         val x = decl.localVar
         val t = v.decider.fresh(x.name, v.symbolConverter.toSort(x.typ))
@@ -252,7 +255,8 @@ object executor extends ExecutionRules with Immutable {
       case ass @ ast.LocalVarAssign(x, rhs) =>
         eval(s, rhs, AssignmentFailed(ass), v)((s1, tRhs, v1) => {
           val t = ssaifyRhs(tRhs, x.name, x.typ, v)
-          Q(s1.copy(g = s1.g + (x, t)), v1)})
+          Q(s1.copy(g = s1.g + (x, t)), v1)
+        })
 
       /* TODO: Encode assignments e1.f := e2 as
        *         exhale acc(e1.f)
@@ -261,7 +265,10 @@ object executor extends ExecutionRules with Immutable {
        */
 
       /* Assignment for a field that contains quantified chunks */
-/*      case ass @ ast.FieldAssign(fa @ ast.FieldAccess(eRcvr, field), rhs)
+      case ass @ ast.FieldAssign(fa @ ast.FieldAccess(eRcvr, field), rhs)
+        if s.qpFields.contains(field) => sys.error(s"Quantified permissions not supported for the field in (${stmt.getClass.getName}): $stmt")
+      /*
+      case ass @ ast.FieldAssign(fa @ ast.FieldAccess(eRcvr, field), rhs)
               if s.qpFields.contains(field) =>
 
         assert(!s.exhaleExt)
@@ -305,14 +312,14 @@ object executor extends ExecutionRules with Immutable {
         val pve = AssignmentFailed(ass)
         eval(s, eRcvr, pve, v)((s1, tRcvr, v1) =>
           eval(s1, rhs, pve, v1)((s2, tRhs, v2) => {
-            val resource = fa.res(Verifier.program)
-            val ve = pve dueTo InsufficientPermission(fa)
-            val description = s"eval ${ass.pos}: $ass"
-
-            eval(s2, fa, pve, v2)((s3, snapshot, v3) => {
-              
-                v3.decider.assume(Equals(snapshot, tRhs)) //directly add symbolic value for equality to path condition
-                Q(s3, v3)
+            val fap = ast.FieldAccessPredicate(fa, ast.FullPerm()(ass.pos))(ass.pos)
+            consume(s2, fap, pve, v2)((s3, snap, v3) => {
+              v3.decider.assume(tRcvr !== Null())
+              val tSnap = ssaifyRhs(tRhs, field.name, field.typ, v3)
+              val id = BasicChunkIdentifier(field.name)
+              val newChunk = BasicChunk(FieldID, id, Seq(tRcvr), tSnap, FullPerm())
+              chunkSupporter.produce(s3, s3.h, newChunk, v3)((s4, h4, v4) =>
+                Q(s4.copy(h = h4), v4))
             })
           })
         )
@@ -337,9 +344,9 @@ object executor extends ExecutionRules with Immutable {
         v.decider.assume(ts)
         Q(s1, v)
 
-// commenting this out causes disjunction_fast to fail
-// also I think we have a problem with error messages
-/*
+      // commenting this out causes disjunction_fast to fail
+      // also I think we have a problem with error messages
+      /*
       case inhale @ ast.Inhale(a) => a match {
         case _: ast.FalseLit =>
           Success()
@@ -353,7 +360,7 @@ object executor extends ExecutionRules with Immutable {
         val pve = ExhaleFailed(exhale)
         consume(s, a, pve, v)((s1, _, v1) =>
           Q(s1, v1))
-*/
+      */
       case assert @ ast.Assert(a) =>
         val pve = AssertFailed(assert)
 
@@ -370,7 +377,7 @@ object executor extends ExecutionRules with Immutable {
                 QS(s1.copy(h = s.h), v1)
               else
                 createFailure(pve dueTo AssertionFalse(a), v1, s1)
-              })((_, _) => Success())
+            })((_, _) => Success())
 
           case _ =>
             if (Verifier.config.disableSubsumption()) {
@@ -378,9 +385,8 @@ object executor extends ExecutionRules with Immutable {
               consume(s, a, pve, v)((s1, snap1, v1) =>
                 wellformed(s1.copy(isImprecise = true), freshSnap, Seq(a), pve, v1)((s2, v2) =>
                   Q(s, v2))
-                )
-            } else
-              if (s.exhaleExt) {
+              )
+            } else if (s.exhaleExt) {
               Predef.assert(s.h.values.isEmpty)
               Predef.assert(s.reserveHeaps.head.values.isEmpty)
 
@@ -390,20 +396,22 @@ object executor extends ExecutionRules with Immutable {
                */
               consume(s, a, pve, v)((s1, snap1, v1) => {
                 wellformed(s1.copy(isImprecise = true), freshSnap, Seq(a), pve, v1)((s2, v2) =>
-                  Q(s2.copy(h = s2.reserveHeaps.head), v2))
+                  Q(s2.copy(isImprecise = s.isImprecise, h = s2.reserveHeaps.head, optimisticHeap = s.optimisticHeap), v2))
               })
             } else {
               consume(s, a, pve, v)((s1, snap1, v1) => {
                 wellformed(s1.copy(isImprecise = true), freshSnap, Seq(a), pve, v1)((s2, v2) => {
-                  val s3 = s2.copy(h = s.h, reserveHeaps = s.reserveHeaps)
-                  Q(s3, v2)})})
+                  val s3 = s2.copy(isImprecise = s.isImprecise, h = s.h, optimisticHeap = s.optimisticHeap, reserveHeaps = s.reserveHeaps)
+                  Q(s3, v2)
+                })
+              })
             }
         }
 
       // A call havoc_all_R() results in Silicon efficiently havocking all instances of resource R.
       // See also Silicon issue #407.
       case ast.MethodCall(methodName, _, _)
-          if !Verifier.config.disableHavocHack407() && methodName.startsWith(hack407_method_name_prefix) =>
+        if !Verifier.config.disableHavocHack407() && methodName.startsWith(hack407_method_name_prefix) =>
 
         val resourceName = methodName.stripPrefix(hack407_method_name_prefix)
         val member = Verifier.program.collectFirst {
@@ -418,7 +426,8 @@ object executor extends ExecutionRules with Immutable {
           case qpc: QuantifiedPredicateChunk if qpc.id.name == member.name =>
             qpc.withSnapshotMap(freshSnap(qpc.psf.sort, v))
           case other =>
-            other})
+            other
+        })
         Q(s.copy(h = h1), v)
 
       case call @ ast.MethodCall(methodName, eArgs, lhs) =>
@@ -438,7 +447,7 @@ object executor extends ExecutionRules with Immutable {
           })
           val pvePre = ErrorWrapperWithExampleTransformer(PreconditionInCallFalse(call).withReasonNodeTransformed(reasonTransformer), exampleTrafo)
           val s2 = s1.copy(g = Store(fargs.zip(tArgs)),
-                           recordVisited = true)
+            recordVisited = true)
           consumes(s2, meth.pres, _ => pvePre, v1)((s3, _, v2) => {
             mcLog.finish_precondition()
             val outs = meth.formalReturns.map(_.localVar)
@@ -448,12 +457,15 @@ object executor extends ExecutionRules with Immutable {
               mcLog.finish_postcondition()
               v3.decider.prover.saturate(Verifier.config.z3SaturationTimeouts.afterContract)
               val gLhs = Store(lhs.zip(outs)
-                              .map(p => (p._1, s5.g(p._2))).toMap)
+                .map(p => (p._1, s5.g(p._2))).toMap)
               val s6 = s5.copy(g = s1.g + gLhs,
-                               oldHeaps = s1.oldHeaps,
-                               recordVisited = s1.recordVisited)
+                oldHeaps = s1.oldHeaps,
+                recordVisited = s1.recordVisited)
               SymbExLogger.currentLog().collapse(null, sepIdentifier)
-              Q(s6, v3)})})})
+              Q(s6, v3)
+            })
+          })
+        })
 
       case fold @ ast.Fold(ast.PredicateAccessPredicate(ast.PredicateAccess(eArgs, predicateName), ePerm)) =>
         val predicate = Verifier.program.findPredicate(predicateName)
@@ -499,7 +511,7 @@ object executor extends ExecutionRules with Immutable {
             }
           }))
 
-/*
+      /*
       case pckg @ ast.Package(wand, proofScript) =>
         val pve = PackageFailed(pckg)
           magicWandSupporter.packageWand(s, wand, proofScript, pve, v)((s1, chWand, v1) => {
@@ -548,13 +560,17 @@ object executor extends ExecutionRules with Immutable {
         magicWandSupporter.applyWand(s, e, pve, v)(Q)
 */
       /* These cases should not occur when working with the CFG-representation of the program. */
-      case   _: ast.Goto
+      case _: ast.Goto
            | _: ast.If
            | _: ast.Label
            | _: ast.Seqn
            | _: ast.While => sys.error(s"Unexpected statement (${stmt.getClass.getName}): $stmt")
 
-
+      /* These cases were commented out, because they are not supported by Silicon-gv. */
+      case _: ast.Inhale
+           | _: ast.Exhale
+           | _: ast.Package
+           | _: ast.Apply => createFailure(createUnexpectedNodeError(stmt,""), v, s)
     }
 
     executed

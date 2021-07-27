@@ -18,6 +18,7 @@ import viper.silicon.state.terms._
 import viper.silicon.state.terms.implicits._
 import viper.silicon.state.terms.perms.{IsNonNegative, IsPositive}
 import viper.silicon.state.terms.predef.`?r`
+import viper.silicon.utils.consistency.createUnexpectedNodeError
 import viper.silicon.utils.toSf
 import viper.silicon.utils.ast.flattenOperator
 import viper.silicon.verifier.Verifier
@@ -262,6 +263,7 @@ object evaluator extends EvaluationRules with Immutable {
         evalBinOp(s, e0, e1, (t0, _t1) => {t1 = _t1; FractionPerm(t0, t1)}, pve, v)((s1, tFP, v1) =>
           failIfDivByZero(s1, tFP, e1, t1, predef.Zero, pve, v1)(Q))
 
+      /*
       case _: ast.WildcardPerm =>
         val (tVar, tConstraints) = v.decider.freshARP()
         v.decider.assume(tConstraints)
@@ -280,6 +282,7 @@ object evaluator extends EvaluationRules with Immutable {
           s.copy(functionRecorder = s.functionRecorder.recordArp(tVar, tConstraints))
            .setConstrainable(Seq(tVar), true)
         Q(s1, tVar, v)
+       */
 
       case fa: ast.FieldAccess => {
         eval(s, fa.rcv, pve, v)((s1, tRcvr, v1) => {
@@ -369,6 +372,7 @@ object evaluator extends EvaluationRules with Immutable {
         eval(s, e0, pve, v)((s1, t0, v1) =>
           Q(s1, Minus(0, t0), v1))
 
+      /*
       case ast.Old(e0) =>
         evalInOldState(s, Verifier.PRE_STATE_LABEL, e0, pve, v)(Q)
 
@@ -382,6 +386,7 @@ object evaluator extends EvaluationRules with Immutable {
       case ast.Let(x, e0, e1) =>
         eval(s, e0, pve, v)((s1, t0, v1) =>
           eval(s1.copy(g = s1.g + (x.localVar, t0)), e1, pve, v1)(Q))
+      */
 
       /* Strict evaluation of AND */
       case ast.And(e0, e1) if Verifier.config.disableShortCircuitingEvaluations() =>
@@ -393,6 +398,7 @@ object evaluator extends EvaluationRules with Immutable {
         evalSeqShortCircuit(And, s, flattened, pve, v)(Q)
 
 
+
       /* Strict evaluation of OR */
       case ast.Or(e0, e1) if Verifier.config.disableShortCircuitingEvaluations() =>
         evalBinOp(s, e0, e1, (t1, t2) => Or(t1, t2), pve, v)(Q)
@@ -402,6 +408,7 @@ object evaluator extends EvaluationRules with Immutable {
         val flattened = flattenOperator(oe, {case ast.Or(e0, e1) => Seq(e0, e1)})
         evalSeqShortCircuit(Or, s, flattened, pve, v)(Q)
 
+      /*
       case implies @ ast.Implies(e0, e1) =>
         eval(s, e0, pve, v)((s1, t0, v1) =>
           evalImplies(s1, t0, e1, implies.info == FromShortCircuitingAnd, pve, v1)(Q))
@@ -424,6 +431,7 @@ object evaluator extends EvaluationRules with Immutable {
                 sys.error(s"Unexpected join data entries: $entries")}
             (s2, result)
           })(Q))
+       */
 
       /* Integers */
 
@@ -495,6 +503,7 @@ object evaluator extends EvaluationRules with Immutable {
 
       /* Others */
 
+      /*
       /* Domains not handled directly */
       case dfa @ ast.DomainFuncApp(funcName, eArgs, _) =>
         evals(s, eArgs, _ => pve, v)((s1, tArgs, v1) => {
@@ -963,11 +972,15 @@ object evaluator extends EvaluationRules with Immutable {
         case _ => sys.error("Expected a (multi)set-typed expression but found %s (%s) of type %s"
                             .format(e0, e0.getClass.getName, e0.typ))
       }
+      */
 
       /* Unexpected nodes */
 
       case _: ast.InhaleExhaleExp =>
         Failure(viper.silicon.utils.consistency.createUnexpectedInhaleExhaleExpressionError(e))
+
+      case _: ast.Exp =>
+        createFailure(createUnexpectedNodeError(e,""), v, s)
     }
 
     resultTerm
@@ -1002,6 +1015,7 @@ object evaluator extends EvaluationRules with Immutable {
         evalBinOpPc(s, e0, e1, (t0, _t1) => {t1 = _t1; FractionPerm(t0, t1)}, pve, v, generateChecks)((s1, tFP, v1) =>
           failIfDivByZero(s1, tFP, e1, t1, predef.Zero, pve, v1)(Q))
 
+      /*
       case _: ast.WildcardPerm =>
         val (tVar, tConstraints) = v.decider.freshARP()
         v.decider.assume(tConstraints)
@@ -1020,6 +1034,7 @@ object evaluator extends EvaluationRules with Immutable {
           s.copy(functionRecorder = s.functionRecorder.recordArp(tVar, tConstraints))
            .setConstrainable(Seq(tVar), true)
         Q(s1, tVar, v)
+       */
       case fa: ast.FieldAccess => {
         evalpc(s, fa.rcv, pve, v, generateChecks)((s1, tRcvr, v1) => {
         if (s.qpFields.contains(fa.field)) {

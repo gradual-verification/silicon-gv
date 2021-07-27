@@ -143,17 +143,52 @@ object predicateSupporter extends PredicateSupportRules with Immutable {
     } else {
       val ve = pve dueTo InsufficientPermission(pa)
       val description = s"consume ${pa.pos}: $pa"
-      chunkSupporter.consume(s1, s1.h, predicate, tArgs, s1.permissionScalingFactor, ve, v, description)((s2, h1, snap, v1, chunkExisted) => {
-        val s3 = s2.copy(g = gIns, h = h1)
-                   .setConstrainable(constrainableWildcards, false)
-        produce(s3, toSf(snap), body, pve, v1)((s4, v2) => {
-          v2.decider.prover.saturate(Verifier.config.z3SaturationTimeouts.afterUnfold)
-          val predicateTrigger =
-            App(Verifier.predicateData(predicate).triggerFunction, snap +: tArgs)
-          v2.decider.assume(predicateTrigger)
-          val s5 = s4.copy(g = s2.g,
-                           permissionScalingFactor = s.permissionScalingFactor)
-          Q(s5, v2)})})
+      val s2 = stateConsolidator.consolidate(s1, v)
+      chunkSupporter.consume(s2, s2.h, predicate, tArgs, s2.permissionScalingFactor, ve, v, description)((s3, h1, snap1, v1, chunkExisted) => {
+          if (s3.isImprecise) {
+            chunkSupporter.consume(s3, s3.optimisticHeap, predicate, tArgs, s3.permissionScalingFactor, ve, v1, description)((s4, oh1, snap2, v2, _) => {
+              if (chunkExisted) {
+                val s5 = s4.copy(g = gIns, h = h1, optimisticHeap = oh1)
+                  .setConstrainable(constrainableWildcards, false)
+                produce(s5, toSf(snap1), body, pve, v2)((s6, v3) => {
+                  v3.decider.prover.saturate(Verifier.config.z3SaturationTimeouts.afterUnfold)
+                  val predicateTrigger =
+                    App(Verifier.predicateData(predicate).triggerFunction, snap1 +: tArgs)
+                  v3.decider.assume(predicateTrigger)
+                  val s7 = s6.copy(g = s4.g,
+                    permissionScalingFactor = s.permissionScalingFactor)
+                  Q(s7, v3)
+                })
+              } else {
+                val s5 = s4.copy(g = gIns, h = h1, optimisticHeap = oh1)
+                  .setConstrainable(constrainableWildcards, false)
+                produce(s5, toSf(snap2), body, pve, v2)((s6, v3) => {
+                  v3.decider.prover.saturate(Verifier.config.z3SaturationTimeouts.afterUnfold)
+                  val predicateTrigger =
+                    App(Verifier.predicateData(predicate).triggerFunction, snap2 +: tArgs)
+                  v3.decider.assume(predicateTrigger)
+                  val s7 = s6.copy(g = s4.g,
+                    permissionScalingFactor = s.permissionScalingFactor)
+                  Q(s7, v3)
+                })
+              }
+            })
+          } else if (chunkExisted) {
+            val s4 = s3.copy(g = gIns, h = h1)
+              .setConstrainable(constrainableWildcards, false)
+            produce(s4, toSf(snap1), body, pve, v1)((s5, v2) => {
+              v2.decider.prover.saturate(Verifier.config.z3SaturationTimeouts.afterUnfold)
+              val predicateTrigger =
+                App(Verifier.predicateData(predicate).triggerFunction, snap1 +: tArgs)
+              v2.decider.assume(predicateTrigger)
+              val s6 = s5.copy(g = s3.g,
+                permissionScalingFactor = s.permissionScalingFactor)
+              Q(s6, v2)
+            })
+          } else {
+            createFailure(ve, v1, s3)
+          }
+      })
     }
   }
 
