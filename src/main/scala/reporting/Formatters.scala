@@ -35,7 +35,7 @@ class DefaultStateFormatter extends StateFormatter {
 
     val pcsStr = s"${format(pcs)}"
 
-    val pcsVpr = s"${pcs.assumptions.map(new Translator(s, pcs).translate)}"
+    // val pcsVpr = s"${pcs.assumptions.map(new Translator(s, pcs).translate)}"
 
     s"""Imprecise: $isImpStr,
        |Store: $gStr,
@@ -43,7 +43,6 @@ class DefaultStateFormatter extends StateFormatter {
        |OptHeap: $optHeapStr,
        |OHs: $oldHeapsStr,
        |PCs: $pcsStr,
-       |Runtime PCs: $pcsVpr, 
        |Runtime Checks: $runtimeCheckMap""".stripMargin
   }
 
