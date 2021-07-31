@@ -241,6 +241,8 @@ class DefaultMasterVerifier(config: Config, override val reporter: PluginAwareRe
     SymbExLogger.writeDotFile()
     SymbExLogger.writeTextFile()
 
+    println(runtimeChecks.getChecks)
+
     (   functionVerificationResults
      ++ predicateVerificationResults
      ++ methodVerificationResults)

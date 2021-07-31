@@ -147,8 +147,12 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
       chunk match {
         case c: NonQuantifiedChunk =>
 
-          val statusCheckgv = v.decider.checkgv(s.isImprecise, And(c.args zip args map (x => x._1 === x._2)), Some(Verifier.config.checkTimeout())) match {
-            case (status, runtimeCheck) => status
+          var statusCheckgv = true
+
+          if (id == c.id) {
+            statusCheckgv = v.decider.checkgv(s.isImprecise, And(c.args zip args map (x => x._1 === x._2)), Some(Verifier.config.checkTimeout())) match {
+              case (status, runtimeCheck) => status
+            }
           }
 
             // The term in checkgv uses infix notation I got from a different check to see if the args are equal

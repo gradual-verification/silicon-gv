@@ -208,7 +208,7 @@ trait DefaultDeciderProvider extends VerifierComponent { this: Verifier =>
       if (deciderAssert(t, timeout)) {
         (true, None)
       } else if(isImprecise && !(deciderAssert(Not(t), timeout))) { //Make sure this part is correct
-        (true, Some(t))
+        (true, Some(TermDifference.termDifference(this, t)))
       } else {
         (false, None)
       }
