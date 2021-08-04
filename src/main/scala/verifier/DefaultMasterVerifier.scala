@@ -243,6 +243,11 @@ class DefaultMasterVerifier(config: Config, override val reporter: PluginAwareRe
 
     println(runtimeChecks.getChecks)
 
+    _program.foreach((astNode) => {
+      println(s"ast node: ${astNode}")
+      println(s"runtime checks for ast node: ${astNode.getChecks()}")
+    })
+
     (   functionVerificationResults
      ++ predicateVerificationResults
      ++ methodVerificationResults)

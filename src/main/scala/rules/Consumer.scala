@@ -513,6 +513,7 @@ object consumer extends ConsumptionRules with Immutable {
                     chunkSupporter.consume(s4, oh, resource, tArgs, loss, ve, v3, description)((s5, oh1, snap2, v4, status1) => {
                       if (!status && !status1) {
                         runtimeChecks.addChecks(viper.silicon.utils.ast.sourceLineColumnPair(a), Seq(a))
+                        a.addCheck(a)
                       }
                       if (status) {
                         Q(s5, oh1, h1, snap1, v4)}
@@ -549,6 +550,7 @@ object consumer extends ConsumptionRules with Immutable {
                     chunkSupporter.consume(s4, oh, resource, tArgs, loss, ve, v3, description)((s5, oh1, snap2, v4, status1) => {
                       if (!status && !status1) {
                         runtimeChecks.addChecks(viper.silicon.utils.ast.sourceLineColumnPair(a), Seq(a))
+                        a.addCheck(a)
                       }
                       if (status) {
                         Q(s5, oh1, h1, snap1, v4)}
@@ -570,6 +572,7 @@ object consumer extends ConsumptionRules with Immutable {
                       runtimeChecks.addChecks(
                         viper.silicon.utils.ast.sourceLineColumnPair(a),
                         Seq(new Translator(s2, v.decider.pcs).translate(returnedChecks)))
+                      a.addCheck(new Translator(s2, v.decider.pcs).translate(returnedChecks))
                   }
                   verificationResult
                 }
@@ -663,12 +666,12 @@ object consumer extends ConsumptionRules with Immutable {
           Q(s1, oh, h, t, v1)
         }) match {
           case (verificationResult, Some(returnedChecks)) =>
-            println(s"symbolic value, consume: ${returnedChecks}")
             returnedState match {
               case Some((s1, pcs)) => {
                 runtimeChecks.addChecks(
                   viper.silicon.utils.ast.sourceLineColumnPair(a),
                   Seq(new Translator(s1, pcs).translate(returnedChecks)))
+                a.addCheck(new Translator(s1, pcs).translate(returnedChecks))
 
                 verificationResult
               }
@@ -703,6 +706,7 @@ object consumer extends ConsumptionRules with Immutable {
     val s2 = stateConsolidator.consolidate(s1, v)
 
     var returnValue: Option[(VerificationResult, Option[Term])] = None
+
     evalpc(s2.copy(isImprecise = impr), e, pve, v)((s3, t, v1) => {
       val s4 = s3.copy(isImprecise = s2.isImprecise)
       v1.decider.assertgv(s4.isImprecise, t) {
@@ -720,12 +724,14 @@ object consumer extends ConsumptionRules with Immutable {
     } match {
       case (verificationResult, returnedCheck) => {
         returnValue = Some((verificationResult, returnedCheck))
+        println(returnedCheck)
         verificationResult
       }
     }})
 
     returnValue match {
-      case Some((verificationResult, returnedCheck)) => (verificationResult, returnedCheck)
+      case Some((verificationResult, returnedCheck)) =>
+        (verificationResult, returnedCheck)
     }
   }
 }

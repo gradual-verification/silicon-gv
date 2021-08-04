@@ -149,6 +149,7 @@ object predicateSupporter extends PredicateSupportRules with Immutable {
             chunkSupporter.consume(s3, s3.optimisticHeap, predicate, tArgs, s3.permissionScalingFactor, ve, v1, description)((s4, oh1, snap2, v2, status1) => {
               if (!status && !status1) {
                 runtimeChecks.addChecks(viper.silicon.utils.ast.sourceLineColumnPair(pa), Seq(ast.PredicateAccessPredicate(pa, ast.FullPerm()())()))
+                pa.addCheck(ast.PredicateAccessPredicate(pa, ast.FullPerm()())())
               }
               if (status) {
                 val s5 = s4.copy(g = gIns, h = h1, optimisticHeap = oh1)
