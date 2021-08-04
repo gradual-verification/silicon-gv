@@ -512,7 +512,7 @@ object consumer extends ConsumptionRules with Immutable {
                   if (s4.isImprecise) {
                     chunkSupporter.consume(s4, oh, resource, tArgs, loss, ve, v3, description)((s5, oh1, snap2, v4, status1) => {
                       if (!status && !status1) {
-                        runtimeChecks.addChecks(viper.silicon.utils.ast.sourceLineColumnPair(a), Seq(a))
+                        runtimeChecks.addChecks(a, Seq(a))
                         a.addCheck(a)
                       }
                       if (status) {
@@ -549,7 +549,7 @@ object consumer extends ConsumptionRules with Immutable {
                   if (s4.isImprecise) {
                     chunkSupporter.consume(s4, oh, resource, tArgs, loss, ve, v3, description)((s5, oh1, snap2, v4, status1) => {
                       if (!status && !status1) {
-                        runtimeChecks.addChecks(viper.silicon.utils.ast.sourceLineColumnPair(a), Seq(a))
+                        runtimeChecks.addChecks(a, Seq(a))
                         a.addCheck(a)
                       }
                       if (status) {
@@ -569,9 +569,7 @@ object consumer extends ConsumptionRules with Immutable {
                     case None => ()
                     case Some(returnedChecks) =>
                       println(s"access predicate for field, consume: ${returnedChecks}")
-                      runtimeChecks.addChecks(
-                        viper.silicon.utils.ast.sourceLineColumnPair(a),
-                        Seq(new Translator(s2, v.decider.pcs).translate(returnedChecks)))
+                      runtimeChecks.addChecks(a, Seq(new Translator(s2, v.decider.pcs).translate(returnedChecks)))
                       a.addCheck(new Translator(s2, v.decider.pcs).translate(returnedChecks))
                   }
                   verificationResult
@@ -668,9 +666,7 @@ object consumer extends ConsumptionRules with Immutable {
           case (verificationResult, Some(returnedChecks)) =>
             returnedState match {
               case Some((s1, pcs)) => {
-                runtimeChecks.addChecks(
-                  viper.silicon.utils.ast.sourceLineColumnPair(a),
-                  Seq(new Translator(s1, pcs).translate(returnedChecks)))
+                runtimeChecks.addChecks(a, Seq(new Translator(s1, pcs).translate(returnedChecks)))
                 a.addCheck(new Translator(s1, pcs).translate(returnedChecks))
 
                 verificationResult

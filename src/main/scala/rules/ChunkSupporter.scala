@@ -248,9 +248,7 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
                 val ch = BasicChunk(FieldID, BasicChunkIdentifier(f.name), args, snap, FullPerm())
                 val s2 = s.copy(optimisticHeap = oh)
                 
-                runtimeChecks.addChecks(
-                  utils.ast.sourceLineColumnPair(runtimeCheckFieldTarget),
-                  Seq(ast.FieldAccessPredicate(runtimeCheckFieldTarget, ast.FullPerm()())()))
+                runtimeChecks.addChecks(runtimeCheckFieldTarget, Seq(ast.FieldAccessPredicate(runtimeCheckFieldTarget, ast.FullPerm()())()))
                 runtimeCheckFieldTarget.addCheck(ast.FieldAccessPredicate(runtimeCheckFieldTarget, ast.FullPerm()())())
 
                 chunkSupporter.produce(s2, s2.optimisticHeap, ch, v)((s3, oh2, v2) =>
@@ -275,9 +273,7 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
                 val snap = v.decider.fresh(s"${args.head}.$id", v.symbolConverter.toSort(f.typ))
 
                 if (generateChecks) {
-                  runtimeChecks.addChecks(
-                    viper.silicon.utils.ast.sourceLineColumnPair(runtimeCheckFieldTarget),
-                    Seq(ast.FieldAccessPredicate(runtimeCheckFieldTarget, ast.FullPerm()())()))
+                  runtimeChecks.addChecks(runtimeCheckFieldTarget, Seq(ast.FieldAccessPredicate(runtimeCheckFieldTarget, ast.FullPerm()())()))
                   runtimeCheckFieldTarget.addCheck(ast.FieldAccessPredicate(runtimeCheckFieldTarget, ast.FullPerm()())())
                 }
 
