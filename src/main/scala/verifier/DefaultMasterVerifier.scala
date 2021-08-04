@@ -241,7 +241,7 @@ class DefaultMasterVerifier(config: Config, override val reporter: PluginAwareRe
     SymbExLogger.writeDotFile()
     SymbExLogger.writeTextFile()
 
-    println(runtimeChecks.getChecks)
+    // println(runtimeChecks.getChecks)
 
     // _program.foreach((astNode) => {
     //   println(s"ast node: ${astNode}")

@@ -568,7 +568,6 @@ object consumer extends ConsumptionRules with Immutable {
                   potentialReturnedChecks match {
                     case None => ()
                     case Some(returnedChecks) =>
-                      println(s"access predicate for field, consume: ${returnedChecks}")
                       runtimeChecks.addChecks(a, Seq(new Translator(s2, v.decider.pcs).translate(returnedChecks)))
                       a.addCheck(new Translator(s2, v.decider.pcs).translate(returnedChecks))
                   }
@@ -720,7 +719,6 @@ object consumer extends ConsumptionRules with Immutable {
     } match {
       case (verificationResult, returnedCheck) => {
         returnValue = Some((verificationResult, returnedCheck))
-        println(returnedCheck)
         verificationResult
       }
     }})
