@@ -14,6 +14,14 @@ object TermDifference {
     case terms.True() => terms.True()
     case terms.IntLiteral(_) if excludedTerms.contains("IntLiteral") => expansionPhase(term)
     case terms.IntLiteral(i) => terms.IntLiteral(i)
+    case terms.Unit if excludedTerms.contains("Unit") => expansionPhase(term)
+    case terms.Unit => term
+    case terms.First(_) if excludedTerms.contains("First") => expansionPhase(term)
+    case terms.First(t) => terms.First(visitor(expansionPhase, excludedTerms, t))
+    case terms.Second(_) if excludedTerms.contains("Second") => expansionPhase(term)
+    case terms.Second(t) => terms.Second(visitor(expansionPhase, excludedTerms, t))
+    case terms.Combine(_, _) if excludedTerms.contains("Combine") => expansionPhase(term)
+    case terms.Combine(t0, t1) => terms.Combine(visitor(expansionPhase, excludedTerms, t0), visitor(expansionPhase, excludedTerms, t1))
     case terms.Plus(_, _) if excludedTerms.contains("Plus") => expansionPhase(term)
     case terms.Plus(t0, t1) => terms.Plus(visitor(expansionPhase, excludedTerms, t0), visitor(expansionPhase, excludedTerms, t1))
     case terms.Minus(_, _) if excludedTerms.contains("Minus") => expansionPhase(term)
@@ -48,6 +56,8 @@ object TermDifference {
     case terms.Ite(t0, t1, t2) => terms.Ite(visitor(expansionPhase, excludedTerms, t0), visitor(expansionPhase, excludedTerms, t1), visitor(expansionPhase, excludedTerms, t2))
     case terms.Var(_, _) if excludedTerms.contains("Var") => expansionPhase(term)
     case terms.Var(name, sort) => terms.Var(name, sort)
+    case terms.SortWrapper(_, _) if excludedTerms.contains("SortWrapper") => expansionPhase(term)
+    case terms.SortWrapper(t, sort) => terms.SortWrapper(visitor(expansionPhase, excludedTerms, t), sort)
   }
 
   def eliminateImplications(symbolicValue: terms.Term): terms.Term = symbolicValue match {
