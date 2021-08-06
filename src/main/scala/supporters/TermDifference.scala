@@ -2,18 +2,19 @@ package viper.silicon.supporters
 
 import viper.silicon.state.terms
 import viper.silicon.decider.Decider
+import viper.silicon.verifier.Verifier
 
 object TermDifference {
 
   def visitor(expansionPhase: terms.Term => terms.Term, excludedTerms: Seq[String], term: terms.Term): terms.Term = term match {
     case terms.Null() if excludedTerms.contains("Null") => expansionPhase(term)
-    case terms.Null() => terms.Null()
+    case terms.Null() => term
     case terms.False() if excludedTerms.contains("False") => expansionPhase(term)
-    case terms.False() => terms.False()
+    case terms.False() => term
     case terms.True() if excludedTerms.contains("True") => expansionPhase(term)
-    case terms.True() => terms.True()
+    case terms.True() => term
     case terms.IntLiteral(_) if excludedTerms.contains("IntLiteral") => expansionPhase(term)
-    case terms.IntLiteral(i) => terms.IntLiteral(i)
+    case terms.IntLiteral(i) => term
     case terms.Unit if excludedTerms.contains("Unit") => expansionPhase(term)
     case terms.Unit => term
     case terms.First(_) if excludedTerms.contains("First") => expansionPhase(term)
@@ -196,15 +197,29 @@ object TermDifference {
 
   def termDifference(solver: Decider, symbolicValue: terms.Term): terms.Term = {
 
-    var symbolicValueConjuncts = expandConjuncts(symbolicValue)
-    
-    for (term <- symbolicValueConjuncts) {
-      if (solver.check(term, 1000)) {
-        symbolicValueConjuncts = symbolicValueConjuncts
-          .filterNot(possibleRedundantTerm => possibleRedundantTerm == term)
-      }
+    val timeout = Verifier.config.checkTimeout.toOption match {
+      case None => 1000
+      case Some(verifierTimeoutValue) => verifierTimeoutValue
     }
 
-    reduceConjuncts(symbolicValueConjuncts)
+    reduceConjuncts(
+      expandConjuncts(symbolicValue).foldRight(Seq[terms.Term]())((term, terms) => {
+      if (solver.check(term, timeout)) {
+        terms
+      } else {
+        term +: terms
+      }
+    }))
+
+    // var symbolicValueConjuncts = expandConjuncts(symbolicValue)
+    
+    // for (term <- symbolicValueConjuncts) {
+    //   if (solver.check(term, 1000)) {
+    //     symbolicValueConjuncts = symbolicValueConjuncts
+    //       .filterNot(possibleRedundantTerm => possibleRedundantTerm == term)
+    //   }
+    // }
+
+    // reduceConjuncts(symbolicValueConjuncts)
   }
 }
