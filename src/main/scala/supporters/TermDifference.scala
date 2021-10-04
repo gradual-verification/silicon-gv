@@ -136,6 +136,7 @@ object TermDifference {
     terms.And(symbolicValueConjuncts)
   }
 
+  // testing transform
   val makeVar: String => terms.Var = (varName: String) => terms.Var(viper.silicon.state.Identifier(varName), terms.sorts.Int)
 
   val simpleImplicationTerm = terms.Implies(makeVar("x"), makeVar("y"))
@@ -195,6 +196,8 @@ object TermDifference {
     println(eliminateNestedAnds(eliminateNestedAnds(pullAnds(pushNegations(eliminateImplications(moreComplexTermWithIgnoredTerms))))))
   }
 
+  // we'll need to add profiling here; every time a conjunct is eliminated, we
+  // should record (or take note of) it
   def termDifference(solver: Decider, symbolicValue: terms.Term): terms.Term = {
 
     val timeout = Verifier.config.checkTimeout.toOption match {

@@ -15,6 +15,7 @@ import viper.silicon.resources.{NonQuantifiedPropertyInterpreter, Resources, Fie
 import viper.silicon.state._
 import viper.silicon.state.terms._
 import viper.silicon.state.terms.perms.IsPositive
+import viper.silicon.supporters.Translator
 import viper.silicon.utils
 import viper.silicon.verifier.Verifier
 
@@ -248,7 +249,10 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
                 val ch = BasicChunk(FieldID, BasicChunkIdentifier(f.name), args, snap, FullPerm())
                 val s2 = s.copy(optimisticHeap = oh)
                 
-                runtimeChecks.addChecks(runtimeCheckFieldTarget, Seq(ast.FieldAccessPredicate(runtimeCheckFieldTarget, ast.FullPerm()())()))
+                runtimeChecks.addChecks(runtimeCheckFieldTarget,
+                  Seq(ast.FieldAccessPredicate(runtimeCheckFieldTarget, ast.FullPerm()())()),
+                  v.decider.pcs.branchConditions.map(branch =>
+                      new Translator(s2, v.decider.pcs).translate(branch)))
                 runtimeCheckFieldTarget.addCheck(ast.FieldAccessPredicate(runtimeCheckFieldTarget, ast.FullPerm()())())
 
                 chunkSupporter.produce(s2, s2.optimisticHeap, ch, v)((s3, oh2, v2) =>
@@ -273,7 +277,10 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
                 val snap = v.decider.fresh(s"${args.head}.$id", v.symbolConverter.toSort(f.typ))
 
                 if (generateChecks) {
-                  runtimeChecks.addChecks(runtimeCheckFieldTarget, Seq(ast.FieldAccessPredicate(runtimeCheckFieldTarget, ast.FullPerm()())()))
+                  runtimeChecks.addChecks(runtimeCheckFieldTarget,
+                    Seq(ast.FieldAccessPredicate(runtimeCheckFieldTarget, ast.FullPerm()())()),
+                    v.decider.pcs.branchConditions.map(branch =>
+                        new Translator(s, v.decider.pcs).translate(branch)))
                   runtimeCheckFieldTarget.addCheck(ast.FieldAccessPredicate(runtimeCheckFieldTarget, ast.FullPerm()())())
                 }
 

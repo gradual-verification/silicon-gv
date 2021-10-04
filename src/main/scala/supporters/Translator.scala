@@ -1,8 +1,7 @@
 package viper.silicon.supporters
 
 import viper.silver.ast
-import viper.silicon.state.terms
-import viper.silicon.state.State
+import viper.silicon.state.{terms, State, Store}
 import viper.silicon.decider.RecordedPathConditions
 
 // should we use the path conditions from the state?
@@ -85,12 +84,17 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
       case Some(equivalentVariable) => equivalentVariable
     }
 
+    val store: Store = s.oldStore match {
+      case None => s.g
+      case Some(oldStore) => oldStore
+    }
+
     (s.h.getChunkForValue(heapOrStoreVar), s.optimisticHeap.getChunkForValue(heapOrStoreVar)) match {
       case (Some((symVar, id)), None) =>
-        ast.FieldAccess(s.g.getKeyForValue(symVar), ast.Field(id, varType)())()
+        ast.FieldAccess(store.getKeyForValue(symVar), ast.Field(id, varType)())()
       case (None, Some((symVar, id))) =>
-        ast.FieldAccess(s.g.getKeyForValue(symVar), ast.Field(id, varType)())()
-      case (None, None) => s.g.getKeyForValue(heapOrStoreVar)
+        ast.FieldAccess(store.getKeyForValue(symVar), ast.Field(id, varType)())()
+      case (None, None) => store.getKeyForValue(heapOrStoreVar)
     }
   }
 }

@@ -17,6 +17,7 @@ import viper.silicon.supporters.functions.{FunctionRecorder, NoopFunctionRecorde
 import viper.silicon.{Map, Stack}
 
 final case class State(g: Store = Store(),
+                       oldStore: Option[Store] = None,
                        h: Heap = Heap(),
                        oldHeaps: OldHeaps = Map.empty,
 
@@ -132,7 +133,7 @@ object State {
 
     s1 match {
       /* Decompose state s1 */
-      case State(g1, h1, oldHeaps1,
+      case State(g1, oldStore1, h1, oldHeaps1,
                  isImprecise, optimisticHeap,
                  parallelizeBranches1,
                  recordVisited1, visited1,
@@ -155,7 +156,9 @@ object State {
 
         /* Decompose state s2: most values must match those of s1 */
         s2 match {
-          case State(`g1`, `h1`, `oldHeaps1`,
+          // we do not care whether oldStore matches here; oldStore should not
+          // stick around for that long?
+          case State(`g1`, _, `h1`, `oldHeaps1`,
                      `isImprecise`, `optimisticHeap`,
                      `parallelizeBranches1`,
                      `recordVisited1`, `visited1`,

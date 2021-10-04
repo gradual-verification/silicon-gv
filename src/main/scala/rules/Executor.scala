@@ -447,6 +447,7 @@ object executor extends ExecutionRules with Immutable {
           })
           val pvePre = ErrorWrapperWithExampleTransformer(PreconditionInCallFalse(call).withReasonNodeTransformed(reasonTransformer), exampleTrafo)
           val s2 = s1.copy(g = Store(fargs.zip(tArgs)),
+            oldStore = Some(s1.g),
             recordVisited = true)
           consumes(s2, meth.pres, _ => pvePre, v1)((s3, _, v2) => {
             mcLog.finish_precondition()
