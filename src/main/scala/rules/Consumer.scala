@@ -666,14 +666,27 @@ object consumer extends ConsumptionRules with Immutable {
 
         var returnedState: Option[(State, viper.silicon.decider.RecordedPathConditions)] = None
 
+        var runtimeCheckAstNode: ast.Node = a
+
         evalAndAssert(s, impr, a, pve, v)((s1, t, v1) => {
+          var s2 = s1
+
           returnedState = Some((s1, v1.decider.pcs))
-          Q(s1, oh, h, t, v1)
+
+          runtimeCheckAstNode = s1.methodCallAstNode match {
+            case None => a
+            case Some(methodCall) => {
+              s2 = s1.copy(methodCallAstNode = None)
+              methodCall
+            }
+          }
+
+          Q(s2, oh, h, t, v1)
         }) match {
           case (verificationResult, Some(returnedChecks)) =>
             returnedState match {
               case Some((s1, pcs)) => {
-                runtimeChecks.addChecks(a,
+                runtimeChecks.addChecks(runtimeCheckAstNode,
                   Seq(new Translator(s1, pcs).translate(returnedChecks)),
                   v.decider.pcs.branchConditions.map(branch =>
                       new Translator(s1, pcs).translate(branch)))

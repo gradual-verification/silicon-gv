@@ -8,7 +8,7 @@ package viper.silicon.reporting
 
 import viper.silicon.decider.RecordedPathConditions
 import viper.silicon.state.State.OldHeaps
-import viper.silicon.state.{Heap, State, Store, runtimeChecks}
+import viper.silicon.state.{Heap, State, Store, runtimeChecks, profilingInfo}
 import viper.silicon.state.terms._
 import viper.silicon.verifier.Verifier
 import viper.silicon.supporters.Translator
@@ -32,6 +32,7 @@ class DefaultStateFormatter extends StateFormatter {
     val optHeapStr = format(s.optimisticHeap)
     val oldHeapsStr = format(s.oldHeaps)
     val runtimeCheckMap = runtimeChecks.getChecks
+    val eliminatedConjunctsNum = profilingInfo.getEliminatedConjuncts
 
     val pcsStr = s"${format(pcs)}"
 
@@ -43,7 +44,8 @@ class DefaultStateFormatter extends StateFormatter {
        |OptHeap: $optHeapStr,
        |OHs: $oldHeapsStr,
        |PCs: $pcsStr,
-       |Runtime Checks: $runtimeCheckMap""".stripMargin
+       |Runtime Checks: $runtimeCheckMap
+       |Eliminated Conjuncts: $eliminatedConjunctsNum""".stripMargin
   }
 
   def format(s: State, pcs: Set[Term]): String = {

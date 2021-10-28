@@ -410,7 +410,7 @@ object executor extends ExecutionRules with Immutable {
 
       // A call havoc_all_R() results in Silicon efficiently havocking all instances of resource R.
       // See also Silicon issue #407.
-      case ast.MethodCall(methodName, _, _)
+      case call @ ast.MethodCall(methodName, _, _)
         if !Verifier.config.disableHavocHack407() && methodName.startsWith(hack407_method_name_prefix) =>
 
         val resourceName = methodName.stripPrefix(hack407_method_name_prefix)
@@ -428,7 +428,7 @@ object executor extends ExecutionRules with Immutable {
           case other =>
             other
         })
-        Q(s.copy(h = h1), v)
+        Q(s.copy(h = h1, methodCallAstNode = Some(call)), v)
 
       case call @ ast.MethodCall(methodName, eArgs, lhs) =>
         val meth = Verifier.program.findMethod(methodName)
@@ -446,9 +446,12 @@ object executor extends ExecutionRules with Immutable {
             case ce => ce
           })
           val pvePre = ErrorWrapperWithExampleTransformer(PreconditionInCallFalse(call).withReasonNodeTransformed(reasonTransformer), exampleTrafo)
+          // this is run unconditionally (or so it seems), so we can attach the
+          // method call ast node here
           val s2 = s1.copy(g = Store(fargs.zip(tArgs)),
             oldStore = Some(s1.g),
-            recordVisited = true)
+            recordVisited = true,
+            methodCallAstNode = Some(call))
           consumes(s2, meth.pres, _ => pvePre, v1)((s3, _, v2) => {
             mcLog.finish_precondition()
             val outs = meth.formalReturns.map(_.localVar)

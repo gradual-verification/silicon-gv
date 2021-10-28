@@ -1,6 +1,7 @@
 package viper.silicon.supporters
 
 import viper.silicon.state.terms
+import viper.silicon.state.profilingInfo
 import viper.silicon.decider.Decider
 import viper.silicon.verifier.Verifier
 
@@ -205,9 +206,11 @@ object TermDifference {
       case Some(verifierTimeoutValue) => verifierTimeoutValue
     }
 
+    // we (hopefully) have a conjunct elimination site here
     reduceConjuncts(
       expandConjuncts(symbolicValue).foldRight(Seq[terms.Term]())((term, terms) => {
       if (solver.check(term, timeout)) {
+        profilingInfo.incrementEliminatedConjuncts
         terms
       } else {
         term +: terms
