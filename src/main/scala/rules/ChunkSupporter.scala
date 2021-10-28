@@ -250,7 +250,7 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
                 val s2 = s.copy(optimisticHeap = oh)
                 
                 runtimeChecks.addChecks(runtimeCheckFieldTarget,
-                  Seq(ast.FieldAccessPredicate(runtimeCheckFieldTarget, ast.FullPerm()())()),
+                  ast.FieldAccessPredicate(runtimeCheckFieldTarget, ast.FullPerm()())(),
                   v.decider.pcs.branchConditions.map(branch =>
                       new Translator(s2, v.decider.pcs).translate(branch)))
                 runtimeCheckFieldTarget.addCheck(ast.FieldAccessPredicate(runtimeCheckFieldTarget, ast.FullPerm()())())
@@ -278,7 +278,7 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
 
                 if (generateChecks) {
                   runtimeChecks.addChecks(runtimeCheckFieldTarget,
-                    Seq(ast.FieldAccessPredicate(runtimeCheckFieldTarget, ast.FullPerm()())()),
+                    ast.FieldAccessPredicate(runtimeCheckFieldTarget, ast.FullPerm()())(),
                     v.decider.pcs.branchConditions.map(branch =>
                         new Translator(s, v.decider.pcs).translate(branch)))
                   runtimeCheckFieldTarget.addCheck(ast.FieldAccessPredicate(runtimeCheckFieldTarget, ast.FullPerm()())())

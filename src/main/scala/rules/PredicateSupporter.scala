@@ -150,7 +150,7 @@ object predicateSupporter extends PredicateSupportRules with Immutable {
             chunkSupporter.consume(s3, s3.optimisticHeap, predicate, tArgs, s3.permissionScalingFactor, ve, v1, description)((s4, oh1, snap2, v2, status1) => {
               if (!status && !status1) {
                 runtimeChecks.addChecks(pa,
-                  Seq(ast.PredicateAccessPredicate(pa, ast.FullPerm()())()),
+                  ast.PredicateAccessPredicate(pa, ast.FullPerm()())(),
                   v2.decider.pcs.branchConditions.map(branch =>
                       new Translator(s4, v2.decider.pcs).translate(branch)))
                 pa.addCheck(ast.PredicateAccessPredicate(pa, ast.FullPerm()())())

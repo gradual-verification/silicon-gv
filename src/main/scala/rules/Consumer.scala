@@ -512,7 +512,7 @@ object consumer extends ConsumptionRules with Immutable {
                   if (s4.isImprecise) {
                     chunkSupporter.consume(s4, oh, resource, tArgs, loss, ve, v3, description)((s5, oh1, snap2, v4, status1) => {
                       if (!status && !status1) {
-                        runtimeChecks.addChecks(a, Seq(a),
+                        runtimeChecks.addChecks(a, a,
                           v4.decider.pcs.branchConditions.map(branch =>
                               new Translator(s5, v4.decider.pcs).translate(branch)))
                         a.addCheck(a)
@@ -551,7 +551,7 @@ object consumer extends ConsumptionRules with Immutable {
                   if (s4.isImprecise) {
                     chunkSupporter.consume(s4, oh, resource, tArgs, loss, ve, v3, description)((s5, oh1, snap2, v4, status1) => {
                       if (!status && !status1) {
-                        runtimeChecks.addChecks(a, Seq(a),
+                        runtimeChecks.addChecks(a, a,
                           v4.decider.pcs.branchConditions.map(branch =>
                               new Translator(s5, v4.decider.pcs).translate(branch)))
                         a.addCheck(a)
@@ -574,7 +574,7 @@ object consumer extends ConsumptionRules with Immutable {
                     case Some(returnedChecks) =>
                       // should use v2.decider.pcs here?
                       runtimeChecks.addChecks(a,
-                        Seq(new Translator(s2, v.decider.pcs).translate(returnedChecks)),
+                        new Translator(s2, v.decider.pcs).translate(returnedChecks),
                         v2.decider.pcs.branchConditions.map(branch =>
                             new Translator(s2, v2.decider.pcs).translate(branch)))
                       a.addCheck(new Translator(s2, v.decider.pcs).translate(returnedChecks))
@@ -687,7 +687,7 @@ object consumer extends ConsumptionRules with Immutable {
             returnedState match {
               case Some((s1, pcs)) => {
                 runtimeChecks.addChecks(runtimeCheckAstNode,
-                  Seq(new Translator(s1, pcs).translate(returnedChecks)),
+                  new Translator(s1, pcs).translate(returnedChecks),
                   v.decider.pcs.branchConditions.map(branch =>
                       new Translator(s1, pcs).translate(branch)))
                 a.addCheck(new Translator(s1, pcs).translate(returnedChecks))
