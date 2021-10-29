@@ -288,7 +288,8 @@ object evaluator extends EvaluationRules with Immutable {
         eval(s, fa.rcv, pve, v)((s1, tRcvr, v1) => {
         if (s.qpFields.contains(fa.field)) {
             /* Quantified permissions are not supported by Gradual Viper; this case code is dead. */
-            val (relevantChunks, _) =
+           profilingInfo.incrementEliminatedConjuncts
+           val (relevantChunks, _) =
               quantifiedChunkSupporter.splitHeap[QuantifiedFieldChunk](s1.h, BasicChunkIdentifier(fa.field.name))
             s1.smCache.get((fa.field, relevantChunks)) match {
               case Some((fvfDef: SnapshotMapDefinition, totalPermissions)) if !Verifier.config.disableValueMapCaching() =>

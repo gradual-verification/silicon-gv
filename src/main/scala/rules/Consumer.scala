@@ -508,28 +508,51 @@ object consumer extends ConsumptionRules with Immutable {
                 val description = s"consume ${a.pos}: $a"
                 var s3 = s2.copy(isImprecise = s.isImprecise)
 
+                // should we format the program like this?
                 chunkSupporter.consume(s3, h, resource, tArgs, loss, ve, v2, description)((s4, h1, snap1, v3, status) => {
+
                   if (s4.isImprecise) {
+
                     chunkSupporter.consume(s4, oh, resource, tArgs, loss, ve, v3, description)((s5, oh1, snap2, v4, status1) => {
+
                       if (!status && !status1) {
+
                         runtimeChecks.addChecks(a, a,
                           v4.decider.pcs.branchConditions.map(branch =>
                               new Translator(s5, v4.decider.pcs).translate(branch)))
                         a.addCheck(a)
+
                       }
+
                       if (status) {
-                        Q(s5, oh1, h1, snap1, v4)}
-                      else {
-                        Q(s5, oh1, h1, snap2, v4)}})}
-                  else if (status) {
-                    Q(s4, oh, h1, snap1, v3)}
-                  else {
+
+                        profilingInfo.incrementEliminatedConjuncts
+                        Q(s5, oh1, h1, snap1, v4)
+
+                      } else {
+
+                        profilingInfo.incrementEliminatedConjuncts
+                        Q(s5, oh1, h1, snap2, v4)
+
+                      }})
+
+                  } else if (status) {
+
+                    profilingInfo.incrementEliminatedConjuncts
+                    Q(s4, oh, h1, snap1, v3)
+
+                  } else {
+
                     createFailure(pve dueTo InsufficientPermission(locacc), v3, s4)}})
 
               case false =>
+
                 createFailure(pve dueTo InsufficientPermission(locacc), v2, s2)
+
             } match {
+
               case (verificationResult, _) => verificationResult
+
             }}))
 
 
@@ -557,16 +580,21 @@ object consumer extends ConsumptionRules with Immutable {
                         a.addCheck(a)
                       }
                       if (status) {
+                        profilingInfo.incrementEliminatedConjuncts
                         Q(s5, oh1, h1, snap1, v4)}
                       else {
+                        profilingInfo.incrementEliminatedConjuncts
                         Q(s5, oh1, h1, snap2, v4)}})}
                   else if (status) {
+                    profilingInfo.incrementEliminatedConjuncts
                     Q(s4, oh, h1, snap1, v3)}
                   else {
                     createFailure(pve dueTo InsufficientPermission(locacc), v3, s4)}})
 
               case false =>
                 createFailure(pve dueTo InsufficientPermission(locacc), v2, s2)
+
+            // this is the assertgv case for field access
             } match {
                 case (verificationResult, potentialReturnedChecks) => {
                   potentialReturnedChecks match {
