@@ -768,6 +768,7 @@ object consumer extends ConsumptionRules with Immutable {
           //println("heap: " + s.h + "\noh: " + s.optimisticHeap)
           //val s4 = s3.copy(isImprecise = false)
           createFailure(pve dueTo AssertionFalse(e), v1, s3)
+          // matching on the return value of assertgv
     } match {
       case (verificationResult, returnedCheck) => {
         returnValue = Some((verificationResult, returnedCheck))
