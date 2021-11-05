@@ -206,6 +206,9 @@ trait DefaultDeciderProvider extends VerifierComponent { this: Verifier =>
 
     // we need profiling information here
     def checkgv(isImprecise: Boolean, t: Term, timeout: Option[Int]) = {
+
+      profilingInfo.incrementTotalConjuncts(t.topLevelConjuncts.length)
+
       if (deciderAssert(t, timeout)) {
         profilingInfo.incrementEliminatedConjuncts(t.topLevelConjuncts.length)
         (true, None)

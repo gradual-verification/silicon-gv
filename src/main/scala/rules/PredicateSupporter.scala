@@ -141,6 +141,7 @@ object predicateSupporter extends PredicateSupportRules with Immutable {
           v2.decider.assume(predicateTrigger)
           Q(s4.copy(g = s.g), v2)})
       })
+      // profiling here?
     } else {
       val ve = pve dueTo InsufficientPermission(pa)
       val description = s"consume ${pa.pos}: $pa"

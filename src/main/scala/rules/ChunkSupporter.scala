@@ -228,9 +228,13 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
 
     val id = ChunkIdentifier(resource, Verifier.program)
 
+    profilingInfo.incrementTotalConjuncts
+
     findChunk[NonQuantifiedChunk](h.values, id, args, v) match {
       case Some(ch) if v.decider.check(IsPositive(ch.perm), Verifier.config.checkTimeout()) =>
+
         profilingInfo.incrementEliminatedConjuncts
+
         Q(s, ch.snap, v)
 
       // should never reach this case
@@ -240,7 +244,9 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
       case _ => {
         findChunk[NonQuantifiedChunk](oh.values, id, args, v) match {
           case Some(ch) if v.decider.check(IsPositive(ch.perm), Verifier.config.checkTimeout()) =>
+
             profilingInfo.incrementEliminatedConjuncts
+
             Q(s, ch.snap, v)
 
           // this is the eval case for adding runtime checks

@@ -511,6 +511,8 @@ object consumer extends ConsumptionRules with Immutable {
                 // should we format the program like this?
                 chunkSupporter.consume(s3, h, resource, tArgs, loss, ve, v2, description)((s4, h1, snap1, v3, status) => {
 
+                  profilingInfo.incrementTotalConjuncts
+
                   if (s4.isImprecise) {
 
                     chunkSupporter.consume(s4, oh, resource, tArgs, loss, ve, v3, description)((s5, oh1, snap2, v4, status1) => {
@@ -527,11 +529,13 @@ object consumer extends ConsumptionRules with Immutable {
                       if (status) {
 
                         profilingInfo.incrementEliminatedConjuncts
+
                         Q(s5, oh1, h1, snap1, v4)
 
                       } else {
 
                         profilingInfo.incrementEliminatedConjuncts
+
                         Q(s5, oh1, h1, snap2, v4)
 
                       }})
@@ -570,6 +574,9 @@ object consumer extends ConsumptionRules with Immutable {
                 var s3 = s2.copy(isImprecise = s.isImprecise)
 
                 chunkSupporter.consume(s3, h, resource, tArgs, loss, ve, v2, description)((s4, h1, snap1, v3, status) => {
+
+                  profilingInfo.incrementTotalConjuncts
+
                   // don't know if this should be s3 or s4 - J
                   if (s4.isImprecise) {
                     chunkSupporter.consume(s4, oh, resource, tArgs, loss, ve, v3, description)((s5, oh1, snap2, v4, status1) => {
