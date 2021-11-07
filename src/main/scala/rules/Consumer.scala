@@ -269,7 +269,7 @@ object consumer extends ConsumptionRules with Immutable {
           SymbExLogger.currentLog().collapse(null, sepIdentifier)
           branch_res})
 */
-      case ite @ ast.CondExp(e0, a1, a2) if !a.isPure =>
+      case ite @ ast.CondExp(e0, a1, a2) =>
         val gbLog = new GlobalBranchRecord(ite, s, v.decider.pcs, "consume")
         val sepIdentifier = SymbExLogger.currentLog().insert(gbLog)
         SymbExLogger.currentLog().initializeBranching()
