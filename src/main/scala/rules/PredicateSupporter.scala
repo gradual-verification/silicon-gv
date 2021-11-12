@@ -104,6 +104,7 @@ object predicateSupporter extends PredicateSupportRules with Immutable {
     })
   }
 
+  // same as consume case for predicates; add profiling here!
   def unfold(s: State,
              predicate: ast.Predicate,
              tArgs: List[Term],
@@ -147,6 +148,9 @@ object predicateSupporter extends PredicateSupportRules with Immutable {
       val description = s"consume ${pa.pos}: $pa"
       val s2 = stateConsolidator.consolidate(s1, v)
       chunkSupporter.consume(s2, s2.h, predicate, tArgs, s2.permissionScalingFactor, ve, v, description)((s3, h1, snap1, v1, status) => {
+          
+          profilingInfo.incrementTotalConjuncts
+
           if (s3.isImprecise) {
             chunkSupporter.consume(s3, s3.optimisticHeap, predicate, tArgs, s3.permissionScalingFactor, ve, v1, description)((s4, oh1, snap2, v2, status1) => {
               if (!status && !status1) {
