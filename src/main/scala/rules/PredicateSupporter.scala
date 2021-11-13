@@ -157,10 +157,14 @@ object predicateSupporter extends PredicateSupportRules with Immutable {
                 runtimeChecks.addChecks(pa,
                   ast.PredicateAccessPredicate(pa, ast.FullPerm()())(),
                   v2.decider.pcs.branchConditions.map(branch =>
-                      new Translator(s4, v2.decider.pcs).translate(branch)))
+                      new Translator(s4, v2.decider.pcs).translate(branch)),
+                    v2.decider.pcs.branchConditionsAstNodes)
                 pa.addCheck(ast.PredicateAccessPredicate(pa, ast.FullPerm()())())
               }
               if (status) {
+
+                profilingInfo.incrementEliminatedConjuncts
+
                 val s5 = s4.copy(g = gIns, h = h1, optimisticHeap = oh1)
                   .setConstrainable(constrainableWildcards, false)
                 produce(s5, toSf(snap1), body, pve, v2)((s6, v3) => {
@@ -173,6 +177,9 @@ object predicateSupporter extends PredicateSupportRules with Immutable {
                   Q(s7, v3)
                 })
               } else {
+
+                profilingInfo.incrementEliminatedConjuncts
+
                 val s5 = s4.copy(g = gIns, h = h1, optimisticHeap = oh1)
                   .setConstrainable(constrainableWildcards, false)
                 produce(s5, toSf(snap2), body, pve, v2)((s6, v3) => {
@@ -187,6 +194,9 @@ object predicateSupporter extends PredicateSupportRules with Immutable {
               }
             })
           } else if (status) {
+
+            profilingInfo.incrementEliminatedConjuncts
+
             val s4 = s3.copy(g = gIns, h = h1)
               .setConstrainable(constrainableWildcards, false)
             produce(s4, toSf(snap1), body, pve, v1)((s5, v2) => {

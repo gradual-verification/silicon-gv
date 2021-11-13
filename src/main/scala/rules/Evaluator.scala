@@ -1761,7 +1761,8 @@ object evaluator extends EvaluationRules with Immutable {
        val preMark = v1.decider.setPathConditionMark()
       evals(s2, es1, _ => pve, v1)((s3, ts1, v2) => {
         val bc = And(ts1)
-        v2.decider.setCurrentBranchCondition(bc)
+        // can we just use the head node here? not sure
+        v2.decider.setCurrentBranchCondition(bc, es1.head)
         evals(s3, es2, _ => pve, v2)((s4, ts2, v3) => {
           evalTriggers(s4, optTriggers.getOrElse(Nil), pve, v3)((s5, tTriggers, v4) => { // TODO: v4 isn't forward - problem?
             val (auxGlobalQuants, auxNonGlobalQuants) =
@@ -1786,7 +1787,7 @@ object evaluator extends EvaluationRules with Immutable {
                          : VerificationResult = {
 
     joiner.join[Term, Term](s, v)((s1, v1, QB) =>
-      brancher.branch(s1, tLhs, v1, fromShortCircuitingAnd)(
+      brancher.branch(s1, tLhs, ast.NullLit()(), v1, fromShortCircuitingAnd)(
         (s2, v2) => eval(s2, eRhs, pve, v2)(QB),
         (s2, v2) => QB(s2, True(), v2))
     )(entries => {
@@ -2270,7 +2271,7 @@ object evaluator extends EvaluationRules with Immutable {
         case `stop` => Q(s1, t0, v1) // Done, if last expression was true/false for or/and (optimisation)
         case _ =>
           joiner.join[Term, Term](s1, v1)((s2, v2, QB) =>
-            brancher.branch(s2, t0, v2, true) _ tupled swapIfAnd(
+            brancher.branch(s2, t0, exps.head, v2, true) _ tupled swapIfAnd(
               (s3, v3) => QB(s3, constructor(Seq(t0)), v3),
               (s3, v3) => evalSeqShortCircuit(constructor, s3, exps.tail, pve, v3)(QB))
             ){case Seq(ent) =>

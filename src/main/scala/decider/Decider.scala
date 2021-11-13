@@ -34,7 +34,7 @@ trait Decider {
 
   def checkSmoke(): Boolean
 
-  def setCurrentBranchCondition(t: Term)
+  def setCurrentBranchCondition(t: Term, astNode: viper.silver.ast.Node)
   def setPathConditionMark(): Mark
 
   def assume(t: Term)
@@ -163,8 +163,8 @@ trait DefaultDeciderProvider extends VerifierComponent { this: Verifier =>
       pathConditions.popScope()
     }
 
-    def setCurrentBranchCondition(t: Term) {
-      pathConditions.setCurrentBranchCondition(t)
+    def setCurrentBranchCondition(t: Term, astNode: viper.silver.ast.Node) {
+      pathConditions.setCurrentBranchCondition(t, astNode)
       assume(InsertionOrderedSet(Seq(t)))
     }
 
