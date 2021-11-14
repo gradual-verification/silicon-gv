@@ -5,7 +5,7 @@ import viper.silver.ast.{Exp, Node}
 import scala.collection.concurrent.{Map, TrieMap}
 import scala.util.hashing.Hashing
 
-case class CheckInfo(checks: Exp, branch: Stack[Exp], branchPosition: Stack[Node], context: Exp)
+case class CheckInfo(checks: Exp, branch: Stack[Exp], branchPosition: Stack[Node], context: Exp, overlaps: Boolean)
 
 object NodeHash extends AnyRef with Hashing[Node] {
 
@@ -32,12 +32,12 @@ object runtimeChecks {
   private val checks: Map[Node, CheckList] = new TrieMap[Node, CheckList](NodeHash, NodeReference)
 
   def addChecks(programPoint: Node, newCheck: Exp, branch: Stack[Exp],
-    branchPosition: Stack[Node], context: Exp): Unit = {
+    branchPosition: Stack[Node], context: Exp, overlaps: Boolean = true): Unit = {
     
     checks.get(programPoint) match {
-      case None => (checks += (programPoint -> List(CheckInfo(newCheck, branch, branchPosition, context))))
+      case None => (checks += (programPoint -> List(CheckInfo(newCheck, branch, branchPosition, context, overlaps))))
       case Some(checkList) =>
-        (checks += (programPoint -> (CheckInfo(newCheck, branch, branchPosition, context) +: checkList)))
+        (checks += (programPoint -> (CheckInfo(newCheck, branch, branchPosition, context, overlaps) +: checkList)))
     }
   }
 
