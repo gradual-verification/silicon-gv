@@ -6,6 +6,8 @@
 
 package viper.silicon.decider
 
+import viper.silver.ast.Node
+
 import viper.silicon.common.collections.immutable.InsertionOrderedSet
 import viper.silicon.Stack
 import viper.silicon.state.terms.{And, Decl, Equals, Implies, Quantification, Quantifier, Term, Trigger, True, Var}
@@ -22,6 +24,12 @@ import viper.silicon.utils.Counter
 
 trait RecordedPathConditions {
   def branchConditions: Stack[Term]
+  def branchConditionsAstNodes: Stack[Node]
+
+  def zippedBranchConditions: Stack[(Term, Node)] = {
+    branchConditions.zip(branchConditionsAstNodes)
+  }
+
   def assumptions: InsertionOrderedSet[Term]
   def declarations: InsertionOrderedSet[Decl]
 
@@ -55,7 +63,7 @@ trait RecordedPathConditions {
 }
 
 trait PathConditionStack extends RecordedPathConditions {
-  def setCurrentBranchCondition(condition: Term): Unit
+  def setCurrentBranchCondition(condition: Term, conditionAstNode: Node): Unit
   def add(assumption: Term): Unit
   def add(declaration: Decl): Unit
   def pushScope(): Unit
@@ -76,11 +84,13 @@ private class PathConditionStackLayer
        with Cloneable {
 
   private var _branchCondition: Option[Term] = None
+  private var _branchConditionAstNode: Option[Node] = None
   private var _globalAssumptions: InsertionOrderedSet[Quantification] = InsertionOrderedSet.empty
   private var _nonGlobalAssumptions: InsertionOrderedSet[Term] = InsertionOrderedSet.empty
   private var _declarations: InsertionOrderedSet[Decl] = InsertionOrderedSet.empty
 
   def branchCondition: Option[Term] = _branchCondition
+  def branchConditionAstNode: Option[Node] = _branchConditionAstNode
   def globalAssumptions: InsertionOrderedSet[Quantification] = _globalAssumptions
   def nonGlobalAssumptions: InsertionOrderedSet[Term] = _nonGlobalAssumptions
   def declarations: InsertionOrderedSet[Decl] = _declarations
@@ -94,6 +104,11 @@ private class PathConditionStackLayer
            + s"won't override (with $condition).")
 
     _branchCondition = Some(condition)
+  }
+
+  def branchConditionAstNode_=(conditionAstNode: Node) {
+
+    _branchConditionAstNode = Some(conditionAstNode)
   }
 
   def add(assumption: Term): Unit = {
@@ -136,6 +151,9 @@ private class PathConditionStackLayer
 private trait LayeredPathConditionStackLike {
   protected def branchConditions(layers: Stack[PathConditionStackLayer]): Stack[Term] =
     layers.flatMap(_.branchCondition)
+
+  protected def branchConditionsAstNodes(layers: Stack[PathConditionStackLayer]): Stack[Node] =
+    layers.flatMap(_.branchConditionAstNode)
 
   protected def assumptions(layers: Stack[PathConditionStackLayer]): InsertionOrderedSet[Term] =
     InsertionOrderedSet(layers.flatMap(_.assumptions)) // Note: Performance?
@@ -197,6 +215,7 @@ private class DefaultRecordedPathConditions(from: Stack[PathConditionStackLayer]
        with Immutable {
 
   val branchConditions: Stack[Term] = branchConditions(from)
+  val branchConditionsAstNodes: Stack[Node] = branchConditionsAstNodes(from)
   val assumptions: InsertionOrderedSet[Term] = assumptions(from)
   val declarations: InsertionOrderedSet[Decl] = declarations(from)
 
@@ -232,10 +251,11 @@ private[decider] class LayeredPathConditionStack
 
   pushScope() /* Create an initial layer on the stack */
 
-  def setCurrentBranchCondition(condition: Term): Unit = {
+  def setCurrentBranchCondition(condition: Term, conditionAstNode: Node): Unit = {
     /* TODO: Split condition into top-level conjuncts as well? */
 
     layers.head.branchCondition = condition
+    layers.head.branchConditionAstNode = conditionAstNode
   }
 
   def add(assumption: Term): Unit = {
@@ -297,6 +317,8 @@ private[decider] class LayeredPathConditionStack
   }
 
   def branchConditions: Stack[Term] = layers.flatMap(_.branchCondition)
+
+  def branchConditionsAstNodes: Stack[Node] = layers.flatMap(_.branchConditionAstNode)
 
   def assumptions: InsertionOrderedSet[Term] = allAssumptions
 

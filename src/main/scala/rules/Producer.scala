@@ -250,7 +250,7 @@ object producer extends ProductionRules with Immutable {
         evalpc(s, e0, pve, v, false)((s1, t0, v1) => {
           gbLog.finish_cond()
           val branch_res =
-            branch(s1, t0, v1)(
+            branch(s1, t0, e0, v1)(
               (s2, v2) => produceR(s2, sf, a1, pve, v2)((s3, v3) => {
                 val res1 = Q(s3, v3)
                 gbLog.finish_thnSubs()

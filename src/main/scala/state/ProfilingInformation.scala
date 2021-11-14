@@ -20,7 +20,7 @@ object profilingInfo {
   def incrementTotalConjuncts = totalConjuncts.incrementAndGet()
 
   def incrementTotalConjuncts(value: Int): Int = {
-    totalConjuncts.addAndGet(value);
+    totalConjuncts.addAndGet(value)
   }
 
   def getEliminatedConjuncts = eliminatedConjuncts.get()

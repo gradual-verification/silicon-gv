@@ -6,6 +6,8 @@
 
 package viper.silicon.rules
 
+import viper.silver.ast.Node
+
 import java.util.concurrent._
 import viper.silicon.common.concurrency._
 import viper.silicon.interfaces.{Unreachable, VerificationResult}
@@ -16,6 +18,7 @@ import viper.silicon.verifier.Verifier
 trait BranchingRules extends SymbolicExecutionRules {
   def branch(s: State,
              condition: Term,
+             position: Node,
              v: Verifier,
              fromShortCircuitingAnd: Boolean = false)
             (fTrue: (State, Verifier) => VerificationResult,
@@ -26,6 +29,7 @@ trait BranchingRules extends SymbolicExecutionRules {
 object brancher extends BranchingRules with Immutable {
   def branch(s: State,
              condition: Term,
+             position: Node,
              v: Verifier,
              fromShortCircuitingAnd: Boolean = false)
             (fThen: (State, Verifier) => VerificationResult,
@@ -113,7 +117,7 @@ object brancher extends BranchingRules with Immutable {
             }
 
             v1.decider.prover.comment(s"[else-branch: $cnt | $negatedCondition]")
-            v1.decider.setCurrentBranchCondition(negatedCondition)
+            v1.decider.setCurrentBranchCondition(negatedCondition, position)
 
             fElse(stateConsolidator.consolidateIfRetrying(s1, v1), v1)
           })
@@ -145,7 +149,7 @@ object brancher extends BranchingRules with Immutable {
     (if (executeThenBranch) {
       executionFlowController.locally(s, v)((s1, v1) => {
         v1.decider.prover.comment(s"[then-branch: $cnt | $condition]")
-        v1.decider.setCurrentBranchCondition(condition)
+        v1.decider.setCurrentBranchCondition(condition, position)
 
         fThen(stateConsolidator.consolidateIfRetrying(s1, v1), v1)
       })

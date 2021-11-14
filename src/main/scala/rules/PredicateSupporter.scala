@@ -104,6 +104,7 @@ object predicateSupporter extends PredicateSupportRules with Immutable {
     })
   }
 
+  // same as consume case for predicates; add profiling here!
   def unfold(s: State,
              predicate: ast.Predicate,
              tArgs: List[Term],
@@ -141,21 +142,29 @@ object predicateSupporter extends PredicateSupportRules with Immutable {
           v2.decider.assume(predicateTrigger)
           Q(s4.copy(g = s.g), v2)})
       })
+      // profiling here?
     } else {
       val ve = pve dueTo InsufficientPermission(pa)
       val description = s"consume ${pa.pos}: $pa"
       val s2 = stateConsolidator.consolidate(s1, v)
       chunkSupporter.consume(s2, s2.h, predicate, tArgs, s2.permissionScalingFactor, ve, v, description)((s3, h1, snap1, v1, status) => {
+          
+          profilingInfo.incrementTotalConjuncts
+
           if (s3.isImprecise) {
             chunkSupporter.consume(s3, s3.optimisticHeap, predicate, tArgs, s3.permissionScalingFactor, ve, v1, description)((s4, oh1, snap2, v2, status1) => {
               if (!status && !status1) {
                 runtimeChecks.addChecks(pa,
                   ast.PredicateAccessPredicate(pa, ast.FullPerm()())(),
                   v2.decider.pcs.branchConditions.map(branch =>
-                      new Translator(s4, v2.decider.pcs).translate(branch)))
+                      new Translator(s4, v2.decider.pcs).translate(branch)),
+                    v2.decider.pcs.branchConditionsAstNodes)
                 pa.addCheck(ast.PredicateAccessPredicate(pa, ast.FullPerm()())())
               }
               if (status) {
+
+                profilingInfo.incrementEliminatedConjuncts
+
                 val s5 = s4.copy(g = gIns, h = h1, optimisticHeap = oh1)
                   .setConstrainable(constrainableWildcards, false)
                 produce(s5, toSf(snap1), body, pve, v2)((s6, v3) => {
@@ -168,6 +177,9 @@ object predicateSupporter extends PredicateSupportRules with Immutable {
                   Q(s7, v3)
                 })
               } else {
+
+                profilingInfo.incrementEliminatedConjuncts
+
                 val s5 = s4.copy(g = gIns, h = h1, optimisticHeap = oh1)
                   .setConstrainable(constrainableWildcards, false)
                 produce(s5, toSf(snap2), body, pve, v2)((s6, v3) => {
@@ -182,6 +194,9 @@ object predicateSupporter extends PredicateSupportRules with Immutable {
               }
             })
           } else if (status) {
+
+            profilingInfo.incrementEliminatedConjuncts
+
             val s4 = s3.copy(g = gIns, h = h1)
               .setConstrainable(constrainableWildcards, false)
             produce(s4, toSf(snap1), body, pve, v1)((s5, v2) => {

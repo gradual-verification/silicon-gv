@@ -11,7 +11,6 @@ import viper.silicon.state.State.OldHeaps
 import viper.silicon.state.{Heap, State, Store, runtimeChecks, profilingInfo}
 import viper.silicon.state.terms._
 import viper.silicon.verifier.Verifier
-import viper.silicon.supporters.Translator
 import viper.silver.ast.AbstractLocalVar
 
 /* TODO: Use a proper pretty-printer such as the one we use for Silver AST nodes and Silicon terms */
@@ -33,6 +32,7 @@ class DefaultStateFormatter extends StateFormatter {
     val oldHeapsStr = format(s.oldHeaps)
     val runtimeCheckMap = runtimeChecks.getChecks
     val eliminatedConjunctsNum = profilingInfo.getEliminatedConjuncts
+    val totalConjunctsNum = profilingInfo.getTotalConjuncts
 
     val pcsStr = s"${format(pcs)}"
 
@@ -45,6 +45,7 @@ class DefaultStateFormatter extends StateFormatter {
        |OHs: $oldHeapsStr,
        |PCs: $pcsStr,
        |Runtime Checks: $runtimeCheckMap
+       |Total Conjuncts: $totalConjunctsNum
        |Eliminated Conjuncts: $eliminatedConjunctsNum""".stripMargin
   }
 

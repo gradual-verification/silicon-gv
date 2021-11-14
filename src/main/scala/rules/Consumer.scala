@@ -277,7 +277,7 @@ object consumer extends ConsumptionRules with Immutable {
           val s2 = s1.copy(isImprecise = s.isImprecise)
           gbLog.finish_cond()
           val branch_res =
-            branch(s2, t0, v1)(
+            branch(s2, t0, e0, v1)(
               (s3, v2) => consumeR(s3, impr, oh, h, a1, pve, v2)((s4, oh3, h3, snap3, v3) => {
                 val res1 = Q(s4, oh3, h3, snap3, v3)
                 gbLog.finish_thnSubs()
@@ -511,6 +511,8 @@ object consumer extends ConsumptionRules with Immutable {
                 // should we format the program like this?
                 chunkSupporter.consume(s3, h, resource, tArgs, loss, ve, v2, description)((s4, h1, snap1, v3, status) => {
 
+                  profilingInfo.incrementTotalConjuncts
+
                   if (s4.isImprecise) {
 
                     chunkSupporter.consume(s4, oh, resource, tArgs, loss, ve, v3, description)((s5, oh1, snap2, v4, status1) => {
@@ -519,7 +521,8 @@ object consumer extends ConsumptionRules with Immutable {
 
                         runtimeChecks.addChecks(a, a,
                           v4.decider.pcs.branchConditions.map(branch =>
-                              new Translator(s5, v4.decider.pcs).translate(branch)))
+                              new Translator(s5, v4.decider.pcs).translate(branch)),
+                           v4.decider.pcs.branchConditionsAstNodes)
                         a.addCheck(a)
 
                       }
@@ -527,11 +530,13 @@ object consumer extends ConsumptionRules with Immutable {
                       if (status) {
 
                         profilingInfo.incrementEliminatedConjuncts
+
                         Q(s5, oh1, h1, snap1, v4)
 
                       } else {
 
                         profilingInfo.incrementEliminatedConjuncts
+
                         Q(s5, oh1, h1, snap2, v4)
 
                       }})
@@ -570,13 +575,17 @@ object consumer extends ConsumptionRules with Immutable {
                 var s3 = s2.copy(isImprecise = s.isImprecise)
 
                 chunkSupporter.consume(s3, h, resource, tArgs, loss, ve, v2, description)((s4, h1, snap1, v3, status) => {
+
+                  profilingInfo.incrementTotalConjuncts
+
                   // don't know if this should be s3 or s4 - J
                   if (s4.isImprecise) {
                     chunkSupporter.consume(s4, oh, resource, tArgs, loss, ve, v3, description)((s5, oh1, snap2, v4, status1) => {
                       if (!status && !status1) {
                         runtimeChecks.addChecks(a, a,
                           v4.decider.pcs.branchConditions.map(branch =>
-                              new Translator(s5, v4.decider.pcs).translate(branch)))
+                              new Translator(s5, v4.decider.pcs).translate(branch)),
+                            v4.decider.pcs.branchConditionsAstNodes)
                         a.addCheck(a)
                       }
                       if (status) {
@@ -604,7 +613,8 @@ object consumer extends ConsumptionRules with Immutable {
                       runtimeChecks.addChecks(a,
                         new Translator(s2, v.decider.pcs).translate(returnedChecks),
                         v2.decider.pcs.branchConditions.map(branch =>
-                            new Translator(s2, v2.decider.pcs).translate(branch)))
+                            new Translator(s2, v2.decider.pcs).translate(branch)),
+                          v2.decider.pcs.branchConditionsAstNodes)
                       a.addCheck(new Translator(s2, v.decider.pcs).translate(returnedChecks))
                   }
                   verificationResult
@@ -717,7 +727,8 @@ object consumer extends ConsumptionRules with Immutable {
                 runtimeChecks.addChecks(runtimeCheckAstNode,
                   new Translator(s1, pcs).translate(returnedChecks),
                   v.decider.pcs.branchConditions.map(branch =>
-                      new Translator(s1, pcs).translate(branch)))
+                      new Translator(s1, pcs).translate(branch)),
+                    v.decider.pcs.branchConditionsAstNodes)
                 a.addCheck(new Translator(s1, pcs).translate(returnedChecks))
 
                 verificationResult

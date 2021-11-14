@@ -228,9 +228,13 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
 
     val id = ChunkIdentifier(resource, Verifier.program)
 
+    profilingInfo.incrementTotalConjuncts
+
     findChunk[NonQuantifiedChunk](h.values, id, args, v) match {
       case Some(ch) if v.decider.check(IsPositive(ch.perm), Verifier.config.checkTimeout()) =>
+
         profilingInfo.incrementEliminatedConjuncts
+
         Q(s, ch.snap, v)
 
       // should never reach this case
@@ -240,7 +244,9 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
       case _ => {
         findChunk[NonQuantifiedChunk](oh.values, id, args, v) match {
           case Some(ch) if v.decider.check(IsPositive(ch.perm), Verifier.config.checkTimeout()) =>
+
             profilingInfo.incrementEliminatedConjuncts
+
             Q(s, ch.snap, v)
 
           // this is the eval case for adding runtime checks
@@ -254,7 +260,8 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
                 runtimeChecks.addChecks(runtimeCheckFieldTarget,
                   ast.FieldAccessPredicate(runtimeCheckFieldTarget, ast.FullPerm()())(),
                   v.decider.pcs.branchConditions.map(branch =>
-                      new Translator(s2, v.decider.pcs).translate(branch)))
+                      new Translator(s2, v.decider.pcs).translate(branch)),
+                    v.decider.pcs.branchConditionsAstNodes)
                 runtimeCheckFieldTarget.addCheck(ast.FieldAccessPredicate(runtimeCheckFieldTarget, ast.FullPerm()())())
 
                 chunkSupporter.produce(s2, s2.optimisticHeap, ch, v)((s3, oh2, v2) =>
@@ -282,7 +289,8 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
                   runtimeChecks.addChecks(runtimeCheckFieldTarget,
                     ast.FieldAccessPredicate(runtimeCheckFieldTarget, ast.FullPerm()())(),
                     v.decider.pcs.branchConditions.map(branch =>
-                        new Translator(s, v.decider.pcs).translate(branch)))
+                        new Translator(s, v.decider.pcs).translate(branch)),
+                      v.decider.pcs.branchConditionsAstNodes)
                   runtimeCheckFieldTarget.addCheck(ast.FieldAccessPredicate(runtimeCheckFieldTarget, ast.FullPerm()())())
                 }
 
