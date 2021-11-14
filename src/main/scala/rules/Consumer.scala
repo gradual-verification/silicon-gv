@@ -522,7 +522,8 @@ object consumer extends ConsumptionRules with Immutable {
                         runtimeChecks.addChecks(a, a,
                           v4.decider.pcs.branchConditions.map(branch =>
                               new Translator(s5, v4.decider.pcs).translate(branch)),
-                           v4.decider.pcs.branchConditionsAstNodes)
+                           v4.decider.pcs.branchConditionsAstNodes,
+                           a)
                         a.addCheck(a)
 
                       }
@@ -582,10 +583,12 @@ object consumer extends ConsumptionRules with Immutable {
                   if (s4.isImprecise) {
                     chunkSupporter.consume(s4, oh, resource, tArgs, loss, ve, v3, description)((s5, oh1, snap2, v4, status1) => {
                       if (!status && !status1) {
-                        runtimeChecks.addChecks(a, a,
+                        runtimeChecks.addChecks(a,
+                          a,
                           v4.decider.pcs.branchConditions.map(branch =>
                               new Translator(s5, v4.decider.pcs).translate(branch)),
-                            v4.decider.pcs.branchConditionsAstNodes)
+                            v4.decider.pcs.branchConditionsAstNodes,
+                            a)
                         a.addCheck(a)
                       }
                       if (status) {
@@ -614,7 +617,8 @@ object consumer extends ConsumptionRules with Immutable {
                         new Translator(s2, v.decider.pcs).translate(returnedChecks),
                         v2.decider.pcs.branchConditions.map(branch =>
                             new Translator(s2, v2.decider.pcs).translate(branch)),
-                          v2.decider.pcs.branchConditionsAstNodes)
+                          v2.decider.pcs.branchConditionsAstNodes,
+                          a)
                       a.addCheck(new Translator(s2, v.decider.pcs).translate(returnedChecks))
                   }
                   verificationResult
@@ -728,7 +732,8 @@ object consumer extends ConsumptionRules with Immutable {
                   new Translator(s1, pcs).translate(returnedChecks),
                   v.decider.pcs.branchConditions.map(branch =>
                       new Translator(s1, pcs).translate(branch)),
-                    v.decider.pcs.branchConditionsAstNodes)
+                    v.decider.pcs.branchConditionsAstNodes,
+                    a)
                 a.addCheck(new Translator(s1, pcs).translate(returnedChecks))
 
                 verificationResult
