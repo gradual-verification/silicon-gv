@@ -29,6 +29,8 @@ object runtimeChecks {
   // statement or expression after a conditional is dependent on the result of
   // the conditional; we may need to check the branch taken in the runtime
   // checks
+  //
+  // a CheckList is a Seq[CheckInfo]
   private val checks: Map[Node, CheckList] = new TrieMap[Node, CheckList](NodeHash, NodeReference)
 
   def addChecks(programPoint: Node, newCheck: Exp, branch: Stack[Exp],
