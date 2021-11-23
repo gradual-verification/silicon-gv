@@ -1,25 +1,12 @@
 package viper.silicon.state
 
 import viper.silicon.Stack
+import viper.silicon.supporters.{NodeHash, NodeEquiv}
 import viper.silver.ast.{Exp, Node}
 import scala.collection.concurrent.{Map, TrieMap}
 import scala.util.hashing.Hashing
 
 case class CheckInfo(checks: Exp, branch: Stack[Exp], branchPosition: Stack[Node], context: Exp, overlaps: Boolean)
-
-object NodeHash extends AnyRef with Hashing[Node] {
-
-  def hash(node: Node): Int = {
-    node.hashCode()
-  }
-}
-
-object NodeReference extends AnyRef with Equiv[Node] {
-
-  def equiv(node1: Node, node2: Node): Boolean = {
-    node1.uniqueIdentifier == node2.uniqueIdentifier
-  }
-}
 
 object runtimeChecks {
 
@@ -31,10 +18,14 @@ object runtimeChecks {
   // checks
   //
   // a CheckList is a Seq[CheckInfo]
-  private val checks: Map[Node, CheckList] = new TrieMap[Node, CheckList](NodeHash, NodeReference)
+  
+  val nodeHash = new NodeHash[Node]
+  val nodeEquiv = new NodeEquiv[Node]
+  
+  private val checks: Map[Node, CheckList] = new TrieMap[Node, CheckList](nodeHash, nodeEquiv)
 
   def addChecks(programPoint: Node, newCheck: Exp, branch: Stack[Exp],
-    branchPosition: Stack[Node], context: Exp, overlaps: Boolean = true): Unit = {
+    branchPosition: Stack[Node], context: Exp, overlaps: Boolean): Unit = {
     
     checks.get(programPoint) match {
       case None => (checks += (programPoint -> List(CheckInfo(newCheck, branch, branchPosition, context, overlaps))))

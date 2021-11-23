@@ -36,7 +36,7 @@ final class ListBackedHeap private[state] (chunks: Vector[Chunk])
     chunks.find(chunk => {
       chunk match {
         case BasicChunk(resourceID, id, args, snap, perm) => snap == value
-        case _ => sys.error("That chunk type is not supported yet!")
+        case _ => sys.error(s"The chunk type ${chunk} is not supported yet!")
       }
     }) match {
       case None => None

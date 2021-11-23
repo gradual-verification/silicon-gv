@@ -20,6 +20,7 @@ import viper.silicon.state._
 import viper.silicon.state.terms._
 import viper.silicon.state.terms.perms.IsPositive
 import viper.silicon.state.terms.predef.`?r`
+import viper.silicon.supporters.Translator
 import viper.silicon.utils.freshSnap
 import viper.silicon.utils.consistency.createUnexpectedNodeError
 import viper.silicon.verifier.Verifier
@@ -446,6 +447,8 @@ object executor extends ExecutionRules with Immutable {
             case ce => ce
           })
           val pvePre = ErrorWrapperWithExampleTransformer(PreconditionInCallFalse(call).withReasonNodeTransformed(reasonTransformer), exampleTrafo)
+          reconstructedPermissions.addMethodCallStatement(call,
+            new Translator(s1, v1.decider.pcs).getAccessibilityPredicates)
           // this is run unconditionally (or so it seems), so we can attach the
           // method call ast node here
           val s2 = s1.copy(g = Store(fargs.zip(tArgs)),

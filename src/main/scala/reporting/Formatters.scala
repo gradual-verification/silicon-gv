@@ -8,7 +8,7 @@ package viper.silicon.reporting
 
 import viper.silicon.decider.RecordedPathConditions
 import viper.silicon.state.State.OldHeaps
-import viper.silicon.state.{Heap, State, Store, runtimeChecks, profilingInfo}
+import viper.silicon.state.{Heap, State, Store, runtimeChecks, profilingInfo, reconstructedPermissions}
 import viper.silicon.state.terms._
 import viper.silicon.verifier.Verifier
 import viper.silver.ast.AbstractLocalVar
@@ -33,10 +33,8 @@ class DefaultStateFormatter extends StateFormatter {
     val runtimeCheckMap = runtimeChecks.getChecks
     val eliminatedConjunctsNum = profilingInfo.getEliminatedConjuncts
     val totalConjunctsNum = profilingInfo.getTotalConjuncts
-
+    val permissions = reconstructedPermissions.getPermissions
     val pcsStr = s"${format(pcs)}"
-
-    // val pcsVpr = s"${pcs.assumptions.map(new Translator(s, pcs).translate)}"
 
     s"""Imprecise: $isImpStr,
        |Store: $gStr,
@@ -46,7 +44,8 @@ class DefaultStateFormatter extends StateFormatter {
        |PCs: $pcsStr,
        |Runtime Checks: $runtimeCheckMap
        |Total Conjuncts: $totalConjunctsNum
-       |Eliminated Conjuncts: $eliminatedConjunctsNum""".stripMargin
+       |Eliminated Conjuncts: $eliminatedConjunctsNum
+       |Reconstructed Permissions: $permissions""".stripMargin
   }
 
   def format(s: State, pcs: Set[Term]): String = {

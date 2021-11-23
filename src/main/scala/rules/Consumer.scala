@@ -523,7 +523,8 @@ object consumer extends ConsumptionRules with Immutable {
                           v4.decider.pcs.branchConditions.map(branch =>
                               new Translator(s5, v4.decider.pcs).translate(branch)),
                            v4.decider.pcs.branchConditionsAstNodes,
-                           a)
+                           a,
+                           true)
                         a.addCheck(a)
 
                       }
@@ -588,7 +589,8 @@ object consumer extends ConsumptionRules with Immutable {
                           v4.decider.pcs.branchConditions.map(branch =>
                               new Translator(s5, v4.decider.pcs).translate(branch)),
                             v4.decider.pcs.branchConditionsAstNodes,
-                            a)
+                            a,
+                            true)
                         a.addCheck(a)
                       }
                       if (status) {
@@ -618,7 +620,8 @@ object consumer extends ConsumptionRules with Immutable {
                         v2.decider.pcs.branchConditions.map(branch =>
                             new Translator(s2, v2.decider.pcs).translate(branch)),
                           v2.decider.pcs.branchConditionsAstNodes,
-                          a)
+                          a,
+                          true)
                       a.addCheck(new Translator(s2, v.decider.pcs).translate(returnedChecks))
                   }
                   verificationResult
@@ -733,7 +736,8 @@ object consumer extends ConsumptionRules with Immutable {
                   v.decider.pcs.branchConditions.map(branch =>
                       new Translator(s1, pcs).translate(branch)),
                     v.decider.pcs.branchConditionsAstNodes,
-                    a)
+                    a,
+                    true)
                 a.addCheck(new Translator(s1, pcs).translate(returnedChecks))
 
                 verificationResult

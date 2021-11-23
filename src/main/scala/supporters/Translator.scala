@@ -1,7 +1,7 @@
 package viper.silicon.supporters
 
 import viper.silver.ast
-import viper.silicon.state.{terms, State, Store}
+import viper.silicon.state.{terms, State, Store, BasicChunk}
 import viper.silicon.decider.RecordedPathConditions
 
 // should we use the path conditions from the state?
@@ -96,5 +96,22 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
         ast.FieldAccess(store.getKeyForValue(symVar), ast.Field(id, varType)())()
       case (None, None) => store.getKeyForValue(heapOrStoreVar)
     }
+  }
+
+  def getAccessibilityPredicates: Iterable[ast.Exp] = {
+
+    (s.h.values ++ s.optimisticHeap.values).map(chunk => chunk match {
+      case BasicChunk(resourceId, id, args, snap, perm) => {
+
+        val varType = args.head match {
+          case terms.Var(_, terms.sorts.Int) | terms.SortWrapper(_, terms.sorts.Int) => ast.Int
+          case terms.Var(_, terms.sorts.Bool) | terms.SortWrapper(_, terms.sorts.Bool) => ast.Bool
+          case terms.Var(_, terms.sorts.Ref) | terms.SortWrapper(_, terms.sorts.Ref) => ast.Ref
+          case terms.Var(_, terms.sorts.Perm) | terms.SortWrapper(_, terms.sorts.Perm) => ast.Perm
+        }
+
+        ast.FieldAccess(s.g.getKeyForValue(args.head), ast.Field(id.toString, varType)())()
+      }
+    })
   }
 }
