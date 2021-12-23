@@ -139,6 +139,9 @@ object producer extends ProductionRules with Immutable {
                          (Q: (State, Verifier) => VerificationResult)
                          : VerificationResult = {
 
+    // TODO: unset the method call ast node field here!
+    // TODO: check the other places where we do something like this...
+    
     if (as.isEmpty)
       Q(s, v)
     else {
@@ -201,10 +204,11 @@ object producer extends ProductionRules with Immutable {
                         (continuation: (State, Verifier) => VerificationResult)
                         : VerificationResult = {
 
-
+    // unset the methodCallAstNodePost(?) field here
+    val s0 = s.copy(methodCallAstNodePost = None)
 
     v.logger.debug(s"\nPRODUCE ${viper.silicon.utils.ast.sourceLineColumn(a)}: $a")
-    v.logger.debug(v.stateFormatter.format(s, v.decider.pcs))
+    v.logger.debug(v.stateFormatter.format(s0, v.decider.pcs))
 
     val Q: (State, Verifier) => VerificationResult = (state, verifier) =>
       continuation(if (state.exhaleExt) state.copy(reserveHeaps = state.h +: state.reserveHeaps.drop(1)) else state, verifier)
@@ -215,7 +219,7 @@ object producer extends ProductionRules with Immutable {
       case impr @ ast.ImpreciseExp(e) =>
       //  val (sf0, sf1) = v.snapshotSupporter.createSnapshotPair(s, sf, a, a, v)
         val second = toSf(Second(sf(sorts.Snap, v)))
-        produce(s.copy(isImprecise = true), second, e, pve, v)(Q)
+        produce(s0.copy(isImprecise = true), second, e, pve, v)(Q)
 
 /*      case imp @ ast.Implies(e0, a0) if !a.isPure =>
         val impLog = new GlobalBranchRecord(imp, s, v.decider.pcs, "produce")
@@ -243,14 +247,30 @@ object producer extends ProductionRules with Immutable {
           SymbExLogger.currentLog().collapse(null, sepIdentifier)
           branch_res})
 */
+      // this would be invoked on a postcondition? after the precondition is
+      // consumed and evaluated maybe
+      
+      // use and unset the method call ast node attached to the state for
+      // postconditions here
+      //
+      // IMPORTANT: that field must be unset before 
       case ite @ ast.CondExp(e0, a1, a2) =>
-        val gbLog = new GlobalBranchRecord(ite, s, v.decider.pcs, "produce")
+        val gbLog = new GlobalBranchRecord(ite, s0, v.decider.pcs, "produce")
         val sepIdentifier = SymbExLogger.currentLog().insert(gbLog)
         SymbExLogger.currentLog().initializeBranching()
-        evalpc(s, e0, pve, v, false)((s1, t0, v1) => {
+        evalpc(s0, e0, pve, v, false)((s1, t0, v1) => {
           gbLog.finish_cond()
-          val branch_res =
-            branch(s1, t0, e0, v1)(
+          val branch_res = {
+
+            val branchPositionAstNode = s.methodCallAstNodePost match {
+              case None => {
+                println("We could not find a method call ast node! Why? Try to look into it...")
+                ite
+              }
+              case Some(methodCallAstNode) => methodCallAstNode
+            }
+
+            branch(s1, t0, branchPositionAstNode, v1)(
               (s2, v2) => produceR(s2, sf, a1, pve, v2)((s3, v3) => {
                 val res1 = Q(s3, v3)
                 gbLog.finish_thnSubs()
@@ -260,6 +280,7 @@ object producer extends ProductionRules with Immutable {
                 val res2 = Q(s3, v3)
                 gbLog.finish_elsSubs()
                 res2}))
+          }
           SymbExLogger.currentLog().collapse(null, sepIdentifier)
           branch_res})
 
@@ -268,7 +289,7 @@ object producer extends ProductionRules with Immutable {
  *        produceR(s1.copy(g = s1.g + g1), sf, body, pve, v1)(Q))
  */
       case ast.FieldAccessPredicate(ast.FieldAccess(eRcvr, field), perm) =>
-        evalpc(s, eRcvr, pve, v, false)((s1, tRcvr, v1) =>
+        evalpc(s0, eRcvr, pve, v, false)((s1, tRcvr, v1) =>
           evalpc(s1, perm, pve, v1, false)((s2, tPerm, v2) => {
             if(chunkSupporter.inHeap(s2.h, s2.h.values, field, Seq(tRcvr), v2)) {
               // NEED: Actually because it's in the heap, but don't know how to do that yet
@@ -290,7 +311,7 @@ object producer extends ProductionRules with Immutable {
 
       case ast.PredicateAccessPredicate(ast.PredicateAccess(eArgs, predicateName), perm) =>
         val predicate = Verifier.program.findPredicate(predicateName)
-        evalspc(s, eArgs, _ => pve, v, false)((s1, tArgs, v1) =>
+        evalspc(s0, eArgs, _ => pve, v, false)((s1, tArgs, v1) =>
           evalpc(s1, perm, pve, v1, false)((s2, tPerm, v2) => {
             if (chunkSupporter.inHeap(s2.h, s2.h.values, predicate, tArgs, v2)) {
               // Actually because it's in the heap, but don't know how to do that yet
@@ -445,7 +466,7 @@ object producer extends ProductionRules with Immutable {
       /* Any regular expressions, i.e. boolean and arithmetic. */
       case _ =>
         v.decider.assume(sf(sorts.Snap, v) === Unit) /* TODO: See comment for case ast.Implies above */
-        evalpc(s, a, pve, v, false)((s1, t, v1) => {
+        evalpc(s0, a, pve, v, false)((s1, t, v1) => {
           v1.decider.assume(t)
           Q(s1, v1)})
     }

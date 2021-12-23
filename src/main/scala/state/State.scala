@@ -69,7 +69,8 @@ final case class State(g: Store = Store(),
                        predicateSnapMap: Map[ast.Predicate, terms.Sort] = Map.empty,
                        predicateFormalVarMap: Map[ast.Predicate, Seq[terms.Var]] = Map.empty,
                        isMethodVerification: Boolean = false,
-                       methodCallAstNode: Option[ast.MethodCall] = None)
+                       methodCallAstNodePre: Option[ast.MethodCall] = None,
+                       methodCallAstNodePost: Option[ast.MethodCall] = None)
     extends Mergeable[State] {
 
   def incCycleCounter(m: ast.Predicate) =
@@ -153,7 +154,8 @@ object State {
                  applyHeuristics1, heuristicsDepth1, triggerAction1,
                  ssCache1, hackIssue387DisablePermissionConsumption1,
                  qpFields1, qpPredicates1, qpMagicWands1, smCache1, pmCache1, smDomainNeeded1,
-                 predicateSnapMap1, predicateFormalVarMap1, hack, methodCallAstNode1) =>
+                 predicateSnapMap1, predicateFormalVarMap1, hack,
+                 methodCallAstNodePre1, methodCallAstNodePost1) =>
 
         /* Decompose state s2: most values must match those of s1 */
         s2 match {
@@ -178,7 +180,8 @@ object State {
                      `applyHeuristics1`, `heuristicsDepth1`, `triggerAction1`,
                      ssCache2, `hackIssue387DisablePermissionConsumption1`,
                      `qpFields1`, `qpPredicates1`, `qpMagicWands1`, smCache2, pmCache2, `smDomainNeeded1`,
-                     `predicateSnapMap1`, `predicateFormalVarMap1`, `hack`, `methodCallAstNode1`) =>
+                     `predicateSnapMap1`, `predicateFormalVarMap1`, `hack`,
+                     `methodCallAstNodePre1`, `methodCallAstNodePost1`) =>
 
             val functionRecorder3 = functionRecorder1.merge(functionRecorder2)
             val triggerExp3 = triggerExp1 && triggerExp2

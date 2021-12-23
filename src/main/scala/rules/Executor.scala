@@ -409,6 +409,7 @@ object executor extends ExecutionRules with Immutable {
             }
         }
 
+      // TODO;BRANCH POSITIONING: what is this?
       // A call havoc_all_R() results in Silicon efficiently havocking all instances of resource R.
       // See also Silicon issue #407.
       case call @ ast.MethodCall(methodName, _, _)
@@ -429,7 +430,7 @@ object executor extends ExecutionRules with Immutable {
           case other =>
             other
         })
-        Q(s.copy(h = h1, methodCallAstNode = Some(call)), v)
+        Q(s.copy(h = h1, methodCallAstNodePre = Some(call), methodCallAstNodePost = Some(call)), v)
 
       case call @ ast.MethodCall(methodName, eArgs, lhs) =>
         val meth = Verifier.program.findMethod(methodName)
@@ -454,7 +455,9 @@ object executor extends ExecutionRules with Immutable {
           val s2 = s1.copy(g = Store(fargs.zip(tArgs)),
             oldStore = Some(s1.g),
             recordVisited = true,
-            methodCallAstNode = Some(call))
+            methodCallAstNodePre = Some(call),
+            methodCallAstNodePost = Some(call))
+
           consumes(s2, meth.pres, _ => pvePre, v1)((s3, _, v2) => {
             mcLog.finish_precondition()
             val outs = meth.formalReturns.map(_.localVar)

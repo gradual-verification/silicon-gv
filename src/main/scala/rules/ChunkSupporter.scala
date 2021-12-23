@@ -262,6 +262,7 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
                   v.decider.pcs.branchConditions.map(branch =>
                       new Translator(s2, v.decider.pcs).translate(branch)),
                     v.decider.pcs.branchConditionsAstNodes,
+                    None,
                     runtimeCheckFieldTarget,
                     true)
                 runtimeCheckFieldTarget.addCheck(ast.FieldAccessPredicate(runtimeCheckFieldTarget, ast.FullPerm()())())
@@ -293,6 +294,7 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
                     v.decider.pcs.branchConditions.map(branch =>
                         new Translator(s, v.decider.pcs).translate(branch)),
                       v.decider.pcs.branchConditionsAstNodes,
+                      None,
                       runtimeCheckFieldTarget,
                       true)
                   runtimeCheckFieldTarget.addCheck(ast.FieldAccessPredicate(runtimeCheckFieldTarget, ast.FullPerm()())())

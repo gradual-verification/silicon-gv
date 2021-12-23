@@ -108,6 +108,10 @@ private class PathConditionStackLayer
 
   def branchConditionAstNode_=(conditionAstNode: Node) {
 
+    assert(_branchConditionAstNode.isEmpty,
+        s"Branch condition position is already set (to ${_branchConditionAstNode.get}), "
+      + s"refusing to override (with $conditionAstNode).")
+
     _branchConditionAstNode = Some(conditionAstNode)
   }
 

@@ -159,6 +159,7 @@ object predicateSupporter extends PredicateSupportRules with Immutable {
                   v2.decider.pcs.branchConditions.map(branch =>
                       new Translator(s4, v2.decider.pcs).translate(branch)),
                     v2.decider.pcs.branchConditionsAstNodes,
+                    None,
                     pa,
                     true)
                 pa.addCheck(ast.PredicateAccessPredicate(pa, ast.FullPerm()())())

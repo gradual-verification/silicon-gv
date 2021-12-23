@@ -232,6 +232,13 @@ object consumer extends ConsumptionRules with Immutable {
                         (Q: (State, Heap, Heap, Term, Verifier) => VerificationResult)
                         : VerificationResult = {
 
+    // TODO;HACK: we have named this s0 so it's easy to replace all the
+    // (previously) existing instances of s with s0
+    //
+    // (we would otherwise have to increment the counter on all the s
+    // variables, to name this s1, which would be better code)
+    val s0 = s.copy(methodCallAstNodePre = None)
+
     /* ATTENTION: Expressions such as `perm(...)` must be evaluated in-place,
      * i.e. in the partially consumed heap which is denoted by `h` here. The
      * evaluator evaluates such expressions in the heap
@@ -240,10 +247,10 @@ object consumer extends ConsumptionRules with Immutable {
      */
 
     v.logger.debug(s"\nCONSUME ${viper.silicon.utils.ast.sourceLineColumn(a)}: $a")
-    v.logger.debug(v.stateFormatter.format(s, v.decider.pcs))
+    v.logger.debug(v.stateFormatter.format(s0, v.decider.pcs))
     v.logger.debug("h = " + v.stateFormatter.format(h))
-    if (s.reserveHeaps.nonEmpty)
-      v.logger.debug("hR = " + s.reserveHeaps.map(v.stateFormatter.format).mkString("", ",\n     ", ""))
+    if (s0.reserveHeaps.nonEmpty)
+      v.logger.debug("hR = " + s0.reserveHeaps.map(v.stateFormatter.format).mkString("", ",\n     ", ""))
 
     val consumed = a match {
 
@@ -269,15 +276,39 @@ object consumer extends ConsumptionRules with Immutable {
           SymbExLogger.currentLog().collapse(null, sepIdentifier)
           branch_res})
 */
+      // this would be invoked on a precondition? after the method call site is
+      // encountered i think
+      
+      // consume the method call ast node attached to the state for
+      // preconditions here
+
+      // IMPORTANT: entering this method should remove that ast node from the
+      // state, that is, we should set it to None(?)
+      //
+      // set some local variable, sourceCall, so we can continue to access it?
       case ite @ ast.CondExp(e0, a1, a2) =>
-        val gbLog = new GlobalBranchRecord(ite, s, v.decider.pcs, "consume")
+        val gbLog = new GlobalBranchRecord(ite, s0, v.decider.pcs, "consume")
         val sepIdentifier = SymbExLogger.currentLog().insert(gbLog)
         SymbExLogger.currentLog().initializeBranching()
-        evalpc(s.copy(isImprecise = impr), e0, pve, v)((s1, t0, v1) => {
-          val s2 = s1.copy(isImprecise = s.isImprecise)
+        evalpc(s0.copy(isImprecise = impr), e0, pve, v)((s1, t0, v1) => {
+          val s2 = s1.copy(isImprecise = s0.isImprecise)
           gbLog.finish_cond()
-          val branch_res =
-            branch(s2, t0, e0, v1)(
+          val branch_res = {
+      
+            val branchPosition: ast.Node = s.methodCallAstNodePre match {
+              case None => {
+                println("We could not find a method call ast node! Why? Try to look into it...")
+                ite
+              }
+              case Some(methodCallAstNodePre) => methodCallAstNodePre
+            }
+
+            branch(s2, t0, branchPosition, v1)(
+              // the things in the branch may reach the final case, where we
+              // unset the method callsite ast node
+              //
+              // that's why it worked before...? the way we do it now is
+              // better, maybe
               (s3, v2) => consumeR(s3, impr, oh, h, a1, pve, v2)((s4, oh3, h3, snap3, v3) => {
                 val res1 = Q(s4, oh3, h3, snap3, v3)
                 gbLog.finish_thnSubs()
@@ -287,6 +318,7 @@ object consumer extends ConsumptionRules with Immutable {
                 val res2 = Q(s4, oh3, h3, snap3, v3)
                 gbLog.finish_elsSubs()
                 res2}))
+          }
           SymbExLogger.currentLog().collapse(null, sepIdentifier)
           branch_res})
 
@@ -498,15 +530,15 @@ object consumer extends ConsumptionRules with Immutable {
       case ast.PredicateAccessPredicate(locacc: ast.LocationAccess, perm) =>
 
        //eval for expression and perm (perm should always be 1)
-        evalpc(s.copy(isImprecise = impr), perm, pve, v)((s1, tPerm, v1) =>
+        evalpc(s0.copy(isImprecise = impr), perm, pve, v)((s1, tPerm, v1) =>
           evalLocationAccesspc(s1.copy(isImprecise = impr), locacc, pve, v1)((s2, _, tArgs, v2) => {
-            v2.decider.assertgv(s.isImprecise, perms.IsPositive(tPerm)) {
+            v2.decider.assertgv(s0.isImprecise, perms.IsPositive(tPerm)) {
               case true =>
                 val resource = locacc.res(Verifier.program)
                 val loss = PermTimes(tPerm, s2.permissionScalingFactor)
                 val ve = pve dueTo InsufficientPermission(locacc)
                 val description = s"consume ${a.pos}: $a"
-                var s3 = s2.copy(isImprecise = s.isImprecise)
+                var s3 = s2.copy(isImprecise = s0.isImprecise)
 
                 // should we format the program like this?
                 chunkSupporter.consume(s3, h, resource, tArgs, loss, ve, v2, description)((s4, h1, snap1, v3, status) => {
@@ -523,6 +555,7 @@ object consumer extends ConsumptionRules with Immutable {
                           v4.decider.pcs.branchConditions.map(branch =>
                               new Translator(s5, v4.decider.pcs).translate(branch)),
                            v4.decider.pcs.branchConditionsAstNodes,
+                           None,
                            a,
                            true)
                         a.addCheck(a)
@@ -566,15 +599,15 @@ object consumer extends ConsumptionRules with Immutable {
       case ast.FieldAccessPredicate(locacc: ast.LocationAccess, perm) =>
 
        //eval for expression and perm (perm should always be 1)
-        evalpc(s.copy(isImprecise = impr), perm, pve, v)((s1, tPerm, v1) =>
+        evalpc(s0.copy(isImprecise = impr), perm, pve, v)((s1, tPerm, v1) =>
           evalLocationAccesspc(s1.copy(isImprecise = impr), locacc, pve, v1)((s2, _, tArgs, v2) => {
-            v2.decider.assertgv(s.isImprecise, And(perms.IsPositive(tPerm), tArgs.head !== Null())){
+            v2.decider.assertgv(s0.isImprecise, And(perms.IsPositive(tPerm), tArgs.head !== Null())){
               case true =>
                 val resource = locacc.res(Verifier.program)
                 val loss = PermTimes(tPerm, s2.permissionScalingFactor)
                 val ve = pve dueTo InsufficientPermission(locacc)
                 val description = s"consume ${a.pos}: $a"
-                var s3 = s2.copy(isImprecise = s.isImprecise)
+                var s3 = s2.copy(isImprecise = s0.isImprecise)
 
                 chunkSupporter.consume(s3, h, resource, tArgs, loss, ve, v2, description)((s4, h1, snap1, v3, status) => {
 
@@ -589,6 +622,7 @@ object consumer extends ConsumptionRules with Immutable {
                           v4.decider.pcs.branchConditions.map(branch =>
                               new Translator(s5, v4.decider.pcs).translate(branch)),
                             v4.decider.pcs.branchConditionsAstNodes,
+                            None,
                             a,
                             true)
                         a.addCheck(a)
@@ -620,6 +654,7 @@ object consumer extends ConsumptionRules with Immutable {
                         v2.decider.pcs.branchConditions.map(branch =>
                             new Translator(s2, v2.decider.pcs).translate(branch)),
                           v2.decider.pcs.branchConditionsAstNodes,
+                          None,
                           a,
                           true)
                       a.addCheck(new Translator(s2, v.decider.pcs).translate(returnedChecks))
@@ -711,22 +746,29 @@ object consumer extends ConsumptionRules with Immutable {
 
         var returnedState: Option[(State, viper.silicon.decider.RecordedPathConditions)] = None
 
-        var runtimeCheckAstNode: ast.Node = a
+        // make sure we map the runtime check from the method call site, if
+        // we're currently looking at a precondition... otherwise, just use
+        // the ast node passed into consumeTlc
+        var runtimeCheckAstNode: ast.Node = s.methodCallAstNodePre match {
+          case None => a
+          case Some(methodCallAstNode) => methodCallAstNode
+        }
 
-        evalAndAssert(s, impr, a, pve, v)((s1, t, v1) => {
-          var s2 = s1
+        evalAndAssert(s0, impr, a, pve, v)((s1, t, v1) => {
 
           returnedState = Some((s1, v1.decider.pcs))
 
-          runtimeCheckAstNode = s1.methodCallAstNode match {
-            case None => a
-            case Some(methodCall) => {
-              s2 = s1.copy(methodCallAstNode = None)
-              methodCall
-            }
-          }
+          // the methodCallAstNode field should only stick around until we
+          // consume the precondition of the method, right? we unset it here if
+          // it exists, and after encountering a method call ast node, we must
+          // go here (and nowhere else?)? we also only use this field here
+          //
+          // this is (partially?) wrong; we should really unset the field in
+          // the state at the beginning of the method... though everything in a
+          // precondition must(?) go through this case eventually, so that may
+          // be why the previous version appeared to work fine
 
-          Q(s2, oh, h, t, v1)
+          Q(s1, oh, h, t, v1)
         }) match {
           case (verificationResult, Some(returnedChecks)) =>
             returnedState match {
@@ -736,6 +778,7 @@ object consumer extends ConsumptionRules with Immutable {
                   v.decider.pcs.branchConditions.map(branch =>
                       new Translator(s1, pcs).translate(branch)),
                     v.decider.pcs.branchConditionsAstNodes,
+                    None,
                     a,
                     true)
                 a.addCheck(new Translator(s1, pcs).translate(returnedChecks))
