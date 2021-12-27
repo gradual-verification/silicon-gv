@@ -11,6 +11,7 @@ import viper.silver.ast
 import viper.silver.ast.utility.QuantifiedPermissions.QuantifiedPermissionAssertion
 import viper.silver.verifier.PartialVerificationError
 import viper.silver.verifier.reasons._
+import viper.silicon.Stack
 import viper.silicon.interfaces.{Failure, VerificationResult}
 import viper.silicon.state._
 import viper.silicon.state.terms._
@@ -231,14 +232,7 @@ object consumer extends ConsumptionRules with Immutable {
   private def consumeTlc(s: State, impr: Boolean, oh: Heap, h: Heap, a: ast.Exp, pve: PartialVerificationError, v: Verifier)
                         (Q: (State, Heap, Heap, Term, Verifier) => VerificationResult)
                         : VerificationResult = {
-
-    // TODO;HACK: we have named this s0 so it's easy to replace all the
-    // (previously) existing instances of s with s0
-    //
-    // (we would otherwise have to increment the counter on all the s
-    // variables, to name this s1, which would be better code)
-    val s0 = s.copy(methodCallAstNodePre = None)
-
+    
     /* ATTENTION: Expressions such as `perm(...)` must be evaluated in-place,
      * i.e. in the partially consumed heap which is denoted by `h` here. The
      * evaluator evaluates such expressions in the heap
@@ -247,10 +241,10 @@ object consumer extends ConsumptionRules with Immutable {
      */
 
     v.logger.debug(s"\nCONSUME ${viper.silicon.utils.ast.sourceLineColumn(a)}: $a")
-    v.logger.debug(v.stateFormatter.format(s0, v.decider.pcs))
+    v.logger.debug(v.stateFormatter.format(s, v.decider.pcs))
     v.logger.debug("h = " + v.stateFormatter.format(h))
-    if (s0.reserveHeaps.nonEmpty)
-      v.logger.debug("hR = " + s0.reserveHeaps.map(v.stateFormatter.format).mkString("", ",\n     ", ""))
+    if (s.reserveHeaps.nonEmpty)
+      v.logger.debug("hR = " + s.reserveHeaps.map(v.stateFormatter.format).mkString("", ",\n     ", ""))
 
     val consumed = a match {
 
@@ -287,25 +281,39 @@ object consumer extends ConsumptionRules with Immutable {
       //
       // set some local variable, sourceCall, so we can continue to access it?
       case ite @ ast.CondExp(e0, a1, a2) =>
-        val gbLog = new GlobalBranchRecord(ite, s0, v.decider.pcs, "consume")
+        val gbLog = new GlobalBranchRecord(ite, s, v.decider.pcs, "consume")
         val sepIdentifier = SymbExLogger.currentLog().insert(gbLog)
         SymbExLogger.currentLog().initializeBranching()
-        evalpc(s0.copy(isImprecise = impr), e0, pve, v)((s1, t0, v1) => {
-          val s2 = s1.copy(isImprecise = s0.isImprecise)
+        evalpc(s.copy(isImprecise = impr), e0, pve, v)((s1, t0, v1) => {
+          val s2 = s1.copy(isImprecise = s.isImprecise)
           gbLog.finish_cond()
           val branch_res = {
       
-            val branchPosition: ast.Node = s.methodCallAstNodePre match {
-              case None => {
-                println("We could not find a method call ast node! Why? Try to look into it...")
-                ite
+            // what was happening here...?
+            // we were unsetting the position in the state at the beginning of
+            // consumeTlc, but we were not able to attach it to the branching info
+            //
+            // we weren't seeing it at this point, where we were matching on it to see if
+            // it was None
+            //
+            // this has been changed since that point, but we should figure out what the
+            // issue was... it is commit with the message "Buggy changes to track branch positions
+            // for method call sites"
+            val branchPosition: Option[ast.Node] =
+              (s.methodCallAstNode, s.foldOrUnfoldAstNode) match {
+                case (None, None) => None
+                case (None, Some(_)) => s.foldOrUnfoldAstNode
+                case (Some(_), None) => s.methodCallAstNode
+                case (Some(_), Some(_)) =>
+                  sys.error("This should not happen, at least until we support "
+                    + "unfoldings, maybe! We don't deal with this case at the "
+                    + "moment because we want to know if this happens!")
               }
-              case Some(methodCallAstNodePre) => methodCallAstNodePre
-            }
 
-            branch(s2, t0, branchPosition, v1)(
-              // the things in the branch may reach the final case, where we
-              // unset the method callsite ast node
+            branch(s2, t0, ite, branchPosition, v1)(
+              // the things in the branch (the then and else contents) may reach
+              // the final case of consumeTlc, where we unset the method
+              // callsite ast node
               //
               // that's why it worked before...? the way we do it now is
               // better, maybe
@@ -530,15 +538,15 @@ object consumer extends ConsumptionRules with Immutable {
       case ast.PredicateAccessPredicate(locacc: ast.LocationAccess, perm) =>
 
        //eval for expression and perm (perm should always be 1)
-        evalpc(s0.copy(isImprecise = impr), perm, pve, v)((s1, tPerm, v1) =>
+        evalpc(s.copy(isImprecise = impr), perm, pve, v)((s1, tPerm, v1) =>
           evalLocationAccesspc(s1.copy(isImprecise = impr), locacc, pve, v1)((s2, _, tArgs, v2) => {
-            v2.decider.assertgv(s0.isImprecise, perms.IsPositive(tPerm)) {
+            v2.decider.assertgv(s.isImprecise, perms.IsPositive(tPerm)) {
               case true =>
                 val resource = locacc.res(Verifier.program)
                 val loss = PermTimes(tPerm, s2.permissionScalingFactor)
                 val ve = pve dueTo InsufficientPermission(locacc)
                 val description = s"consume ${a.pos}: $a"
-                var s3 = s2.copy(isImprecise = s0.isImprecise)
+                var s3 = s2.copy(isImprecise = s.isImprecise)
 
                 // should we format the program like this?
                 chunkSupporter.consume(s3, h, resource, tArgs, loss, ve, v2, description)((s4, h1, snap1, v3, status) => {
@@ -555,7 +563,7 @@ object consumer extends ConsumptionRules with Immutable {
                           v4.decider.pcs.branchConditions.map(branch =>
                               new Translator(s5, v4.decider.pcs).translate(branch)),
                            v4.decider.pcs.branchConditionsAstNodes,
-                           None,
+                           v.decider.pcs.branchConditionsOrigins,
                            a,
                            true)
                         a.addCheck(a)
@@ -599,15 +607,15 @@ object consumer extends ConsumptionRules with Immutable {
       case ast.FieldAccessPredicate(locacc: ast.LocationAccess, perm) =>
 
        //eval for expression and perm (perm should always be 1)
-        evalpc(s0.copy(isImprecise = impr), perm, pve, v)((s1, tPerm, v1) =>
+        evalpc(s.copy(isImprecise = impr), perm, pve, v)((s1, tPerm, v1) =>
           evalLocationAccesspc(s1.copy(isImprecise = impr), locacc, pve, v1)((s2, _, tArgs, v2) => {
-            v2.decider.assertgv(s0.isImprecise, And(perms.IsPositive(tPerm), tArgs.head !== Null())){
+            v2.decider.assertgv(s.isImprecise, And(perms.IsPositive(tPerm), tArgs.head !== Null())){
               case true =>
                 val resource = locacc.res(Verifier.program)
                 val loss = PermTimes(tPerm, s2.permissionScalingFactor)
                 val ve = pve dueTo InsufficientPermission(locacc)
                 val description = s"consume ${a.pos}: $a"
-                var s3 = s2.copy(isImprecise = s0.isImprecise)
+                var s3 = s2.copy(isImprecise = s.isImprecise)
 
                 chunkSupporter.consume(s3, h, resource, tArgs, loss, ve, v2, description)((s4, h1, snap1, v3, status) => {
 
@@ -622,7 +630,7 @@ object consumer extends ConsumptionRules with Immutable {
                           v4.decider.pcs.branchConditions.map(branch =>
                               new Translator(s5, v4.decider.pcs).translate(branch)),
                             v4.decider.pcs.branchConditionsAstNodes,
-                            None,
+                            v.decider.pcs.branchConditionsOrigins,
                             a,
                             true)
                         a.addCheck(a)
@@ -654,7 +662,7 @@ object consumer extends ConsumptionRules with Immutable {
                         v2.decider.pcs.branchConditions.map(branch =>
                             new Translator(s2, v2.decider.pcs).translate(branch)),
                           v2.decider.pcs.branchConditionsAstNodes,
-                          None,
+                          v.decider.pcs.branchConditionsOrigins,
                           a,
                           true)
                       a.addCheck(new Translator(s2, v.decider.pcs).translate(returnedChecks))
@@ -749,12 +757,12 @@ object consumer extends ConsumptionRules with Immutable {
         // make sure we map the runtime check from the method call site, if
         // we're currently looking at a precondition... otherwise, just use
         // the ast node passed into consumeTlc
-        var runtimeCheckAstNode: ast.Node = s.methodCallAstNodePre match {
+        var runtimeCheckAstNode: ast.Node = s.methodCallAstNode match {
           case None => a
           case Some(methodCallAstNode) => methodCallAstNode
         }
 
-        evalAndAssert(s0, impr, a, pve, v)((s1, t, v1) => {
+        evalAndAssert(s, impr, a, pve, v)((s1, t, v1) => {
 
           returnedState = Some((s1, v1.decider.pcs))
 
@@ -778,13 +786,14 @@ object consumer extends ConsumptionRules with Immutable {
                   v.decider.pcs.branchConditions.map(branch =>
                       new Translator(s1, pcs).translate(branch)),
                     v.decider.pcs.branchConditionsAstNodes,
-                    None,
+                    v.decider.pcs.branchConditionsOrigins,
                     a,
                     true)
                 a.addCheck(new Translator(s1, pcs).translate(returnedChecks))
 
                 verificationResult
               }
+              case _ => sys.error("This should not occur!")
             }
           case (verificationResult, None) => verificationResult
         }

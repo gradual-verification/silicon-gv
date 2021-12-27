@@ -19,6 +19,7 @@ trait BranchingRules extends SymbolicExecutionRules {
   def branch(s: State,
              condition: Term,
              position: Node,
+             origin: Option[Node],
              v: Verifier,
              fromShortCircuitingAnd: Boolean = false)
             (fTrue: (State, Verifier) => VerificationResult,
@@ -30,6 +31,7 @@ object brancher extends BranchingRules with Immutable {
   def branch(s: State,
              condition: Term,
              position: Node,
+             origin: Option[Node],
              v: Verifier,
              fromShortCircuitingAnd: Boolean = false)
             (fThen: (State, Verifier) => VerificationResult,
@@ -117,7 +119,7 @@ object brancher extends BranchingRules with Immutable {
             }
 
             v1.decider.prover.comment(s"[else-branch: $cnt | $negatedCondition]")
-            v1.decider.setCurrentBranchCondition(negatedCondition, position)
+            v1.decider.setCurrentBranchCondition(negatedCondition, position, origin)
 
             fElse(stateConsolidator.consolidateIfRetrying(s1, v1), v1)
           })
@@ -149,7 +151,7 @@ object brancher extends BranchingRules with Immutable {
     (if (executeThenBranch) {
       executionFlowController.locally(s, v)((s1, v1) => {
         v1.decider.prover.comment(s"[then-branch: $cnt | $condition]")
-        v1.decider.setCurrentBranchCondition(condition, position)
+        v1.decider.setCurrentBranchCondition(condition, position, origin)
 
         fThen(stateConsolidator.consolidateIfRetrying(s1, v1), v1)
       })

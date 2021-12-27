@@ -9,6 +9,7 @@ package viper.silicon.rules
 import scala.reflect.ClassTag
 import viper.silver.ast
 import viper.silver.verifier.{VerificationError, PartialVerificationError}
+import viper.silicon.Stack
 import viper.silicon.interfaces.state._
 import viper.silicon.interfaces.{Failure, Success, VerificationResult}
 import viper.silicon.resources.{NonQuantifiedPropertyInterpreter, Resources, FieldID, PredicateID}
@@ -262,7 +263,7 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
                   v.decider.pcs.branchConditions.map(branch =>
                       new Translator(s2, v.decider.pcs).translate(branch)),
                     v.decider.pcs.branchConditionsAstNodes,
-                    None,
+                    v.decider.pcs.branchConditionsOrigins,
                     runtimeCheckFieldTarget,
                     true)
                 runtimeCheckFieldTarget.addCheck(ast.FieldAccessPredicate(runtimeCheckFieldTarget, ast.FullPerm()())())
@@ -294,7 +295,7 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
                     v.decider.pcs.branchConditions.map(branch =>
                         new Translator(s, v.decider.pcs).translate(branch)),
                       v.decider.pcs.branchConditionsAstNodes,
-                      None,
+                      v.decider.pcs.branchConditionsOrigins,
                       runtimeCheckFieldTarget,
                       true)
                   runtimeCheckFieldTarget.addCheck(ast.FieldAccessPredicate(runtimeCheckFieldTarget, ast.FullPerm()())())

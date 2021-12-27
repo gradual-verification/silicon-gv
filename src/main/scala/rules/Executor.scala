@@ -69,7 +69,7 @@ object executor extends ExecutionRules with Immutable {
           /* Using branch(...) here ensures that the edge condition is recorded
            * as a branch condition on the pathcondition stack.
            */
-          brancher.branch(s2, tCond, ce.condition, v1)(
+          brancher.branch(s2, tCond, ce.condition, None, v1)(
             (s3, v3) => exec(s3, ce.target, ce.kind, v3)(Q),
             (_, _)  => Success()))
 
@@ -413,7 +413,9 @@ object executor extends ExecutionRules with Immutable {
       // A call havoc_all_R() results in Silicon efficiently havocking all instances of resource R.
       // See also Silicon issue #407.
       case call @ ast.MethodCall(methodName, _, _)
-        if !Verifier.config.disableHavocHack407() && methodName.startsWith(hack407_method_name_prefix) =>
+        if !Verifier.config.disableHavocHack407() && methodName.startsWith(hack407_method_name_prefix) => {
+
+        sys.error("Do not use havoc_all_R(); it is not supported by Gradual Silicon! Aborting safely...")
 
         val resourceName = methodName.stripPrefix(hack407_method_name_prefix)
         val member = Verifier.program.collectFirst {
@@ -430,7 +432,9 @@ object executor extends ExecutionRules with Immutable {
           case other =>
             other
         })
-        Q(s.copy(h = h1, methodCallAstNodePre = Some(call), methodCallAstNodePost = Some(call)), v)
+        Q(s.copy(h = h1), v)
+
+      }
 
       case call @ ast.MethodCall(methodName, eArgs, lhs) =>
         val meth = Verifier.program.findMethod(methodName)
@@ -455,8 +459,7 @@ object executor extends ExecutionRules with Immutable {
           val s2 = s1.copy(g = Store(fargs.zip(tArgs)),
             oldStore = Some(s1.g),
             recordVisited = true,
-            methodCallAstNodePre = Some(call),
-            methodCallAstNodePost = Some(call))
+            methodCallAstNode = Some(call))
 
           consumes(s2, meth.pres, _ => pvePre, v1)((s3, _, v2) => {
             mcLog.finish_precondition()
@@ -464,15 +467,23 @@ object executor extends ExecutionRules with Immutable {
             val gOuts = Store(outs.map(x => (x, v2.decider.fresh(x))).toMap)
             val s4 = s3.copy(g = s3.g + gOuts, oldHeaps = s3.oldHeaps + (Verifier.PRE_STATE_LABEL -> s1.h))
             produces(s4, freshSnap, meth.posts, _ => pveCall, v2)((s5, v3) => {
+
+              val s6 = s5.copy(methodCallAstNode = None)
+
               mcLog.finish_postcondition()
+
               v3.decider.prover.saturate(Verifier.config.z3SaturationTimeouts.afterContract)
+
               val gLhs = Store(lhs.zip(outs)
                 .map(p => (p._1, s5.g(p._2))).toMap)
-              val s6 = s5.copy(g = s1.g + gLhs,
+
+              val s7 = s5.copy(g = s1.g + gLhs,
                 oldHeaps = s1.oldHeaps,
                 recordVisited = s1.recordVisited)
+
               SymbExLogger.currentLog().collapse(null, sepIdentifier)
-              Q(s6, v3)
+
+              Q(s7, v3)
             })
           })
         })
@@ -485,7 +496,7 @@ object executor extends ExecutionRules with Immutable {
             v2.decider.assertgv(s2.isImprecise, IsPositive(tPerm)) { //The IsPositive check is redundant
               case true =>
                 val wildcards = s2.constrainableARPs -- s1.constrainableARPs
-                predicateSupporter.fold(s2, predicate, tArgs, tPerm, wildcards, pve, v2)(Q)
+                predicateSupporter.fold(s2, predicate, Some(fold), tArgs, tPerm, wildcards, pve, v2)(Q)
               case false =>
                 createFailure(pve dueTo NegativePermission(ePerm), v2, s2)
             } match {
@@ -513,7 +524,7 @@ object executor extends ExecutionRules with Immutable {
             v2.decider.assertgv(s2.isImprecise, IsPositive(tPerm)) { //The IsPositive check is redundant
               case true =>
                 val wildcards = s2.constrainableARPs -- s1.constrainableARPs
-                predicateSupporter.unfold(s2.copy(smCache = smCache1), predicate, tArgs, tPerm, wildcards, pve, v2, pa)(Q)
+                predicateSupporter.unfold(s2.copy(smCache = smCache1), predicate, Some(unfold), tArgs, tPerm, wildcards, pve, v2, pa)(Q)
               case false =>
                 createFailure(pve dueTo NegativePermission(ePerm), v2, s2)
             } match {

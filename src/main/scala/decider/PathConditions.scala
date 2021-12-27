@@ -25,10 +25,7 @@ import viper.silicon.utils.Counter
 trait RecordedPathConditions {
   def branchConditions: Stack[Term]
   def branchConditionsAstNodes: Stack[Node]
-
-  def zippedBranchConditions: Stack[(Term, Node)] = {
-    branchConditions.zip(branchConditionsAstNodes)
-  }
+  def branchConditionsOrigins: Stack[Option[Node]]
 
   def assumptions: InsertionOrderedSet[Term]
   def declarations: InsertionOrderedSet[Decl]
@@ -63,7 +60,7 @@ trait RecordedPathConditions {
 }
 
 trait PathConditionStack extends RecordedPathConditions {
-  def setCurrentBranchCondition(condition: Term, conditionAstNode: Node): Unit
+  def setCurrentBranchCondition(condition: Term, conditionAstNode: Node, conditionOrigin: Option[Node]): Unit
   def add(assumption: Term): Unit
   def add(declaration: Decl): Unit
   def pushScope(): Unit
@@ -85,12 +82,14 @@ private class PathConditionStackLayer
 
   private var _branchCondition: Option[Term] = None
   private var _branchConditionAstNode: Option[Node] = None
+  private var _branchConditionOrigin: Option[Option[Node]] = None
   private var _globalAssumptions: InsertionOrderedSet[Quantification] = InsertionOrderedSet.empty
   private var _nonGlobalAssumptions: InsertionOrderedSet[Term] = InsertionOrderedSet.empty
   private var _declarations: InsertionOrderedSet[Decl] = InsertionOrderedSet.empty
 
   def branchCondition: Option[Term] = _branchCondition
   def branchConditionAstNode: Option[Node] = _branchConditionAstNode
+  def branchConditionOrigin: Option[Option[Node]] = _branchConditionOrigin
   def globalAssumptions: InsertionOrderedSet[Quantification] = _globalAssumptions
   def nonGlobalAssumptions: InsertionOrderedSet[Term] = _nonGlobalAssumptions
   def declarations: InsertionOrderedSet[Decl] = _declarations
@@ -100,8 +99,8 @@ private class PathConditionStackLayer
 
   def branchCondition_=(condition: Term) {
     assert(_branchCondition.isEmpty,
-             s"Branch condition is already set (to ${_branchCondition.get}), "
-           + s"won't override (with $condition).")
+        s"Branch condition is already set (to ${_branchCondition.get}), "
+      + s"won't override (with $condition).")
 
     _branchCondition = Some(condition)
   }
@@ -113,6 +112,15 @@ private class PathConditionStackLayer
       + s"refusing to override (with $conditionAstNode).")
 
     _branchConditionAstNode = Some(conditionAstNode)
+  }
+
+  def branchConditionOrigin_=(conditionOrigin: Option[Node]) {
+
+    assert(_branchConditionOrigin.isEmpty,
+      s"Branch condition origin is already set (to ${_branchConditionOrigin.get}), "
+    + s"refusing to override (with $conditionOrigin).")
+
+    _branchConditionOrigin = Some(conditionOrigin)
   }
 
   def add(assumption: Term): Unit = {
@@ -158,6 +166,9 @@ private trait LayeredPathConditionStackLike {
 
   protected def branchConditionsAstNodes(layers: Stack[PathConditionStackLayer]): Stack[Node] =
     layers.flatMap(_.branchConditionAstNode)
+
+  protected def branchConditionsOrigins(layers: Stack[PathConditionStackLayer]): Stack[Option[Node]] =
+    layers.flatMap(_.branchConditionOrigin)
 
   protected def assumptions(layers: Stack[PathConditionStackLayer]): InsertionOrderedSet[Term] =
     InsertionOrderedSet(layers.flatMap(_.assumptions)) // Note: Performance?
@@ -220,6 +231,7 @@ private class DefaultRecordedPathConditions(from: Stack[PathConditionStackLayer]
 
   val branchConditions: Stack[Term] = branchConditions(from)
   val branchConditionsAstNodes: Stack[Node] = branchConditionsAstNodes(from)
+  val branchConditionsOrigins: Stack[Option[Node]] = branchConditionsOrigins(from)
   val assumptions: InsertionOrderedSet[Term] = assumptions(from)
   val declarations: InsertionOrderedSet[Decl] = declarations(from)
 
@@ -255,11 +267,12 @@ private[decider] class LayeredPathConditionStack
 
   pushScope() /* Create an initial layer on the stack */
 
-  def setCurrentBranchCondition(condition: Term, conditionAstNode: Node): Unit = {
+  def setCurrentBranchCondition(condition: Term, conditionAstNode: Node, conditionOrigin: Option[Node]): Unit = {
     /* TODO: Split condition into top-level conjuncts as well? */
 
     layers.head.branchCondition = condition
     layers.head.branchConditionAstNode = conditionAstNode
+    layers.head.branchConditionOrigin = conditionOrigin
   }
 
   def add(assumption: Term): Unit = {
@@ -323,6 +336,8 @@ private[decider] class LayeredPathConditionStack
   def branchConditions: Stack[Term] = layers.flatMap(_.branchCondition)
 
   def branchConditionsAstNodes: Stack[Node] = layers.flatMap(_.branchConditionAstNode)
+
+  def branchConditionsOrigins: Stack[Option[Node]] = layers.flatMap(_.branchConditionOrigin)
 
   def assumptions: InsertionOrderedSet[Term] = allAssumptions
 

@@ -4,9 +4,8 @@ import viper.silicon.Stack
 import viper.silicon.supporters.{NodeHash, NodeEquiv}
 import viper.silver.ast.{Exp, Node}
 import scala.collection.concurrent.{Map, TrieMap}
-import scala.util.hashing.Hashing
 
-case class BranchInfo(branch: Stack[Exp], branchPosition: Stack[Node], branchOrigin: Option[Node])
+case class BranchInfo(branch: Stack[Exp], branchPosition: Stack[Node], branchOrigin: Stack[Option[Node]])
 
 case class CheckInfo(checks: Exp, branch: BranchInfo, context: Exp, overlaps: Boolean)
 
@@ -26,8 +25,11 @@ object runtimeChecks {
   
   private val checks: Map[Node, CheckList] = new TrieMap[Node, CheckList](nodeHash, nodeEquiv)
 
-  def addChecks(programPoint: Node, newCheck: Exp, branch: Stack[Exp],
-    branchPosition: Stack[Node], branchOrigin: Option[Node], context: Exp, overlaps: Boolean): Unit = {
+  def addChecks(programPoint: Node,
+    newCheck: Exp,
+    branch: Stack[Exp], branchPosition: Stack[Node], branchOrigin: Stack[Option[Node]],
+    context: Exp,
+    overlaps: Boolean): Unit = {
     
     checks.get(programPoint) match {
       case None => (checks += (programPoint ->
