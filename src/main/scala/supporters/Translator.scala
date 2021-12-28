@@ -1,8 +1,9 @@
 package viper.silicon.supporters
 
 import viper.silver.ast
-import viper.silicon.state.{terms, State, Store, BasicChunk}
 import viper.silicon.decider.RecordedPathConditions
+import viper.silicon.state.{terms, State, Store, BasicChunk}
+import viper.silicon.resources.{FieldID, PredicateID}
 
 // should we use the path conditions from the state?
 final class Translator(s: State, pcs: RecordedPathConditions) {
@@ -84,6 +85,11 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
       case Some(equivalentVariable) => equivalentVariable
     }
 
+    // TODO: ASK JENNA: What is the old store for? It gets set before method
+    // calls
+    //
+    // Oh, is it for resolving variables in the precondition (and post) using
+    // the store from the context of the method call? maybe
     val store: Store = s.oldStore match {
       case None => s.g
       case Some(oldStore) => oldStore
@@ -101,16 +107,26 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
   def getAccessibilityPredicates: Iterable[ast.Exp] = {
 
     (s.h.values ++ s.optimisticHeap.values).map(chunk => chunk match {
-      case BasicChunk(resourceId, id, args, snap, perm) => {
+      case BasicChunk(resourceId, id, args, snap, perm) => resourceId match {
+        case FieldID => {
 
-        val varType = args.head match {
-          case terms.Var(_, terms.sorts.Int) | terms.SortWrapper(_, terms.sorts.Int) => ast.Int
-          case terms.Var(_, terms.sorts.Bool) | terms.SortWrapper(_, terms.sorts.Bool) => ast.Bool
-          case terms.Var(_, terms.sorts.Ref) | terms.SortWrapper(_, terms.sorts.Ref) => ast.Ref
-          case terms.Var(_, terms.sorts.Perm) | terms.SortWrapper(_, terms.sorts.Perm) => ast.Perm
+          println(s"getAccessibilityPredicates argument head value: ${args.head}") 
+          println(s"getAccessibilityPredicates argument value: ${args}")
+
+          val varType = args.head match {
+            case terms.Var(_, terms.sorts.Int) | terms.SortWrapper(_, terms.sorts.Int) => ast.Int
+            case terms.Var(_, terms.sorts.Bool) | terms.SortWrapper(_, terms.sorts.Bool) => ast.Bool
+            case terms.Var(_, terms.sorts.Ref) | terms.SortWrapper(_, terms.sorts.Ref) => ast.Ref
+            case terms.Var(_, terms.sorts.Perm) | terms.SortWrapper(_, terms.sorts.Perm) => ast.Perm
+          }
+
+          ast.FieldAccess(s.g.getKeyForValue(args.head), ast.Field(id.toString, varType)())()
         }
 
-        ast.FieldAccess(s.g.getKeyForValue(args.head), ast.Field(id.toString, varType)())()
+        case PredicateID => {
+          
+          ast.PredicateAccess(args.map(predicateArg => translate(predicateArg)), id.toString)()
+        }
       }
     })
   }

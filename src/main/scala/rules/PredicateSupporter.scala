@@ -9,7 +9,6 @@ package viper.silicon.rules
 import viper.silver.ast
 import viper.silver.verifier.PartialVerificationError
 import viper.silver.verifier.reasons.InsufficientPermission
-import viper.silicon.Stack
 import viper.silicon.common.collections.immutable.InsertionOrderedSet
 import viper.silicon.interfaces.VerificationResult
 import viper.silicon.resources.PredicateID
@@ -61,6 +60,7 @@ object predicateSupporter extends PredicateSupportRules with Immutable {
 
     val body = predicate.body.get /* Only non-abstract predicates can be unfolded */
     val gIns = s.g + Store(predicate.formalArgs map (_.localVar) zip tArgs)
+    println(s"Setting fold AST node in state: ${origin}")
     val s1 = s.copy(g = gIns,
                     smDomainNeeded = true,
                     foldOrUnfoldAstNode = origin)
@@ -93,18 +93,25 @@ object predicateSupporter extends PredicateSupportRules with Immutable {
           smCache1
         }
 
+        println(s"Unsetting fold AST node in state: ${s2.foldOrUnfoldAstNode}")
+
         val s3 = s2.copy(g = s.g,
                          h = h3,
                          smCache = smCache,
-                         functionRecorder = s2.functionRecorder.recordFvfAndDomain(smDef))
+                         functionRecorder = s2.functionRecorder.recordFvfAndDomain(smDef),
+                         foldOrUnfoldAstNode = None)
         Q(s3, v1)
       } else {
         val ch = BasicChunk(PredicateID, BasicChunkIdentifier(predicate.name), tArgs, snap.convert(sorts.Snap), tPerm)
         val s3 = s2.copy(g = s.g,
                          smDomainNeeded = s.smDomainNeeded,
                          permissionScalingFactor = s.permissionScalingFactor)
-        chunkSupporter.produce(s3, s3.h, ch, v1)((s4, h1, v2) =>
-          Q(s4.copy(h = h1, foldOrUnfoldAstNode = None), v2))
+        chunkSupporter.produce(s3, s3.h, ch, v1)((s4, h1, v2) => {
+
+          println(s"Unsetting fold AST node in state: ${s4.foldOrUnfoldAstNode}")
+
+          Q(s4.copy(h = h1, foldOrUnfoldAstNode = None), v2)
+        })
       }
     })
   }
@@ -138,7 +145,7 @@ object predicateSupporter extends PredicateSupportRules with Immutable {
         pve,
         v
       )((s2, h2, snap, v1) => {
-        // TODO: we may not need to track the origin of any possible branches here; it looks like
+        // TODO: ASK JENNA: we may not need to track the origin of any possible branches here; it looks like
         // this is for quantification? maybe
         val s3 = s2.copy(g = gIns, h = h2)
                    .setConstrainable(constrainableWildcards, false)
@@ -156,13 +163,16 @@ object predicateSupporter extends PredicateSupportRules with Immutable {
       val description = s"consume ${pa.pos}: $pa"
       val s2 = stateConsolidator.consolidate(s1, v)
 
+      println(s"Setting unfold AST node in state: ${origin}")
       val s3 = s2.copy(foldOrUnfoldAstNode = origin)
 
+      // we attempt to consume the predicate from the heap
       chunkSupporter.consume(s3, s3.h, predicate, tArgs, s3.permissionScalingFactor, ve, v, description)((s4, h1, snap1, v1, status) => {
           
           profilingInfo.incrementTotalConjuncts
 
           if (s4.isImprecise) {
+            // and then we attempt to consume it from the optimistic heap
             chunkSupporter.consume(s4, s4.optimisticHeap, predicate, tArgs, s4.permissionScalingFactor, ve, v1, description)((s5, oh1, snap2, v2, status1) => {
               if (!status && !status1) {
                 runtimeChecks.addChecks(pa,
@@ -181,14 +191,17 @@ object predicateSupporter extends PredicateSupportRules with Immutable {
 
                 val s6 = s5.copy(g = gIns, h = h1, optimisticHeap = oh1)
                   .setConstrainable(constrainableWildcards, false)
+                // we produce the body (this is an unfold?)
                 produce(s6, toSf(snap1), body, pve, v2)((s7, v3) => {
+                  println(s"Unsetting unfold AST node in state: ${s7.foldOrUnfoldAstNode}")
+                  val s8 = s7.copy(foldOrUnfoldAstNode = None)
                   v3.decider.prover.saturate(Verifier.config.z3SaturationTimeouts.afterUnfold)
                   val predicateTrigger =
                     App(Verifier.predicateData(predicate).triggerFunction, snap1 +: tArgs)
                   v3.decider.assume(predicateTrigger)
-                  val s8 = s7.copy(g = s5.g,
+                  val s9 = s8.copy(g = s5.g,
                     permissionScalingFactor = s.permissionScalingFactor)
-                  Q(s8, v3)
+                  Q(s9, v3)
                 })
               } else {
 
@@ -197,13 +210,15 @@ object predicateSupporter extends PredicateSupportRules with Immutable {
                 val s6 = s5.copy(g = gIns, h = h1, optimisticHeap = oh1)
                   .setConstrainable(constrainableWildcards, false)
                 produce(s6, toSf(snap2), body, pve, v2)((s7, v3) => {
+                  println(s"Unsetting unfold AST node in state: ${s7.foldOrUnfoldAstNode}")
+                  val s8 = s7.copy(foldOrUnfoldAstNode = None)
                   v3.decider.prover.saturate(Verifier.config.z3SaturationTimeouts.afterUnfold)
                   val predicateTrigger =
                     App(Verifier.predicateData(predicate).triggerFunction, snap2 +: tArgs)
                   v3.decider.assume(predicateTrigger)
-                  val s8 = s7.copy(g = s5.g,
+                  val s9 = s8.copy(g = s5.g,
                     permissionScalingFactor = s.permissionScalingFactor)
-                  Q(s8, v3)
+                  Q(s9, v3)
                 })
               }
             })
@@ -214,13 +229,15 @@ object predicateSupporter extends PredicateSupportRules with Immutable {
             val s5 = s4.copy(g = gIns, h = h1)
               .setConstrainable(constrainableWildcards, false)
             produce(s5, toSf(snap1), body, pve, v1)((s6, v2) => {
+              println(s"Unsetting unfold AST node in state: ${s6.foldOrUnfoldAstNode}")
+              val s7 = s6.copy(foldOrUnfoldAstNode = None)
               v2.decider.prover.saturate(Verifier.config.z3SaturationTimeouts.afterUnfold)
               val predicateTrigger =
                 App(Verifier.predicateData(predicate).triggerFunction, snap1 +: tArgs)
               v2.decider.assume(predicateTrigger)
-              val s7 = s6.copy(g = s4.g,
+              val s8 = s7.copy(g = s4.g,
                 permissionScalingFactor = s.permissionScalingFactor)
-              Q(s7, v2)
+              Q(s8, v2)
             })
           } else {
             createFailure(ve, v1, s4)

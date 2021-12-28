@@ -42,11 +42,12 @@ trait RecordedPathConditions {
                  ignore: Term /* TODO: Hack, implement properly */)
                 : (Seq[Quantification], Seq[Quantification])
 
+  // TODO: ASK JENNA: We should not need this
   def getEquivalentVariable(variable: Term): Option[Term] = {
     // retype this if or when we have time
     assumptions.find(term => term match {
-      case Equals(Var(name1, sort1), Var(name2, sort2)) =>
-        variable == Var(name2, sort2)
+      case Equals(var1, var2) =>
+        variable == var2
         // && (sort1 match {
         //   case sorts.Snap => false
         //   case _ => true
@@ -54,7 +55,7 @@ trait RecordedPathConditions {
       case _ => false
     }) match {
       case None => None
-      case Some(Equals(Var(name1, sort1), _)) => Some(Var(name1, sort1))
+      case Some(Equals(var1, _)) => Some(var1)
     }
   }
 }

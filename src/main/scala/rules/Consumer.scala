@@ -304,10 +304,12 @@ object consumer extends ConsumptionRules with Immutable {
                 case (None, None) => None
                 case (None, Some(_)) => s.foldOrUnfoldAstNode
                 case (Some(_), None) => s.methodCallAstNode
-                case (Some(_), Some(_)) =>
+                case (Some(methodCallAstNode), Some(foldOrUnfoldAstNode)) => {
+                  println(s"Conflicting positions: (${methodCallAstNode}) and (${foldOrUnfoldAstNode})")
                   sys.error("This should not happen, at least until we support "
                     + "unfoldings, maybe! We don't deal with this case at the "
                     + "moment because we want to know if this happens!")
+                }
               }
 
             branch(s2, t0, ite, branchPosition, v1)(

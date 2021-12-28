@@ -456,6 +456,9 @@ object executor extends ExecutionRules with Immutable {
             new Translator(s1, v1.decider.pcs).getAccessibilityPredicates)
           // this is run unconditionally (or so it seems), so we can attach the
           // method call ast node here
+          
+          println(s"Setting method call AST node in state: ${call}")
+
           val s2 = s1.copy(g = Store(fargs.zip(tArgs)),
             oldStore = Some(s1.g),
             recordVisited = true,
@@ -468,16 +471,20 @@ object executor extends ExecutionRules with Immutable {
             val s4 = s3.copy(g = s3.g + gOuts, oldHeaps = s3.oldHeaps + (Verifier.PRE_STATE_LABEL -> s1.h))
             produces(s4, freshSnap, meth.posts, _ => pveCall, v2)((s5, v3) => {
 
-              val s6 = s5.copy(methodCallAstNode = None)
+              println(s"Unsetting method call AST node in state: ${s5.methodCallAstNode}")
+
+              // we MUST unset both oldStore and the methodCallAstNode once we
+              // are done with the method call
+              val s6 = s5.copy(oldStore = None, methodCallAstNode = None)
 
               mcLog.finish_postcondition()
 
               v3.decider.prover.saturate(Verifier.config.z3SaturationTimeouts.afterContract)
 
               val gLhs = Store(lhs.zip(outs)
-                .map(p => (p._1, s5.g(p._2))).toMap)
+                .map(p => (p._1, s6.g(p._2))).toMap)
 
-              val s7 = s5.copy(g = s1.g + gLhs,
+              val s7 = s6.copy(g = s1.g + gLhs,
                 oldHeaps = s1.oldHeaps,
                 recordVisited = s1.recordVisited)
 
