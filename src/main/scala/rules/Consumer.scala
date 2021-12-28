@@ -759,9 +759,17 @@ object consumer extends ConsumptionRules with Immutable {
         // make sure we map the runtime check from the method call site, if
         // we're currently looking at a precondition... otherwise, just use
         // the ast node passed into consumeTlc
-        var runtimeCheckAstNode: ast.Node = s.methodCallAstNode match {
-          case None => a
-          case Some(methodCallAstNode) => methodCallAstNode
+        //
+        // should we check for a fold or unfold statement here, too?
+        //
+        // we want to map the runtime check from the fold or unfold statement,
+        // not something in the body of a predicate
+        // TODO: ASK JENNA
+        var runtimeCheckAstNode: ast.Node = (s.methodCallAstNode, s.foldOrUnfoldAstNode) match {
+          case (None, None) => a
+          case (Some(methodCallAstNode), None) => methodCallAstNode
+          case (None, Some(foldOrUnfoldAstNode)) => foldOrUnfoldAstNode
+          case (Some(methodCallAstNode), Some(_)) => methodCallAstNode
         }
 
         evalAndAssert(s, impr, a, pve, v)((s1, t, v1) => {
