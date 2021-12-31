@@ -15,7 +15,7 @@ trait Store {
   def values: Map[ast.AbstractLocalVar, Term]
   def apply(key: ast.AbstractLocalVar): Term
   def get(key: ast.AbstractLocalVar): Option[Term]
-  def getKeyForValue(value: Term): ast.AbstractLocalVar
+  def getKeyForValue(value: Term): Option[ast.AbstractLocalVar]
   def +(kv: (ast.AbstractLocalVar, Term)): Store
   def +(other: Store): Store
 }
@@ -40,11 +40,11 @@ final class MapBackedStore private[state] (map: Map[ast.AbstractLocalVar, Term])
   val values = map
   def apply(key: ast.AbstractLocalVar) = map(key)
   def get(key: ast.AbstractLocalVar) = map.get(key)
-  def getKeyForValue(symbolicVariable: Term): ast.AbstractLocalVar = {
+  def getKeyForValue(symbolicVariable: Term): Option[ast.AbstractLocalVar] = {
     map.find({ case (k, v) => v == symbolicVariable }) match {
-      case None =>
-        sys.error(s"Argument variable $symbolicVariable with sort ${symbolicVariable.sort} was not present in the symbolic store!")
-      case Some(kv) => kv._1
+      case None => None
+      // retreives the key? i think (without having to pattern match...) maybe
+      case Some(kv) => Some(kv._1)
     }
   }
   def +(entry: (ast.AbstractLocalVar, Term)) = new MapBackedStore(map + entry)

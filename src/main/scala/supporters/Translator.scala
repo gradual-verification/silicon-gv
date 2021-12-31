@@ -63,27 +63,55 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
       case terms.Second(_) => ast.LocalVar("snapvar", ast.Int)()
       case terms.Combine(t0, t1) => ast.LocalVar("snapvar", ast.Int)()
       // }
+      case _ => sys.error("match error in translate!")
+    }
+  }
+
+  private def resolveType(variable: terms.Term): ast.Type = {
+    variable match {
+      case terms.Var(_, terms.sorts.Int) | terms.SortWrapper(_, terms.sorts.Int) => ast.Int
+      case terms.Var(_, terms.sorts.Bool) | terms.SortWrapper(_, terms.sorts.Bool) => ast.Bool
+      case terms.Var(_, terms.sorts.Ref) | terms.SortWrapper(_, terms.sorts.Ref) => ast.Ref
+      case terms.Var(_, terms.sorts.Perm) | terms.SortWrapper(_, terms.sorts.Perm) => ast.Perm
+      case _ => sys.error("Match error in resolveType!")
     }
   }
 
   private def variableResolver(variable: terms.Term): ast.Exp = {
+
+    variableResolverHelper(variable) match {
+
+      case Some(astVariable) => astVariable
+
+      case None => {
+        
+        val pcsEquivalentVariables: Seq[terms.Term] = pcs.getEquivalentVariables(variable) match {
+          case Seq() => sys.error("Could not find an equivalent variable in the "
+            + s"path condition for the variable ${variable}!");
+          case equivalentVariables => equivalentVariables
+        }
+
+        pcsEquivalentVariables.foldRight[Option[ast.Exp]](None)((term, resolvedVariable) =>
+            resolvedVariable match {
+              case Some(_) => resolvedVariable
+              case None => variableResolverHelper(term)
+            }) match {
+              case Some(resolvedVariable) => resolvedVariable
+              case None => sys.error(s"Could not resolve variable ${variable}")
+            }
+      }
+    }
+  }
+
+  private def variableResolverHelper(variable: terms.Term): Option[ast.Exp] = {
+    
     // TODO: this is not as efficient as it might be; we search both heaps when
     // this may not be necessary
     //
     // a successful variable lookup in one heap obviates the need for a
     // variable lookup in the other
-    
-    val varType = variable match {
-      case terms.Var(_, terms.sorts.Int) | terms.SortWrapper(_, terms.sorts.Int) => ast.Int
-      case terms.Var(_, terms.sorts.Bool) | terms.SortWrapper(_, terms.sorts.Bool) => ast.Bool
-      case terms.Var(_, terms.sorts.Ref) | terms.SortWrapper(_, terms.sorts.Ref) => ast.Ref
-      case terms.Var(_, terms.sorts.Perm) | terms.SortWrapper(_, terms.sorts.Perm) => ast.Perm
-    }
 
-    val heapOrStoreVar = pcs.getEquivalentVariable(variable) match {
-      case None => variable
-      case Some(equivalentVariable) => equivalentVariable
-    }
+    // TODO: Make this handle predicates
 
     // TODO: ASK JENNA: What is the old store for? It gets set before method
     // calls
@@ -95,12 +123,26 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
       case Some(oldStore) => oldStore
     }
 
-    (s.h.getChunkForValue(heapOrStoreVar), s.optimisticHeap.getChunkForValue(heapOrStoreVar)) match {
+    val varType = resolveType(variable)
+
+    // TODO: The case where both the regular heap and optimistic heap have the
+    // variable should never happen, maybe
+    (s.h.getChunkForValue(variable), s.optimisticHeap.getChunkForValue(variable)) match {
+      case (Some(_), Some(_)) => sys.error("match error in variableResolverHelper!")
+
       case (Some((symVar, id)), None) =>
-        ast.FieldAccess(store.getKeyForValue(symVar), ast.Field(id, varType)())()
+        store.getKeyForValue(symVar) match {
+          case None => None
+          case Some(astVar) => Some(ast.FieldAccess(astVar, ast.Field(id, varType)())())
+        }
+
       case (None, Some((symVar, id))) =>
-        ast.FieldAccess(store.getKeyForValue(symVar), ast.Field(id, varType)())()
-      case (None, None) => store.getKeyForValue(heapOrStoreVar)
+        store.getKeyForValue(symVar) match {
+          case None => None
+          case Some(astVar) => Some(ast.FieldAccess(astVar, ast.Field(id, varType)())())
+        }
+
+      case (None, None) => store.getKeyForValue(variable)
     }
   }
 
@@ -108,19 +150,23 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
 
     (s.h.values ++ s.optimisticHeap.values).map(chunk => chunk match {
       case BasicChunk(resourceId, id, args, snap, perm) => resourceId match {
+        // TODO: Can we use translate for this case (or at least variableResolver?)
+        // TODO: Does this need to access the old store?
+        // TODO: Does this need to look in the path condition for equivalent
+        //       variables? probably not, since it doesn't look in the heap
         case FieldID => {
 
           println(s"getAccessibilityPredicates argument head value: ${args.head}") 
           println(s"getAccessibilityPredicates argument value: ${args}")
 
-          val varType = args.head match {
-            case terms.Var(_, terms.sorts.Int) | terms.SortWrapper(_, terms.sorts.Int) => ast.Int
-            case terms.Var(_, terms.sorts.Bool) | terms.SortWrapper(_, terms.sorts.Bool) => ast.Bool
-            case terms.Var(_, terms.sorts.Ref) | terms.SortWrapper(_, terms.sorts.Ref) => ast.Ref
-            case terms.Var(_, terms.sorts.Perm) | terms.SortWrapper(_, terms.sorts.Perm) => ast.Perm
+          val varType = resolveType(args.head)
+
+          val astVar = s.g.getKeyForValue(args.head) match {
+            case None => sys.error(s"Could not resolve symbolic variable ${args.head}!")
+            case Some(astVar) => astVar
           }
 
-          ast.FieldAccess(s.g.getKeyForValue(args.head), ast.Field(id.toString, varType)())()
+          ast.FieldAccess(astVar, ast.Field(id.toString, varType)())()
         }
 
         case PredicateID => {

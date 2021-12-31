@@ -132,6 +132,7 @@ object predicateSupporter extends PredicateSupportRules with Immutable {
     val gIns = s.g + Store(predicate.formalArgs map (_.localVar) zip tArgs)
     val body = predicate.body.get /* Only non-abstract predicates can be unfolded */
     val s1 = s.scalePermissionFactor(tPerm)
+    // This case will never happen; we don't support quantifiers!
     if (s1.qpPredicates.contains(predicate)) {
       val formalVars = s1.predicateFormalVarMap(predicate)
       quantifiedChunkSupporter.consumeSingleLocation(
