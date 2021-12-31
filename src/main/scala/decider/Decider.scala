@@ -215,6 +215,7 @@ trait DefaultDeciderProvider extends VerifierComponent { this: Verifier =>
       } else if(isImprecise && !(deciderAssert(Not(t), timeout))) { //Make sure this part is correct
         (true, Some(TermDifference.termDifference(this, t)))
       } else {
+        profilingInfo.incrementEliminatedConjuncts(t.topLevelConjuncts.length)
         (false, None)
       }
     }
