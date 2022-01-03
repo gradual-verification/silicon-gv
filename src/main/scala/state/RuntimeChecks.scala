@@ -5,7 +5,10 @@ import viper.silicon.supporters.{NodeHash, NodeEquiv}
 import viper.silver.ast.{Exp, Node}
 import scala.collection.concurrent.{Map, TrieMap}
 
-case class CheckInfo(checks: Exp, branchInfo: Stack[(Exp, Node, Option[Node])], context: Exp, overlaps: Boolean)
+case class CheckInfo(checks: Exp,
+  branchInfo: Stack[(Exp, Node, Option[Node])],
+  context: Exp,
+  overlaps: Boolean)
 
 object runtimeChecks {
 
