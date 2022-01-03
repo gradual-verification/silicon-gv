@@ -19,6 +19,7 @@ import viper.silicon.state.terms.predef.`?r`
 import viper.silicon.supporters.Translator
 import viper.silicon.verifier.Verifier
 import viper.silicon.{ConsumeRecord, GlobalBranchRecord, SymbExLogger}
+import viper.silicon.utils
 
 trait ConsumptionRules extends SymbolicExecutionRules {
 
@@ -562,10 +563,10 @@ object consumer extends ConsumptionRules with Immutable {
                       if (!status && !status1) {
 
                         runtimeChecks.addChecks(a, a,
-                          v4.decider.pcs.branchConditions.map(branch =>
+                          utils.zip3(v4.decider.pcs.branchConditions.map(branch =>
                               new Translator(s5, v4.decider.pcs).translate(branch)),
                            v4.decider.pcs.branchConditionsAstNodes,
-                           v.decider.pcs.branchConditionsOrigins,
+                           v.decider.pcs.branchConditionsOrigins),
                            a,
                            true)
                         a.addCheck(a)
@@ -629,10 +630,10 @@ object consumer extends ConsumptionRules with Immutable {
                       if (!status && !status1) {
                         runtimeChecks.addChecks(a,
                           a,
-                          v4.decider.pcs.branchConditions.map(branch =>
+                          utils.zip3(v4.decider.pcs.branchConditions.map(branch =>
                               new Translator(s5, v4.decider.pcs).translate(branch)),
                             v4.decider.pcs.branchConditionsAstNodes,
-                            v.decider.pcs.branchConditionsOrigins,
+                            v.decider.pcs.branchConditionsOrigins),
                             a,
                             true)
                         a.addCheck(a)
@@ -661,10 +662,10 @@ object consumer extends ConsumptionRules with Immutable {
                       // should use v2.decider.pcs here?
                       runtimeChecks.addChecks(a,
                         new Translator(s2, v.decider.pcs).translate(returnedChecks),
-                        v2.decider.pcs.branchConditions.map(branch =>
+                        utils.zip3(v2.decider.pcs.branchConditions.map(branch =>
                             new Translator(s2, v2.decider.pcs).translate(branch)),
                           v2.decider.pcs.branchConditionsAstNodes,
-                          v.decider.pcs.branchConditionsOrigins,
+                          v.decider.pcs.branchConditionsOrigins),
                           a,
                           true)
                       a.addCheck(new Translator(s2, v.decider.pcs).translate(returnedChecks))
@@ -793,10 +794,10 @@ object consumer extends ConsumptionRules with Immutable {
               case Some((s1, pcs)) => {
                 runtimeChecks.addChecks(runtimeCheckAstNode,
                   new Translator(s1, pcs).translate(returnedChecks),
-                  v.decider.pcs.branchConditions.map(branch =>
+                  utils.zip3(v.decider.pcs.branchConditions.map(branch =>
                       new Translator(s1, pcs).translate(branch)),
                     v.decider.pcs.branchConditionsAstNodes,
-                    v.decider.pcs.branchConditionsOrigins,
+                    v.decider.pcs.branchConditionsOrigins),
                     a,
                     true)
                 a.addCheck(new Translator(s1, pcs).translate(returnedChecks))

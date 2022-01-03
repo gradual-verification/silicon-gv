@@ -7,10 +7,10 @@
 package viper.silicon.decider
 
 import viper.silver.ast.Node
-
 import viper.silicon.common.collections.immutable.InsertionOrderedSet
 import viper.silicon.Stack
 import viper.silicon.state.terms.{And, Decl, Equals, Implies, Quantification, Quantifier, Term, Trigger, True, Var}
+import viper.silicon.utils
 import viper.silicon.utils.Counter
 
 /*

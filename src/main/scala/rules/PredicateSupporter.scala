@@ -15,6 +15,7 @@ import viper.silicon.resources.PredicateID
 import viper.silicon.state._
 import viper.silicon.state.terms._
 import viper.silicon.supporters.Translator
+import viper.silicon.utils
 import viper.silicon.utils.toSf
 import viper.silicon.verifier.Verifier
 
@@ -178,10 +179,10 @@ object predicateSupporter extends PredicateSupportRules with Immutable {
               if (!status && !status1) {
                 runtimeChecks.addChecks(pa,
                   ast.PredicateAccessPredicate(pa, ast.FullPerm()())(),
-                  v2.decider.pcs.branchConditions.map(branch =>
+                  utils.zip3(v2.decider.pcs.branchConditions.map(branch =>
                       new Translator(s5, v2.decider.pcs).translate(branch)),
                     v2.decider.pcs.branchConditionsAstNodes,
-                    v.decider.pcs.branchConditionsOrigins,
+                    v.decider.pcs.branchConditionsOrigins),
                     pa,
                     true)
                 pa.addCheck(ast.PredicateAccessPredicate(pa, ast.FullPerm()())())

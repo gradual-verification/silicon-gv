@@ -77,6 +77,8 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
     }
   }
 
+  // TODO: make this return an Option[ast.Exp]; emit a warning in getAllAccessibilityPredicates,
+  // and an error elsewhere...?
   private def variableResolver(variable: terms.Term): ast.Exp = {
 
     variableResolverHelper(variable) match {
@@ -111,8 +113,6 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
     // a successful variable lookup in one heap obviates the need for a
     // variable lookup in the other
 
-    // TODO: Make this handle predicates
-
     // TODO: ASK JENNA: What is the old store for? It gets set before method
     // calls
     //
@@ -124,6 +124,8 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
     }
 
     val varType = resolveType(variable)
+
+    // TODO: Make this handle predicates
 
     // TODO: The case where both the regular heap and optimistic heap have the
     // variable should never happen, maybe
@@ -151,9 +153,14 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
     (s.h.values ++ s.optimisticHeap.values).map(chunk => chunk match {
       case BasicChunk(resourceId, id, args, snap, perm) => resourceId match {
         // TODO: Can we use translate for this case (or at least variableResolver?)
+        //
         // TODO: Does this need to access the old store?
+        //
         // TODO: Does this need to look in the path condition for equivalent
-        //       variables? probably not, since it doesn't look in the heap
+        //       variables? probably not, since it doesn't look in the heap (that is,
+        //       it gets its value directly from the heap...); the case where
+        //       we need to look in the path condition may only be for
+        //       predicates
         case FieldID => {
 
           println(s"getAccessibilityPredicates argument head value: ${args.head}") 
