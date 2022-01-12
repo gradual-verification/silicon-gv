@@ -628,7 +628,7 @@ object consumer extends ConsumptionRules with Immutable {
                   if (s4.isImprecise) {
                     chunkSupporter.consume(s4, oh, resource, tArgs, loss, ve, v3, description)((s5, oh1, snap2, v4, status1) => {
                       if (!status && !status1) {
-                        runtimeChecks.addChecks(a,
+                        runtimeChecks.addChecks(locacc,
                           a,
                           utils.zip3(v4.decider.pcs.branchConditions.map(branch =>
                               new Translator(s5, v4.decider.pcs).translate(branch)),
