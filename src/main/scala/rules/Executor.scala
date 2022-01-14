@@ -21,7 +21,7 @@ import viper.silicon.state.terms._
 import viper.silicon.state.terms.perms.IsPositive
 import viper.silicon.state.terms.predef.`?r`
 import viper.silicon.supporters.Translator
-import viper.silicon.utils.freshSnap
+import viper.silicon.utils.{freshSnap, zip3}
 import viper.silicon.utils.consistency.createUnexpectedNodeError
 import viper.silicon.verifier.Verifier
 import viper.silicon.{ExecuteRecord, Map, MethodCallRecord, SymbExLogger}
@@ -315,6 +315,7 @@ object executor extends ExecutionRules with Immutable {
           eval(s1, rhs, pve, v1)((s2, tRhs, v2) => {
             val fap = ast.FieldAccessPredicate(fa, ast.FullPerm()(ass.pos))(ass.pos)
             consume(s2, fap, pve, v2)((s3, snap, v3) => {
+              // TODO;EXTRA CHECK ISSUE(S): We assume the Ref is !== null here
               v3.decider.assume(tRcvr !== Null())
               val tSnap = ssaifyRhs(tRhs, field.name, field.typ, v3)
               val id = BasicChunkIdentifier(field.name)
@@ -453,7 +454,10 @@ object executor extends ExecutionRules with Immutable {
           })
           val pvePre = ErrorWrapperWithExampleTransformer(PreconditionInCallFalse(call).withReasonNodeTransformed(reasonTransformer), exampleTrafo)
           reconstructedPermissions.addMethodCallStatement(call,
-            new Translator(s1, v1.decider.pcs).getAccessibilityPredicates)
+            new Translator(s1, v1.decider.pcs).getAccessibilityPredicates,
+            zip3(v1.decider.pcs.branchConditions,
+              v1.decider.pcs.branchConditionsAstNodes,
+              v1.decider.pcs.branchConditionsOrigins))
           // this is run unconditionally (or so it seems), so we can attach the
           // method call ast node here
           
