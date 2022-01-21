@@ -257,8 +257,17 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
                 val snap = v.decider.fresh(s"${args.head}.$id", v.symbolConverter.toSort(f.typ))
                 val ch = BasicChunk(FieldID, BasicChunkIdentifier(f.name), args, snap, FullPerm())
                 val s2 = s.copy(optimisticHeap = oh)
-                
-                runtimeChecks.addChecks(runtimeCheckFieldTarget,
+
+                val runtimeCheckAstNode: ast.Node = (s2.methodCallAstNode, s2.foldOrUnfoldAstNode) match {
+                          case (None, None) => runtimeCheckFieldTarget
+                          case (Some(methodCallAstNode), None) => methodCallAstNode
+                          case (None, Some(foldOrUnfoldAstNode)) => foldOrUnfoldAstNode
+                          case (Some(methodCallAstNode), Some(foldOrUnfoldAstNode)) =>
+                            sys.error(s"Conflicting positions ${methodCallAstNode} and"
+                              + s"${foldOrUnfoldAstNode} found while adding runtime check!")
+                        }
+
+                runtimeChecks.addChecks(runtimeCheckAstNode,
                   ast.FieldAccessPredicate(runtimeCheckFieldTarget, ast.FullPerm()())(),
                   utils.zip3(v.decider.pcs.branchConditions.map(branch =>
                       new Translator(s2, v.decider.pcs).translate(branch)),
@@ -290,7 +299,17 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
                 val snap = v.decider.fresh(s"${args.head}.$id", v.symbolConverter.toSort(f.typ))
 
                 if (generateChecks) {
-                  runtimeChecks.addChecks(runtimeCheckFieldTarget,
+
+                  val runtimeCheckAstNode: ast.Node = (s.methodCallAstNode, s.foldOrUnfoldAstNode) match {
+                    case (None, None) => runtimeCheckFieldTarget
+                    case (Some(methodCallAstNode), None) => methodCallAstNode
+                    case (None, Some(foldOrUnfoldAstNode)) => foldOrUnfoldAstNode
+                    case (Some(methodCallAstNode), Some(foldOrUnfoldAstNode)) =>
+                      sys.error(s"Conflicting positions ${methodCallAstNode} and"
+                        + s"${foldOrUnfoldAstNode} found while adding runtime check!")
+                  }
+
+                  runtimeChecks.addChecks(runtimeCheckAstNode,
                     ast.FieldAccessPredicate(runtimeCheckFieldTarget, ast.FullPerm()())(),
                     utils.zip3(v.decider.pcs.branchConditions.map(branch =>
                         new Translator(s, v.decider.pcs).translate(branch)),

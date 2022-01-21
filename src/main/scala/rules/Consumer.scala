@@ -562,14 +562,25 @@ object consumer extends ConsumptionRules with Immutable {
 
                       if (!status && !status1) {
 
-                        runtimeChecks.addChecks(a, a,
+                        println(s"Consume prapr: Adding runtime check ${a}")
+                        
+                        val runtimeCheckAstNode: ast.Node = (s5.methodCallAstNode, s5.foldOrUnfoldAstNode) match {
+                          case (None, None) => a
+                          case (Some(methodCallAstNode), None) => methodCallAstNode
+                          case (None, Some(foldOrUnfoldAstNode)) => foldOrUnfoldAstNode
+                          case (Some(methodCallAstNode), Some(foldOrUnfoldAstNode)) =>
+                            sys.error(s"Conflicting positions ${methodCallAstNode} and"
+                              + s"${foldOrUnfoldAstNode} found while adding runtime check!")
+                        }
+
+                        runtimeChecks.addChecks(runtimeCheckAstNode,
+                          a,
                           utils.zip3(v4.decider.pcs.branchConditions.map(branch =>
                               new Translator(s5, v4.decider.pcs).translate(branch)),
                            v4.decider.pcs.branchConditionsAstNodes,
                            v.decider.pcs.branchConditionsOrigins),
                            a,
                            true)
-                        a.addCheck(a)
 
                       }
 
@@ -612,6 +623,9 @@ object consumer extends ConsumptionRules with Immutable {
        //eval for expression and perm (perm should always be 1)
         evalpc(s.copy(isImprecise = impr), perm, pve, v)((s1, tPerm, v1) =>
           evalLocationAccesspc(s1.copy(isImprecise = impr), locacc, pve, v1)((s2, _, tArgs, v2) => {
+            // is this why we produce a runtime check for != Null? does the
+            // path condition not imply this (no, apparently it does not, at least for the
+            // extra_check_issue.vpr example)
             v2.decider.assertgv(s.isImprecise, And(perms.IsPositive(tPerm), tArgs.head !== Null())){
               case true =>
                 val resource = locacc.res(Verifier.program)
@@ -628,7 +642,20 @@ object consumer extends ConsumptionRules with Immutable {
                   if (s4.isImprecise) {
                     chunkSupporter.consume(s4, oh, resource, tArgs, loss, ve, v3, description)((s5, oh1, snap2, v4, status1) => {
                       if (!status && !status1) {
-                        runtimeChecks.addChecks(locacc,
+
+                        // what was this for, again? looking into the != null issue, i think
+                        println(s"Consume field apr: Adding runtime check ${a}")
+
+                        val runtimeCheckAstNode: ast.Node = (s5.methodCallAstNode, s5.foldOrUnfoldAstNode) match {
+                          case (None, None) => locacc
+                          case (Some(methodCallAstNode), None) => methodCallAstNode
+                          case (None, Some(foldOrUnfoldAstNode)) => foldOrUnfoldAstNode
+                          case (Some(methodCallAstNode), Some(foldOrUnfoldAstNode)) =>
+                            sys.error(s"Conflicting positions ${methodCallAstNode} and"
+                              + s"${foldOrUnfoldAstNode} found while adding runtime check!")
+                        }
+
+                        runtimeChecks.addChecks(runtimeCheckAstNode,
                           a,
                           utils.zip3(v4.decider.pcs.branchConditions.map(branch =>
                               new Translator(s5, v4.decider.pcs).translate(branch)),
@@ -636,7 +663,6 @@ object consumer extends ConsumptionRules with Immutable {
                             v.decider.pcs.branchConditionsOrigins),
                             a,
                             true)
-                        a.addCheck(a)
                       }
                       if (status) {
                         profilingInfo.incrementEliminatedConjuncts
@@ -660,7 +686,20 @@ object consumer extends ConsumptionRules with Immutable {
                     case None => ()
                     case Some(returnedChecks) =>
                       // should use v2.decider.pcs here?
-                      runtimeChecks.addChecks(a,
+                      println("Consume field apr assertgv: Adding runtime check "
+                        + s"${new Translator(s2, v.decider.pcs).translate(returnedChecks)}")
+
+                      val runtimeCheckAstNode: ast.Node =
+                        (s2.methodCallAstNode, s2.foldOrUnfoldAstNode) match {
+                          case (None, None) => a
+                          case (Some(methodCallAstNode), None) => methodCallAstNode
+                          case (None, Some(foldOrUnfoldAstNode)) => foldOrUnfoldAstNode
+                          case (Some(methodCallAstNode), Some(foldOrUnfoldAstNode)) =>
+                            sys.error(s"Conflicting positions ${methodCallAstNode} and"
+                              + s"${foldOrUnfoldAstNode} found while adding runtime check!")
+                        }
+
+                      runtimeChecks.addChecks(runtimeCheckAstNode,
                         new Translator(s2, v.decider.pcs).translate(returnedChecks),
                         utils.zip3(v2.decider.pcs.branchConditions.map(branch =>
                             new Translator(s2, v2.decider.pcs).translate(branch)),
@@ -668,7 +707,6 @@ object consumer extends ConsumptionRules with Immutable {
                           v.decider.pcs.branchConditionsOrigins),
                           a,
                           true)
-                      a.addCheck(new Translator(s2, v.decider.pcs).translate(returnedChecks))
                   }
                   verificationResult
                 }
@@ -765,12 +803,15 @@ object consumer extends ConsumptionRules with Immutable {
         //
         // we want to map the runtime check from the fold or unfold statement,
         // not something in the body of a predicate
-        // TODO: ASK JENNA
         var runtimeCheckAstNode: ast.Node = (s.methodCallAstNode, s.foldOrUnfoldAstNode) match {
           case (None, None) => a
           case (Some(methodCallAstNode), None) => methodCallAstNode
           case (None, Some(foldOrUnfoldAstNode)) => foldOrUnfoldAstNode
-          case (Some(methodCallAstNode), Some(_)) => methodCallAstNode
+
+          // TODO: This should not occur, but it did at one point. Figure out why?
+          case (Some(methodCallAstNode), Some(foldOrUnfoldAstNode)) =>
+            sys.error("Overlapping contexts detected (method call and fold or unfold): "
+              + s"${methodCallAstNode} and ${foldOrUnfoldAstNode}")
         }
 
         evalAndAssert(s, impr, a, pve, v)((s1, t, v1) => {
@@ -792,6 +833,9 @@ object consumer extends ConsumptionRules with Immutable {
           case (verificationResult, Some(returnedChecks)) =>
             returnedState match {
               case Some((s1, pcs)) => {
+                
+                println(s"Consume expression: Adding runtime check ${new Translator(s1, pcs).translate(returnedChecks)}")
+
                 runtimeChecks.addChecks(runtimeCheckAstNode,
                   new Translator(s1, pcs).translate(returnedChecks),
                   utils.zip3(v.decider.pcs.branchConditions.map(branch =>
@@ -800,7 +844,6 @@ object consumer extends ConsumptionRules with Immutable {
                     v.decider.pcs.branchConditionsOrigins),
                     a,
                     true)
-                a.addCheck(new Translator(s1, pcs).translate(returnedChecks))
 
                 verificationResult
               }

@@ -52,7 +52,11 @@ object executor extends ExecutionRules with Immutable {
                     (Q: (State, Verifier) => VerificationResult)
                     : VerificationResult = {
 
+    // state after loop is created here?
     val s1 = edge.kind match {
+      // in edges go into loops
+      // out edges lead out of loops (and maybe to another loop)
+      // normal edges are between statements (which are not loops)
       case cfg.Kind.Out =>
         val (fr1, h1) = stateConsolidator.merge(s.functionRecorder, s.h, s.invariantContexts.head, v)
         val s1 = s.copy(functionRecorder = fr1, h = h1,
@@ -63,6 +67,7 @@ object executor extends ExecutionRules with Immutable {
         s
     }
 
+    // we continue after the loop here
     edge match {
       case ce: cfg.ConditionalEdge[ast.Stmt, ast.Exp] =>
         eval(s1, ce.condition, IfFailed(ce.condition), v)((s2, tCond, v1) =>
@@ -145,6 +150,10 @@ object executor extends ExecutionRules with Immutable {
             val sortedEdges = otherEdges ++ outEdges
             val edgeConditions = sortedEdges.collect{case ce: cfg.ConditionalEdge[ast.Stmt, ast.Exp] => ce.condition}
                                             .distinct
+                                            
+            // verifying a loop is like verifying both a method body and method call, kinda?
+            // method body when verifying the actual loop (produce invariant at beginning, consume at end
+            // method call when encountering loop (consume invariant before, produce after)
 
             type PhaseData = (State, RecordedPathConditions, InsertionOrderedSet[FunctionDecl])
             var phase1data: Vector[PhaseData] = Vector.empty
@@ -152,7 +161,15 @@ object executor extends ExecutionRules with Immutable {
             (executionFlowController.locally(sBody, v)((s0, v0) => {
                 v0.decider.prover.comment("Loop head block: Check well-definedness of invariant")
                 val mark = v0.decider.setPathConditionMark()
+
+                // ASK JENNA ABOUT THIS
+                // this is a produce, kinda
+                // where do we run the loop body?
+                // where is the consume?
+                // set for at beginning of loop body here?
                 wellformed(s0.copy(isImprecise = false, optimisticHeap = Heap()), freshSnap, invs, ContractNotWellformed(viper.silicon.utils.ast.BigAnd(invs)), v0)((s1, v1) => {   //pve is a placeholder
+                  // unset for at beginning of loop body
+                  // produces into phase1data
                   phase1data = phase1data :+ (s1,
                                               v1.decider.pcs.after(mark),
                                               InsertionOrderedSet.empty[FunctionDecl] /*v2.decider.freshFunctions*/ /* [BRANCH-PARALLELISATION] */)
@@ -163,10 +180,18 @@ object executor extends ExecutionRules with Immutable {
                       intermediateResult && executionFlowController.locally(s1, v1)((s2, v2) => {
                         eval(s2, eCond, WhileFailed(eCond), v2)((_, _, _) =>
                           Success())})}})})
+            // This is likely the and operator from the rule; we check well
+            // formedness and potentially return success above
             && executionFlowController.locally(s, v)((s0, v0) => {
                 v0.decider.prover.comment("Loop head block: Establish invariant")
+                // This is the consume after the conjunct
+                // Where is the produce?
+                // set enum for before loop in symbolic state here?
+                // consume for before the beginning of the loop
                 consumes(s0, invs, LoopInvariantNotEstablished, v0)((sLeftover, _, v1) => {
+                  // unset enum for before loop in symbolic state here?
                   v1.decider.prover.comment("Loop head block: Execute statements of loop head block (in invariant state)")
+                  // uses it (phase1data) again here after producing
                   phase1data.foldLeft(Success(): VerificationResult) {
                     case (fatalResult: FatalResult, _) => fatalResult
                     case (intermediateResult, (s1, pcs, ff1)) => /* [BRANCH-PARALLELISATION] ff1 */
@@ -178,6 +203,7 @@ object executor extends ExecutionRules with Immutable {
                         if (v2.decider.checkSmoke())
                           Success()
                         else {
+                          // This is running the loop body i think, but why is this here
                           execs(s3, stmts, v2)((s4, v3) => {
                             v3.decider.prover.comment("Loop head block: Follow loop-internal edges")
                             follows(s4, sortedEdges, WhileFailed, v3)(Q)})}})}})}))
@@ -188,6 +214,7 @@ object executor extends ExecutionRules with Immutable {
              * attempting to re-establish the invariant.
              */
             v.decider.prover.comment("Loop head block: Re-establish invariant")
+            // this is the consume at the end of the loop body
             consumes(s, invs, e => LoopInvariantNotPreserved(e), v)((_, _, _) =>
               Success())
         }
@@ -309,19 +336,40 @@ object executor extends ExecutionRules with Immutable {
 */
 
       case ass @ ast.FieldAssign(fa @ ast.FieldAccess(eRcvr, field), rhs) =>
+       
+        println(s"Field assignment: ${ass}")
+
         assert(!s.exhaleExt)
         val pve = AssignmentFailed(ass)
+
+        println("Permissions before eval: "
+          + s"${new Translator(s, v.decider.pcs).getAccessibilityPredicates}")
+
         eval(s, eRcvr, pve, v)((s1, tRcvr, v1) =>
           eval(s1, rhs, pve, v1)((s2, tRhs, v2) => {
             val fap = ast.FieldAccessPredicate(fa, ast.FullPerm()(ass.pos))(ass.pos)
+
+            println("Permissions before consume: "
+              + s"${new Translator(s2, v2.decider.pcs).getAccessibilityPredicates}")
+
             consume(s2, fap, pve, v2)((s3, snap, v3) => {
+
+            println("Permissions before produce: "
+              + s"${new Translator(s3, v3.decider.pcs).getAccessibilityPredicates}")
+
               // TODO;EXTRA CHECK ISSUE(S): We assume the Ref is !== null here
               v3.decider.assume(tRcvr !== Null())
               val tSnap = ssaifyRhs(tRhs, field.name, field.typ, v3)
               val id = BasicChunkIdentifier(field.name)
               val newChunk = BasicChunk(FieldID, id, Seq(tRcvr), tSnap, FullPerm())
-              chunkSupporter.produce(s3, s3.h, newChunk, v3)((s4, h4, v4) =>
-                Q(s4.copy(h = h4), v4))
+
+              println(s"New chunk: ${newChunk}")
+
+              chunkSupporter.produce(s3, s3.h, newChunk, v3)((s4, h4, v4) => {
+                println("Permissions after produce: "
+                  + s"${new Translator(s4.copy(h = h4), v4.decider.pcs).getAccessibilityPredicates}")
+
+              Q(s4.copy(h = h4), v4)})
             })
           })
         )

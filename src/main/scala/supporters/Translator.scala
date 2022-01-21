@@ -163,8 +163,8 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
         //       predicates
         case FieldID => {
 
-          println(s"getAccessibilityPredicates argument head value: ${args.head}") 
-          println(s"getAccessibilityPredicates argument value: ${args}")
+          // println(s"getAccessibilityPredicates argument head value: ${args.head}") 
+          // println(s"getAccessibilityPredicates argument value: ${args}")
 
           val varType = resolveType(args.head)
 
