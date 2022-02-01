@@ -10,12 +10,12 @@ object reconstructedPermissions {
   val nodeHash = new NodeHash[ast.MethodCall]
   val nodeEquiv = new NodeEquiv[ast.MethodCall]
 
-  case class PermInfo(permissions: Iterable[ast.Exp], branchInfo: Seq[(Term, ast.Node, Option[ast.Node])])
+  case class PermInfo(permissions: Iterable[ast.Exp], branchInfo: Seq[(Term, ast.Node, Option[CheckPosition])])
 
   private val permissionsMap = new TrieMap[ast.MethodCall, Seq[PermInfo]](nodeHash, nodeEquiv)
 
   def addMethodCallStatement(call: ast.MethodCall, permissions: Iterable[ast.Exp],
-    branch: Seq[(Term, ast.Node, Option[ast.Node])]) = {
+    branch: Seq[(Term, ast.Node, Option[CheckPosition])]) = {
 
     permissionsMap.get(call) match {
       case None => permissionsMap += (call -> Seq(PermInfo(permissions, branch)))

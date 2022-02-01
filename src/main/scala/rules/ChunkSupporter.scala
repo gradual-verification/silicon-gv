@@ -152,6 +152,7 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
           var statusCheckgv = true
 
           if (id == c.id) {
+            // TODO;staticprofiling: this is responsible for the static profiling issue, maybe
             statusCheckgv = v.decider.checkgv(s.isImprecise, And(c.args zip args map (x => x._1 === x._2)), Some(Verifier.config.checkTimeout())) match {
               case (status, runtimeCheck) => status
             }
@@ -258,14 +259,14 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
                 val ch = BasicChunk(FieldID, BasicChunkIdentifier(f.name), args, snap, FullPerm())
                 val s2 = s.copy(optimisticHeap = oh)
 
-                val runtimeCheckAstNode: ast.Node = (s2.methodCallAstNode, s2.foldOrUnfoldAstNode) match {
-                          case (None, None) => runtimeCheckFieldTarget
-                          case (Some(methodCallAstNode), None) => methodCallAstNode
-                          case (None, Some(foldOrUnfoldAstNode)) => foldOrUnfoldAstNode
-                          case (Some(methodCallAstNode), Some(foldOrUnfoldAstNode)) =>
-                            sys.error(s"Conflicting positions ${methodCallAstNode} and"
-                              + s"${foldOrUnfoldAstNode} found while adding runtime check!")
-                        }
+                val runtimeCheckAstNode: CheckPosition =
+                  (s2.methodCallAstNode, s2.foldOrUnfoldAstNode, s2.loopPosition) match {
+                    case (None, None, None) => CheckPosition.GenericNode(runtimeCheckFieldTarget)
+                    case (Some(methodCallAstNode), None, None) => CheckPosition.GenericNode(methodCallAstNode)
+                    case (None, Some(foldOrUnfoldAstNode), None) => CheckPosition.GenericNode(foldOrUnfoldAstNode)
+                    case (None, None, Some(loopPosition)) => loopPosition
+                    case _ => sys.error("Conflicting positions found while adding runtime check!")
+                  }
 
                 runtimeChecks.addChecks(runtimeCheckAstNode,
                   ast.FieldAccessPredicate(runtimeCheckFieldTarget, ast.FullPerm()())(),
@@ -300,14 +301,14 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
 
                 if (generateChecks) {
 
-                  val runtimeCheckAstNode: ast.Node = (s.methodCallAstNode, s.foldOrUnfoldAstNode) match {
-                    case (None, None) => runtimeCheckFieldTarget
-                    case (Some(methodCallAstNode), None) => methodCallAstNode
-                    case (None, Some(foldOrUnfoldAstNode)) => foldOrUnfoldAstNode
-                    case (Some(methodCallAstNode), Some(foldOrUnfoldAstNode)) =>
-                      sys.error(s"Conflicting positions ${methodCallAstNode} and"
-                        + s"${foldOrUnfoldAstNode} found while adding runtime check!")
-                  }
+                  val runtimeCheckAstNode: CheckPosition =
+                    (s.methodCallAstNode, s.foldOrUnfoldAstNode, s.loopPosition) match {
+                      case (None, None, None) => CheckPosition.GenericNode(runtimeCheckFieldTarget)
+                      case (Some(methodCallAstNode), None, None) => CheckPosition.GenericNode(methodCallAstNode)
+                      case (None, Some(foldOrUnfoldAstNode), None) => CheckPosition.GenericNode(foldOrUnfoldAstNode)
+                      case (None, None, Some(loopPosition)) => loopPosition
+                      case _ => sys.error("Conflicting positions found while adding runtime check!")
+                    }
 
                   runtimeChecks.addChecks(runtimeCheckAstNode,
                     ast.FieldAccessPredicate(runtimeCheckFieldTarget, ast.FullPerm()())(),

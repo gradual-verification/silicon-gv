@@ -70,7 +70,8 @@ final case class State(g: Store = Store(),
                        predicateFormalVarMap: Map[ast.Predicate, Seq[terms.Var]] = Map.empty,
                        isMethodVerification: Boolean = false,
                        methodCallAstNode: Option[ast.MethodCall] = None,
-                       foldOrUnfoldAstNode: Option[ast.Node] = None)
+                       foldOrUnfoldAstNode: Option[ast.Node] = None,
+                       loopPosition: Option[CheckPosition.Loop] = None)
     extends Mergeable[State] {
 
   def incCycleCounter(m: ast.Predicate) =
@@ -155,13 +156,13 @@ object State {
                  ssCache1, hackIssue387DisablePermissionConsumption1,
                  qpFields1, qpPredicates1, qpMagicWands1, smCache1, pmCache1, smDomainNeeded1,
                  predicateSnapMap1, predicateFormalVarMap1, hack,
-                 methodCallAstNode1, foldOrUnfoldAstNode1) =>
+                 methodCallAstNode1, foldOrUnfoldAstNode1, loopPosition1) =>
 
         /* Decompose state s2: most values must match those of s1 */
         s2 match {
           // we do not care whether oldStore matches here; oldStore should not
           // stick around for that long?
-          case State(`g1`, _, `h1`, `oldHeaps1`,
+          case State(`g1`, `oldStore1`, `h1`, `oldHeaps1`,
                      `isImprecise`, `optimisticHeap`,
                      `parallelizeBranches1`,
                      `recordVisited1`, `visited1`,
@@ -181,7 +182,7 @@ object State {
                      ssCache2, `hackIssue387DisablePermissionConsumption1`,
                      `qpFields1`, `qpPredicates1`, `qpMagicWands1`, smCache2, pmCache2, `smDomainNeeded1`,
                      `predicateSnapMap1`, `predicateFormalVarMap1`, `hack`,
-                     `methodCallAstNode1`, `foldOrUnfoldAstNode1`) =>
+                     `methodCallAstNode1`, `foldOrUnfoldAstNode1`, `loopPosition1`) =>
 
             val functionRecorder3 = functionRecorder1.merge(functionRecorder2)
             val triggerExp3 = triggerExp1 && triggerExp2

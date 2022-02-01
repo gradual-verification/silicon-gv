@@ -2,12 +2,19 @@ package viper.silicon.state
 
 import viper.silicon.Stack
 import viper.silicon.supporters.{NodeHash, NodeEquiv}
-import viper.silver.ast.{Exp, Node}
+import viper.silver.ast
 import scala.collection.concurrent.{Map, TrieMap}
 
-case class CheckInfo(checks: Exp,
-  branchInfo: Stack[(Exp, Node, Option[Node])],
-  context: Exp,
+sealed trait CheckPosition
+
+case object CheckPosition {
+  case class GenericNode(node: ast.Node) extends CheckPosition
+  case class Loop(invariants: Seq[ast.Exp], position: LoopPosition) extends CheckPosition
+}
+
+case class CheckInfo(checks: ast.Exp,
+  branchInfo: Stack[(ast.Exp, ast.Node, Option[CheckPosition])],
+  context: ast.Exp,
   overlaps: Boolean)
 
 object runtimeChecks {
@@ -21,15 +28,15 @@ object runtimeChecks {
   //
   // a CheckList is a Seq[CheckInfo]
   
-  val nodeHash = new NodeHash[Node]
-  val nodeEquiv = new NodeEquiv[Node]
+  val nodeHash = new NodeHash[CheckPosition]
+  val nodeEquiv = new NodeEquiv[CheckPosition]
   
-  private val checks: Map[Node, CheckList] = new TrieMap[Node, CheckList](nodeHash, nodeEquiv)
+  private val checks: Map[CheckPosition, CheckList] = new TrieMap[CheckPosition, CheckList](nodeHash, nodeEquiv)
 
-  def addChecks(programPoint: Node,
-    newCheck: Exp,
-    branchInfo: Stack[(Exp, Node, Option[Node])],
-    context: Exp,
+  def addChecks(programPoint: CheckPosition,
+    newCheck: ast.Exp,
+    branchInfo: Stack[(ast.Exp, ast.Node, Option[CheckPosition])],
+    context: ast.Exp,
     overlaps: Boolean): Unit = {
     
     checks.get(programPoint) match {
@@ -48,7 +55,7 @@ object runtimeChecks {
     }
   }
 
-  def getChecks: Map[Node, CheckList] = {
+  def getChecks: Map[CheckPosition, CheckList] = {
     checks
   }
 }

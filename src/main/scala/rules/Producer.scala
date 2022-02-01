@@ -267,12 +267,16 @@ object producer extends ProductionRules with Immutable {
             //   case Some(methodCallAstNode) => methodCallAstNode
             // }
             
-            val branchPosition: Option[ast.Node] =
-              (s.methodCallAstNode, s.foldOrUnfoldAstNode) match {
-                case (None, None) => None
-                case (Some(_), None) => s.methodCallAstNode
-                case (None, Some(_)) => s.foldOrUnfoldAstNode
-                case (Some(_), Some(_)) =>
+            val branchPosition: Option[CheckPosition] =
+              (s.methodCallAstNode, s.foldOrUnfoldAstNode, s.loopPosition) match {
+                case (None, None, None) => None
+                case (Some(methodCallAstNode), None, None) =>
+                  Some(CheckPosition.GenericNode(methodCallAstNode))
+                case (None, Some(foldOrUnfoldAstNode), None) =>
+                  Some(CheckPosition.GenericNode(foldOrUnfoldAstNode))
+                case (None, None, Some(loopPosition)) =>
+                  Some(loopPosition)
+                case _ =>
                   sys.error("We shouldn't need to consider this case until "
                     + "we have unfoldings! We have an error here instead of a "
                     + "temporary solution like enclosing both in ast.And because "

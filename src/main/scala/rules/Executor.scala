@@ -48,7 +48,7 @@ object executor extends ExecutionRules with Immutable {
   import producer._
   import wellFormedness._
 
-  private def follow(s: State, edge: SilverEdge, v: Verifier)
+  private def follow(s: State, originatingBlock: SilverBlock, edge: SilverEdge, v: Verifier)
                     (Q: (State, Verifier) => VerificationResult)
                     : VerificationResult = {
 
@@ -57,33 +57,66 @@ object executor extends ExecutionRules with Immutable {
       // in edges go into loops
       // out edges lead out of loops (and maybe to another loop)
       // normal edges are between statements (which are not loops)
-      case cfg.Kind.Out =>
+      case cfg.Kind.Out => {
         val (fr1, h1) = stateConsolidator.merge(s.functionRecorder, s.h, s.invariantContexts.head, v)
+
+        val potentialCheckPosition: Option[CheckPosition.Loop] = {
+          val loopInvariant = originatingBlock match {
+            case cfg.LoopHeadBlock(invs, _) => Some(invs)
+            case _ => None
+          }
+
+          loopInvariant match {
+            case Some(invs) => Some(CheckPosition.Loop(invs, LoopPosition.After))
+            case None => None
+          }
+        }
+
         val s1 = s.copy(functionRecorder = fr1, h = h1,
-                        invariantContexts = s.invariantContexts.tail)
+          invariantContexts = s.invariantContexts.tail,
+          loopPosition = potentialCheckPosition)
+
+        println("Potential location after loop set")
+        println(s"Potential state after loop: ${v.stateFormatter.format(s1.h)}, ${v.stateFormatter.format(s1.optimisticHeap)}")
+
         s1
+      }
       case _ =>
         /* No need to do anything special. See also the handling of loop heads in exec below. */
         s
     }
 
+    // set the after loop state here
+
+    // TODO: ASK JENNA where the loop location needs to be available here
     // we continue after the loop here
     edge match {
       case ce: cfg.ConditionalEdge[ast.Stmt, ast.Exp] =>
-        eval(s1, ce.condition, IfFailed(ce.condition), v)((s2, tCond, v1) =>
+        eval(s1, ce.condition, IfFailed(ce.condition), v)((s2, tCond, v1) => {
           /* Using branch(...) here ensures that the edge condition is recorded
            * as a branch condition on the pathcondition stack.
            */
-          brancher.branch(s2, tCond, ce.condition, None, v1)(
-            (s3, v3) => exec(s3, ce.target, ce.kind, v3)(Q),
-            (_, _)  => Success()))
 
+          val s2point5 = s2.copy(loopPosition = None)
+
+          println("Potential location after loop unset")
+
+          // The loop location should be set for this branch, maybe
+          brancher.branch(s2point5, tCond, ce.condition, None, v1)(
+            (s3, v3) => exec(s3, ce.target, ce.kind, v3)(Q),
+            (_, _)  => Success())})
+
+      // TODO: Should we be tracking loop positions here, too?
       case ue: cfg.UnconditionalEdge[ast.Stmt, ast.Exp] =>
-        exec(s1, ue.target, ue.kind, v)(Q)
+
+        val s1point5 = s1.copy(loopPosition = None)
+
+        exec(s1point5, ue.target, ue.kind, v)(Q)
     }
   }
 
   private def follows(s: State,
+                      originatingBlock: SilverBlock,
                       edges: Seq[SilverEdge],
                       pvef: ast.Exp => PartialVerificationError,
                       v: Verifier)
@@ -95,7 +128,7 @@ object executor extends ExecutionRules with Immutable {
     } else
       edges.foldLeft(Success(): VerificationResult) {
         case (fatalResult: FatalResult, _) => fatalResult
-        case (_, edge) => follow(s, edge, v)(Q)
+        case (_, edge) => follow(s, originatingBlock, edge, v)(Q)
       }
   }
 
@@ -113,7 +146,7 @@ object executor extends ExecutionRules with Immutable {
     block match {
       case cfg.StatementBlock(stmt) =>
         execs(s, stmt, v)((s1, v1) =>
-          follows(s1, magicWandSupporter.getOutEdges(s1, block), IfFailed, v1)(Q))
+          follows(s1, block, magicWandSupporter.getOutEdges(s1, block), IfFailed, v1)(Q))
 
       case   _: cfg.PreconditionBlock[ast.Stmt, ast.Exp]
            | _: cfg.PostconditionBlock[ast.Stmt, ast.Exp] =>
@@ -167,17 +200,32 @@ object executor extends ExecutionRules with Immutable {
                 // where do we run the loop body?
                 // where is the consume?
                 // set for at beginning of loop body here?
-                wellformed(s0.copy(isImprecise = false, optimisticHeap = Heap()), freshSnap, invs, ContractNotWellformed(viper.silicon.utils.ast.BigAnd(invs)), v0)((s1, v1) => {   //pve is a placeholder
+
+                wellformed(
+                  s0.copy(isImprecise = false,
+                    optimisticHeap = Heap(),
+                    loopPosition = Some(CheckPosition.Loop(invs, LoopPosition.Beginning))),
+                  freshSnap,
+                  invs,
+                  ContractNotWellformed(viper.silicon.utils.ast.BigAnd(invs)),
+                  v0)((s1, v1) => {   //pve is a placeholder
+
+                    val s1point5 = s1.copy(loopPosition = None)
+
+                    println("State potentially at beginning of loop body:"
+                      + s"${v.stateFormatter.format(s1.h)}, "
+                      + s"${v.stateFormatter.format(s1.optimisticHeap)}")
+
                   // unset for at beginning of loop body
                   // produces into phase1data
-                  phase1data = phase1data :+ (s1,
+                  phase1data = phase1data :+ (s1point5,
                                               v1.decider.pcs.after(mark),
                                               InsertionOrderedSet.empty[FunctionDecl] /*v2.decider.freshFunctions*/ /* [BRANCH-PARALLELISATION] */)
                   v1.decider.prover.comment("Loop head block: Check well-definedness of edge conditions")
                   edgeConditions.foldLeft(Success(): VerificationResult) {
                     case (fatalResult: FatalResult, _) => fatalResult
                     case (intermediateResult, eCond) =>
-                      intermediateResult && executionFlowController.locally(s1, v1)((s2, v2) => {
+                      intermediateResult && executionFlowController.locally(s1point5, v1)((s2, v2) => {
                         eval(s2, eCond, WhileFailed(eCond), v2)((_, _, _) =>
                           Success())})}})})
             // This is likely the and operator from the rule; we check well
@@ -188,7 +236,14 @@ object executor extends ExecutionRules with Immutable {
                 // Where is the produce?
                 // set enum for before loop in symbolic state here?
                 // consume for before the beginning of the loop
-                consumes(s0, invs, LoopInvariantNotEstablished, v0)((sLeftover, _, v1) => {
+                consumes(s0.copy(loopPosition = Some(CheckPosition.Loop(invs, LoopPosition.Before))),
+                  invs, LoopInvariantNotEstablished, v0)((sLeftover0, _, v1) => {
+
+                  val sLeftover = sLeftover0.copy(loopPosition = None)
+                  
+                  println("State potentially before beginning of loop: "
+                    + s"${v.stateFormatter.format(sLeftover.h)}, ${v.stateFormatter.format(sLeftover.optimisticHeap)}")
+
                   // unset enum for before loop in symbolic state here?
                   v1.decider.prover.comment("Loop head block: Execute statements of loop head block (in invariant state)")
                   // uses it (phase1data) again here after producing
@@ -206,7 +261,7 @@ object executor extends ExecutionRules with Immutable {
                           // This is running the loop body i think, but why is this here
                           execs(s3, stmts, v2)((s4, v3) => {
                             v3.decider.prover.comment("Loop head block: Follow loop-internal edges")
-                            follows(s4, sortedEdges, WhileFailed, v3)(Q)})}})}})}))
+                            follows(s4, block, sortedEdges, WhileFailed, v3)(Q)})}})}})}))
 
           case _ =>
             /* We've reached a loop head block via an edge other than an in-edge: a normal edge or
@@ -215,14 +270,21 @@ object executor extends ExecutionRules with Immutable {
              */
             v.decider.prover.comment("Loop head block: Re-establish invariant")
             // this is the consume at the end of the loop body
-            consumes(s, invs, e => LoopInvariantNotPreserved(e), v)((_, _, _) =>
-              Success())
+            
+            val s0 = s.copy(loopPosition = Some(CheckPosition.Loop(invs, LoopPosition.End)))
+
+            consumes(s0, invs, e => LoopInvariantNotPreserved(e), v)((s1, _, _) => {
+              
+              println(s"State potentially at end of loop body: "
+                + s"${v.stateFormatter.format(s1.h)}, ${v.stateFormatter.format(s1.optimisticHeap)}")
+
+              Success()})
         }
 
       case cfg.ConstrainingBlock(vars: Seq[ast.AbstractLocalVar @unchecked], body: SilverCfg) =>
         val arps = vars map (s.g.apply(_).asInstanceOf[Var])
         exec(s.setConstrainable(arps, true), body, v)((s1, v1) =>
-          follows(s1.setConstrainable(arps, false), magicWandSupporter.getOutEdges(s1, block), Internal(_), v1)(Q))
+          follows(s1.setConstrainable(arps, false), block, magicWandSupporter.getOutEdges(s1, block), Internal(_), v1)(Q))
     }
   }
 
@@ -501,11 +563,13 @@ object executor extends ExecutionRules with Immutable {
             case ce => ce
           })
           val pvePre = ErrorWrapperWithExampleTransformer(PreconditionInCallFalse(call).withReasonNodeTransformed(reasonTransformer), exampleTrafo)
+
           reconstructedPermissions.addMethodCallStatement(call,
             new Translator(s1, v1.decider.pcs).getAccessibilityPredicates,
             zip3(v1.decider.pcs.branchConditions,
               v1.decider.pcs.branchConditionsAstNodes,
               v1.decider.pcs.branchConditionsOrigins))
+
           // this is run unconditionally (or so it seems), so we can attach the
           // method call ast node here
           

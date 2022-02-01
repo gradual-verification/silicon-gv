@@ -178,14 +178,17 @@ object predicateSupporter extends PredicateSupportRules with Immutable {
             chunkSupporter.consume(s4, s4.optimisticHeap, predicate, tArgs, s4.permissionScalingFactor, ve, v1, description)((s5, oh1, snap2, v2, status1) => {
               if (!status && !status1) {
 
-                val runtimeCheckAstNode = (s5.methodCallAstNode, s5.foldOrUnfoldAstNode) match {
-                  case (None, None) => pa
-                  case (Some(methodCallAstNode), None) => methodCallAstNode
-                  case (None, Some(foldOrUnfoldAstNode)) => foldOrUnfoldAstNode
-                  case (Some(methodCallAstNode), Some(foldOrUnfoldAstNode)) =>
-                    sys.error(s"Conflicting positions encountered while generating runtime check!\n"
-                      + s"Positions: ${methodCallAstNode} and ${foldOrUnfoldAstNode}")
-                }
+                val runtimeCheckAstNode =
+                  (s5.methodCallAstNode, s5.foldOrUnfoldAstNode, s5.loopPosition) match {
+                    case (None, None, None) => CheckPosition.GenericNode(pa)
+                    case (Some(methodCallAstNode), None, None) =>
+                      CheckPosition.GenericNode(methodCallAstNode)
+                    case (None, Some(foldOrUnfoldAstNode), None) =>
+                      CheckPosition.GenericNode(foldOrUnfoldAstNode)
+                    case (None, None, Some(loopPosition)) => loopPosition
+                    case _ =>
+                      sys.error("Conflicting positions while looking for position!")
+                  }
 
                 runtimeChecks.addChecks(runtimeCheckAstNode,
                   ast.PredicateAccessPredicate(pa, ast.FullPerm()())(),

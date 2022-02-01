@@ -11,7 +11,7 @@ import viper.silver.ast.Node
 import java.util.concurrent._
 import viper.silicon.common.concurrency._
 import viper.silicon.interfaces.{Unreachable, VerificationResult}
-import viper.silicon.state.State
+import viper.silicon.state.{State, CheckPosition}
 import viper.silicon.state.terms.{Not, Term}
 import viper.silicon.verifier.Verifier
 
@@ -19,7 +19,7 @@ trait BranchingRules extends SymbolicExecutionRules {
   def branch(s: State,
              condition: Term,
              position: Node,
-             origin: Option[Node],
+             origin: Option[CheckPosition],
              v: Verifier,
              fromShortCircuitingAnd: Boolean = false)
             (fTrue: (State, Verifier) => VerificationResult,
@@ -31,7 +31,7 @@ object brancher extends BranchingRules with Immutable {
   def branch(s: State,
              condition: Term,
              position: Node,
-             origin: Option[Node],
+             origin: Option[CheckPosition],
              v: Verifier,
              fromShortCircuitingAnd: Boolean = false)
             (fThen: (State, Verifier) => VerificationResult,

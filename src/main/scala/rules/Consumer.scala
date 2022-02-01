@@ -300,13 +300,14 @@ object consumer extends ConsumptionRules with Immutable {
             // this has been changed since that point, but we should figure out what the
             // issue was... it is commit with the message "Buggy changes to track branch positions
             // for method call sites"
-            val branchPosition: Option[ast.Node] =
-              (s.methodCallAstNode, s.foldOrUnfoldAstNode) match {
-                case (None, None) => None
-                case (None, Some(_)) => s.foldOrUnfoldAstNode
-                case (Some(_), None) => s.methodCallAstNode
-                case (Some(methodCallAstNode), Some(foldOrUnfoldAstNode)) => {
-                  println(s"Conflicting positions: (${methodCallAstNode}) and (${foldOrUnfoldAstNode})")
+            val branchPosition: Option[CheckPosition] =
+              (s.methodCallAstNode, s.foldOrUnfoldAstNode, s.loopPosition) match {
+                case (None, None, None) => None
+                case (Some(methodCallAstNode), None, None) => Some(CheckPosition.GenericNode(methodCallAstNode))
+                case (None, Some(foldOrUnfoldAstNode), None) => Some(CheckPosition.GenericNode(foldOrUnfoldAstNode))
+                case (None, None, Some(_)) => s.loopPosition
+                case _ => {
+                  println("Conflicting positions found while determining position for runtime check!")
                   sys.error("This should not happen, at least until we support "
                     + "unfoldings, maybe! We don't deal with this case at the "
                     + "moment because we want to know if this happens!")
@@ -564,14 +565,14 @@ object consumer extends ConsumptionRules with Immutable {
 
                         println(s"Consume prapr: Adding runtime check ${a}")
                         
-                        val runtimeCheckAstNode: ast.Node = (s5.methodCallAstNode, s5.foldOrUnfoldAstNode) match {
-                          case (None, None) => a
-                          case (Some(methodCallAstNode), None) => methodCallAstNode
-                          case (None, Some(foldOrUnfoldAstNode)) => foldOrUnfoldAstNode
-                          case (Some(methodCallAstNode), Some(foldOrUnfoldAstNode)) =>
-                            sys.error(s"Conflicting positions ${methodCallAstNode} and"
-                              + s"${foldOrUnfoldAstNode} found while adding runtime check!")
-                        }
+                        val runtimeCheckAstNode: CheckPosition =
+                          (s5.methodCallAstNode, s5.foldOrUnfoldAstNode, s5.loopPosition) match {
+                            case (None, None, None) => CheckPosition.GenericNode(a)
+                            case (Some(methodCallAstNode), None, None) => CheckPosition.GenericNode(methodCallAstNode)
+                            case (None, Some(foldOrUnfoldAstNode), None) => CheckPosition.GenericNode(foldOrUnfoldAstNode)
+                            case (None, None, Some(loopPosition)) => loopPosition
+                            case _ => sys.error("Conflicting positions found while producing runtime check!")
+                          }
 
                         runtimeChecks.addChecks(runtimeCheckAstNode,
                           a,
@@ -646,14 +647,16 @@ object consumer extends ConsumptionRules with Immutable {
                         // what was this for, again? looking into the != null issue, i think
                         println(s"Consume field apr: Adding runtime check ${a}")
 
-                        val runtimeCheckAstNode: ast.Node = (s5.methodCallAstNode, s5.foldOrUnfoldAstNode) match {
-                          case (None, None) => locacc
-                          case (Some(methodCallAstNode), None) => methodCallAstNode
-                          case (None, Some(foldOrUnfoldAstNode)) => foldOrUnfoldAstNode
-                          case (Some(methodCallAstNode), Some(foldOrUnfoldAstNode)) =>
-                            sys.error(s"Conflicting positions ${methodCallAstNode} and"
-                              + s"${foldOrUnfoldAstNode} found while adding runtime check!")
-                        }
+                        val runtimeCheckAstNode: CheckPosition =
+                          (s5.methodCallAstNode, s5.foldOrUnfoldAstNode, s5.loopPosition) match {
+                            case (None, None, None) => CheckPosition.GenericNode(locacc)
+                            case (Some(methodCallAstNode), None, None) =>
+                              CheckPosition.GenericNode(methodCallAstNode)
+                            case (None, Some(foldOrUnfoldAstNode), None) =>
+                              CheckPosition.GenericNode(foldOrUnfoldAstNode)
+                            case (None, None, Some(loopPosition)) => loopPosition
+                            case _ => sys.error("Conflicting positions!")
+                          }
 
                         runtimeChecks.addChecks(runtimeCheckAstNode,
                           a,
@@ -689,14 +692,15 @@ object consumer extends ConsumptionRules with Immutable {
                       println("Consume field apr assertgv: Adding runtime check "
                         + s"${new Translator(s2, v.decider.pcs).translate(returnedChecks)}")
 
-                      val runtimeCheckAstNode: ast.Node =
-                        (s2.methodCallAstNode, s2.foldOrUnfoldAstNode) match {
-                          case (None, None) => a
-                          case (Some(methodCallAstNode), None) => methodCallAstNode
-                          case (None, Some(foldOrUnfoldAstNode)) => foldOrUnfoldAstNode
-                          case (Some(methodCallAstNode), Some(foldOrUnfoldAstNode)) =>
-                            sys.error(s"Conflicting positions ${methodCallAstNode} and"
-                              + s"${foldOrUnfoldAstNode} found while adding runtime check!")
+                      val runtimeCheckAstNode: CheckPosition =
+                        (s2.methodCallAstNode, s2.foldOrUnfoldAstNode, s2.loopPosition) match {
+                          case (None, None, None) => CheckPosition.GenericNode(a)
+                          case (Some(methodCallAstNode), None, None) =>
+                            CheckPosition.GenericNode(methodCallAstNode)
+                          case (None, Some(foldOrUnfoldAstNode), None) => CheckPosition.GenericNode(foldOrUnfoldAstNode)
+                          case (None, None, Some(loopPosition)) => loopPosition
+                          case _ =>
+                            sys.error("Conflicting positions while looking for position!")
                         }
 
                       runtimeChecks.addChecks(runtimeCheckAstNode,
@@ -803,15 +807,17 @@ object consumer extends ConsumptionRules with Immutable {
         //
         // we want to map the runtime check from the fold or unfold statement,
         // not something in the body of a predicate
-        var runtimeCheckAstNode: ast.Node = (s.methodCallAstNode, s.foldOrUnfoldAstNode) match {
-          case (None, None) => a
-          case (Some(methodCallAstNode), None) => methodCallAstNode
-          case (None, Some(foldOrUnfoldAstNode)) => foldOrUnfoldAstNode
+        var runtimeCheckAstNode: CheckPosition = (s.methodCallAstNode, s.foldOrUnfoldAstNode, s.loopPosition) match {
+          case (None, None, None) => CheckPosition.GenericNode(a)
+          case (Some(methodCallAstNode), None, None) =>
+            CheckPosition.GenericNode(methodCallAstNode)
+          case (None, Some(foldOrUnfoldAstNode), None) => CheckPosition.GenericNode(foldOrUnfoldAstNode)
+          case (None, None, Some(loopPosition)) => loopPosition
 
           // TODO: This should not occur, but it did at one point. Figure out why?
-          case (Some(methodCallAstNode), Some(foldOrUnfoldAstNode)) =>
-            sys.error("Overlapping contexts detected (method call and fold or unfold): "
-              + s"${methodCallAstNode} and ${foldOrUnfoldAstNode}")
+          case _ =>
+            sys.error("Conflicting positions while looking for position! "
+              + s"Position: ${(s.methodCallAstNode, s.foldOrUnfoldAstNode, s.loopPosition)}")
         }
 
         evalAndAssert(s, impr, a, pve, v)((s1, t, v1) => {

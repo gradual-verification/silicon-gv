@@ -34,7 +34,7 @@ trait Decider {
 
   def checkSmoke(): Boolean
 
-  def setCurrentBranchCondition(t: Term, astNode: ast.Node, origin: Option[ast.Node])
+  def setCurrentBranchCondition(t: Term, astNode: ast.Node, origin: Option[CheckPosition])
   def setPathConditionMark(): Mark
 
   def assume(t: Term)
@@ -163,7 +163,7 @@ trait DefaultDeciderProvider extends VerifierComponent { this: Verifier =>
       pathConditions.popScope()
     }
 
-    def setCurrentBranchCondition(t: Term, astNode: ast.Node, origin: Option[ast.Node]) {
+    def setCurrentBranchCondition(t: Term, astNode: ast.Node, origin: Option[CheckPosition]) {
       pathConditions.setCurrentBranchCondition(t, astNode, origin)
       assume(InsertionOrderedSet(Seq(t)))
     }
@@ -190,7 +190,8 @@ trait DefaultDeciderProvider extends VerifierComponent { this: Verifier =>
 
     private def assumeWithoutSmokeChecks(terms: InsertionOrderedSet[Term]) = {
       /* Add terms to Silicon-managed path conditions */
-      terms foreach pathConditions.add
+     println(s"Decider: adding path condition terms ${terms}")
+     terms foreach pathConditions.add
 
       /* Add terms to the prover's assumptions */
       terms foreach prover.assume
