@@ -1,16 +1,8 @@
 package viper.silicon.state
 
 import viper.silicon.Stack
-import viper.silicon.supporters.{NodeHash, NodeEquiv}
 import viper.silver.ast
 import scala.collection.concurrent.{Map, TrieMap}
-
-sealed trait CheckPosition
-
-case object CheckPosition {
-  case class GenericNode(node: ast.Node) extends CheckPosition
-  case class Loop(invariants: Seq[ast.Exp], position: LoopPosition) extends CheckPosition
-}
 
 case class CheckInfo(checks: ast.Exp,
   branchInfo: Stack[(ast.Exp, ast.Node, Option[CheckPosition])],
@@ -28,10 +20,7 @@ object runtimeChecks {
   //
   // a CheckList is a Seq[CheckInfo]
   
-  val nodeHash = new NodeHash[CheckPosition]
-  val nodeEquiv = new NodeEquiv[CheckPosition]
-  
-  private val checks: Map[CheckPosition, CheckList] = new TrieMap[CheckPosition, CheckList](nodeHash, nodeEquiv)
+  private val checks: Map[CheckPosition, CheckList] = new TrieMap[CheckPosition, CheckList]
 
   def addChecks(programPoint: CheckPosition,
     newCheck: ast.Exp,

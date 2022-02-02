@@ -1,19 +1,21 @@
 
 package viper.silicon.supporters
 
+import viper.silver.ast.Node
+
 import scala.util.hashing.Hashing
 
-class NodeHash[T <: Any] extends AnyRef with Hashing[T] {
+class NodeHash[A] extends Hashing[A] {
 
-  def hash(call: T): Int = {
+  def hash(call: A): Int = {
     call.hashCode()
   }
 }
 
-class NodeEquiv[T <: AnyRef] extends AnyRef with Equiv[T] {
+class NodeEquiv[A <: Node] extends Equiv[A] {
 
-  def equiv(call1: T, call2: T): Boolean = {
-    call1 eq call2
+  def equiv(checkPosition1: A, checkPosition2: A): Boolean = {
+    checkPosition1.uniqueIdentifier == checkPosition2.uniqueIdentifier
   }
 }
 
