@@ -143,10 +143,9 @@ object predicateSupporter extends PredicateSupportRules with Immutable {
     } else {
       val ve = pve dueTo InsufficientPermission(pa)
       val description = s"consume ${pa.pos}: $pa"
-      val s2 = stateConsolidator.consolidate(s1, v)
-      chunkSupporter.consume(s2, s2.h, predicate, tArgs, s2.permissionScalingFactor, ve, v, description)((s3, h1, snap1, v1, chunkExisted) => {
+      chunkSupporter.consume(s1, s1.h, true, predicate, tArgs, s1.permissionScalingFactor, ve, v, description)((s3, h1, snap1, v1, chunkExisted) => {
           if (s3.isImprecise) {
-            chunkSupporter.consume(s3, s3.optimisticHeap, predicate, tArgs, s3.permissionScalingFactor, ve, v1, description)((s4, oh1, snap2, v2, _) => {
+            chunkSupporter.consume(s3, s3.optimisticHeap, false, predicate, tArgs, s3.permissionScalingFactor, ve, v1, description)((s4, oh1, snap2, v2, _) => {
               if (chunkExisted) {
                 val s5 = s4.copy(g = gIns, h = h1, optimisticHeap = oh1)
                   .setConstrainable(constrainableWildcards, false)

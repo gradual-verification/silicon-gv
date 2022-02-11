@@ -20,6 +20,7 @@ import viper.silicon.verifier.Verifier
 trait ChunkSupportRules extends SymbolicExecutionRules {
   def consume(s: State,
               h: Heap,
+              consolidate: Boolean,
               resource: ast.Resource,
               args: Seq[Term],
               perms: Term,
@@ -76,6 +77,7 @@ trait ChunkSupportRules extends SymbolicExecutionRules {
 object chunkSupporter extends ChunkSupportRules with Immutable {
   def consume(s: State,
               h: Heap,
+              consolidate: Boolean,
               resource: ast.Resource,
               args: Seq[Term],
               perms: Term,
@@ -85,7 +87,7 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
              (Q: (State, Heap, Term, Verifier, Boolean) => VerificationResult)
              : VerificationResult = {
 
-      consume(s, h, resource, args, perms, ve, v)((s1, h1, optSnap, v1) =>
+      consume(s, h, consolidate, resource, args, perms, ve, v)((s1, h1, optSnap, v1) =>
         optSnap match {
           case Some(snap) =>
             Q(s1, h1, snap.convert(sorts.Snap), v1, true)
@@ -104,6 +106,7 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
 
   private def consume(s: State,
                       h: Heap,
+                      consolidate: Boolean,
                       resource: ast.Resource,
                       args: Seq[Term],
                       perms: Term,
@@ -113,8 +116,9 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
                      : VerificationResult = {
 
     val id = ChunkIdentifier(resource, Verifier.program)
-
-    val s1 = stateConsolidator.consolidate(s.copy(h = h), v)
+    var s1 = s;
+    if (consolidate)
+      s1 = stateConsolidator.consolidate(s.copy(h = h), v)
     consumeGreedy(s1, s1.h, id, args, perms, v) match {
       case (Complete(), s2, h2, optCh2) =>
         Q(s2.copy(h = s.h), h2, optCh2.map(_.snap), v)
