@@ -114,12 +114,10 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
                       v: Verifier)
                      (Q: (State, Heap, Option[Term], Verifier) => VerificationResult)
                      : VerificationResult = {
-
-    val id = ChunkIdentifier(resource, Verifier.program)
     var s1 = s;
     if (consolidate)
       s1 = stateConsolidator.consolidate(s.copy(h = h), v)
-    consumeGreedy(s1, s1.h, id, args, perms, v) match {
+    consumeGreedy(s1, s1.h, resource, args, perms, v) match {
       case (Complete(), s2, h2, optCh2) =>
         Q(s2.copy(h = s.h), h2, optCh2.map(_.snap), v)
 
@@ -135,40 +133,71 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
 
   private def consumeGreedy(s: State,
                             h: Heap,
-                            id: ChunkIdentifer,
+                            resource: ast.Resource,
                             args: Seq[Term],
                             perms: Term,
                             v: Verifier) = {
 
-/* the foldl portion of heap-rem
- * builds a new heap of chunks that definitely do not
- * contain the info to remove
- */
-    var newH: Heap = h.values.foldLeft(Heap()) { (currHeap, chunk) =>
-      chunk match {
-        case c: NonQuantifiedChunk =>
+    val id = ChunkIdentifier(resource, Verifier.program)
 
-            // The term in checkgv uses infix notation I got from a different check to see if the args are equal
-          if ((id != c.id) || (!v.decider.checkgv(s.isImprecise, And(c.args zip args map (x => x._1 === x._2)), Some(Verifier.config.checkTimeout())))){
+    resource match {
+      case f: ast.Field => {
+        /* heap-rem-acc */
+        /* the foldl portion of heap-rem-acc
+         * builds a new heap of chunks that definitely do not
+         * contain the acc pred to remove
+        */
+        var newH: Heap = h.values.foldLeft(Heap()) { (currHeap, chunk) =>
+          chunk match {
+            case c: NonQuantifiedChunk =>
+
+              // The term in checkgv uses infix notation I got from a different check to see if the args are equal
+              if ((id != c.id) || (!v.decider.checkgv(s.isImprecise, And(c.args zip args map (x => x._1 === x._2)), Some(Verifier.config.checkTimeout())))){
                 currHeap + c
+              }
+              else {
+                currHeap
+              }
+            case _ =>
+              currHeap
           }
-          else {
-            currHeap
+        }
+
+        // tries to find the chunk in h
+        findChunk[NonQuantifiedChunk](h.values, id, args, v) match {
+          // I'm not sure if I need these checks but I included them to be safe - J
+          case Some(ch) if v.decider.check(ch.perm === perms, Verifier.config.checkTimeout()) && v.decider.check(perms === FullPerm(), Verifier.config.checkTimeout()) =>
+            (Complete(), s, newH, Some(ch))
+
+          case _ => {
+            var newH2: Heap = newH.values.foldLeft(Heap()) { (currHeap, chunk) =>
+              chunk match {
+                case c: NonQuantifiedChunk =>
+                  c.resourceID match {
+                    case fieldID =>
+                      currHeap + c
+                    case _ =>
+                      currHeap
+                  }
+                case _ =>
+                  currHeap
+              }
+            }
+            (Incomplete(perms), s, newH2, None)
           }
-        case _ =>
-          currHeap
+        }
       }
-    }
 
-    // tries to find the chunk in h
-    findChunk[NonQuantifiedChunk](h.values, id, args, v) match {
-
-      // I'm not sure if I need these checks but I included them to be safe - J
-      case Some(ch) if v.decider.check(ch.perm === perms, Verifier.config.checkTimeout()) && v.decider.check(perms === FullPerm(), Verifier.config.checkTimeout()) =>
-          (Complete(), s, newH, Some(ch))
-
-      case _ =>
-        (Incomplete(perms), s, newH, None)
+      case p: ast.Predicate => {
+        /* heap-rem-pred */
+        findChunk[NonQuantifiedChunk](h.values, id, args, v) match {
+          case Some(ch) if v.decider.check(ch.perm === perms, Verifier.config.checkTimeout()) && v.decider.check(perms === FullPerm(), Verifier.config.checkTimeout()) =>
+            var newH = h - ch
+            (Complete(), s, newH, Some(ch))
+          case _ =>
+            (Incomplete(perms), s, Heap(), None)
+        }
+      }
     }
   }
 
