@@ -271,7 +271,11 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
                 runtimeChecks.addChecks(runtimeCheckAstNode,
                   ast.FieldAccessPredicate(runtimeCheckFieldTarget, ast.FullPerm()())(),
                   utils.zip3(v.decider.pcs.branchConditions.map(branch =>
-                      new Translator(s2, v.decider.pcs).translate(branch)),
+                      (new Translator(s2, v.decider.pcs).translate(branch)) match {
+                        case None =>
+                          sys.error("Could not translate term into Viper expression for check!")
+                        case Some(expr) => expr
+                      }),
                     v.decider.pcs.branchConditionsAstNodes,
                     v.decider.pcs.branchConditionsOrigins),
                     runtimeCheckFieldTarget,
@@ -313,7 +317,11 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
                   runtimeChecks.addChecks(runtimeCheckAstNode,
                     ast.FieldAccessPredicate(runtimeCheckFieldTarget, ast.FullPerm()())(),
                     utils.zip3(v.decider.pcs.branchConditions.map(branch =>
-                        new Translator(s, v.decider.pcs).translate(branch)),
+                        (new Translator(s, v.decider.pcs).translate(branch)) match {
+                          case None =>
+                            sys.error("Could not translate term into Viper expression for check!")
+                          case Some(expr) => expr
+                        }),
                       v.decider.pcs.branchConditionsAstNodes,
                       v.decider.pcs.branchConditionsOrigins),
                       runtimeCheckFieldTarget,

@@ -577,7 +577,10 @@ object consumer extends ConsumptionRules with Immutable {
                         runtimeChecks.addChecks(runtimeCheckAstNode,
                           a,
                           utils.zip3(v4.decider.pcs.branchConditions.map(branch =>
-                              new Translator(s5, v4.decider.pcs).translate(branch)),
+                              (new Translator(s5, v4.decider.pcs).translate(branch)) match {
+                                case None => sys.error("Could not translate term into Viper expression! Exiting safely.")
+                                case Some(expr) => expr
+                              }),
                            v4.decider.pcs.branchConditionsAstNodes,
                            v.decider.pcs.branchConditionsOrigins),
                            a,
@@ -661,7 +664,10 @@ object consumer extends ConsumptionRules with Immutable {
                         runtimeChecks.addChecks(runtimeCheckAstNode,
                           a,
                           utils.zip3(v4.decider.pcs.branchConditions.map(branch =>
-                              new Translator(s5, v4.decider.pcs).translate(branch)),
+                              (new Translator(s5, v4.decider.pcs).translate(branch)) match {
+                                case None => sys.error("Error translating! Exiting safely.")
+                                case Some(expr) => expr
+                              }),
                             v4.decider.pcs.branchConditionsAstNodes,
                             v.decider.pcs.branchConditionsOrigins),
                             a,
@@ -689,8 +695,8 @@ object consumer extends ConsumptionRules with Immutable {
                     case None => ()
                     case Some(returnedChecks) =>
                       // should use v2.decider.pcs here?
-                      println("Consume field apr assertgv: Adding runtime check "
-                        + s"${new Translator(s2, v.decider.pcs).translate(returnedChecks)}")
+                      println("Consume field apr assertgv: Adding runtime check " +
+                        s"${new Translator(s2, v.decider.pcs).translate(returnedChecks)}")
 
                       val runtimeCheckAstNode: CheckPosition =
                         (s2.methodCallAstNode, s2.foldOrUnfoldAstNode, s2.loopPosition) match {
@@ -704,9 +710,15 @@ object consumer extends ConsumptionRules with Immutable {
                         }
 
                       runtimeChecks.addChecks(runtimeCheckAstNode,
-                        new Translator(s2, v.decider.pcs).translate(returnedChecks),
+                        (new Translator(s2, v.decider.pcs).translate(returnedChecks) match {
+                          case None => sys.error("Error translating! Exiting safely.")
+                          case Some(expr) => expr
+                        }),
                         utils.zip3(v2.decider.pcs.branchConditions.map(branch =>
-                            new Translator(s2, v2.decider.pcs).translate(branch)),
+                            (new Translator(s2, v2.decider.pcs).translate(branch)) match {
+                              case None => sys.error("Error translating! Exiting safely.")
+                              case Some(expr) => expr
+                            }),
                           v2.decider.pcs.branchConditionsAstNodes,
                           v.decider.pcs.branchConditionsOrigins),
                           a,
@@ -843,9 +855,15 @@ object consumer extends ConsumptionRules with Immutable {
                 println(s"Consume expression: Adding runtime check ${new Translator(s1, pcs).translate(returnedChecks)}")
 
                 runtimeChecks.addChecks(runtimeCheckAstNode,
-                  new Translator(s1, pcs).translate(returnedChecks),
+                  (new Translator(s1, pcs).translate(returnedChecks) match {
+                    case None => sys.error("Error translating! Exiting safely.")
+                    case Some(expr) => expr
+                  }),
                   utils.zip3(v.decider.pcs.branchConditions.map(branch =>
-                      new Translator(s1, pcs).translate(branch)),
+                      (new Translator(s1, pcs).translate(branch)) match {
+                        case None => sys.error("Error translating! Exiting safely.")
+                        case Some(expr) => expr
+                      }),
                     v.decider.pcs.branchConditionsAstNodes,
                     v.decider.pcs.branchConditionsOrigins),
                     a,

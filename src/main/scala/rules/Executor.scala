@@ -90,8 +90,10 @@ object executor extends ExecutionRules with Immutable {
 
     // TODO: ASK JENNA where the loop location needs to be available here
     // we continue after the loop here
+    // conditional edge: follow came from a loop
     edge match {
       case ce: cfg.ConditionalEdge[ast.Stmt, ast.Exp] =>
+        // condition being negated here
         eval(s1, ce.condition, IfFailed(ce.condition), v)((s2, tCond, v1) => {
           /* Using branch(...) here ensures that the edge condition is recorded
            * as a branch condition on the pathcondition stack.
@@ -102,7 +104,7 @@ object executor extends ExecutionRules with Immutable {
           println("Potential location after loop unset")
 
           // The loop location should be set for this branch, maybe
-          brancher.branch(s2point5, tCond, ce.condition, None, v1)(
+          brancher.branch(s2point5, tCond, ce.condition, s1.loopPosition, v1)(
             (s3, v3) => exec(s3, ce.target, ce.kind, v3)(Q),
             (_, _)  => Success())})
 

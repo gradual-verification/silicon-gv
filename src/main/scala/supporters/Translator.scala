@@ -2,6 +2,7 @@ package viper.silicon.supporters
 
 import viper.silver.ast
 import viper.silicon.decider.RecordedPathConditions
+import viper.silicon.interfaces.state.Chunk
 import viper.silicon.state.{terms, State, Store, BasicChunk}
 import viper.silicon.resources.{FieldID, PredicateID}
 
@@ -9,42 +10,100 @@ import viper.silicon.resources.{FieldID, PredicateID}
 final class Translator(s: State, pcs: RecordedPathConditions) {
   
   // this is, to some extent, a stub method currently
-  def translate(t: terms.Term): ast.Exp = {
+  def translate(t: terms.Term): Option[ast.Exp] = {
     t match {
-      case terms.Null() => ast.NullLit()()
-      case terms.False() => ast.FalseLit()()
-      case terms.True() => ast.TrueLit()()
-      case terms.IntLiteral(i) => ast.IntLit(i)()
-      case terms.Plus(t0, t1) => ast.Add(translate(t0), translate(t1))()
-      case terms.Minus(t0, t1) => ast.Sub(translate(t0), translate(t1))()
-      case terms.Div(t0, t1) => ast.Div(translate(t0), translate(t1))()
-      case terms.Times(t0, t1) => ast.Mul(translate(t0), translate(t1))()
-      case terms.Mod(t0, t1) => ast.Mod(translate(t0), translate(t1))()
-      case terms.Not(t) => ast.Not(translate(t))()
+      case terms.Null() => Some(ast.NullLit()())
+      case terms.False() => Some(ast.FalseLit()())
+      case terms.True() => Some(ast.TrueLit()())
+      case terms.IntLiteral(i) => Some(ast.IntLit(i)())
+      case terms.Plus(t0, t1) => (translate(t0), translate(t1)) match {
+        case (Some(e1), Some(e2)) => Some(ast.Add(e1, e2)())
+        case _ => None
+      }
+      case terms.Minus(t0, t1) => (translate(t0), translate(t1)) match {
+        case (Some(e1), Some(e2)) => Some(ast.Sub(e1, e2)())
+        case _ => None
+      }
+      case terms.Div(t0, t1) => (translate(t0), translate(t1)) match {
+        case (Some(e1), Some(e2)) => Some(ast.Div(e1, e2)())
+        case _ => None
+      }
+      case terms.Times(t0, t1) => (translate(t0), translate(t1)) match {
+        case (Some(e1), Some(e2)) => Some(ast.Mul(e1, e2)())
+        case _ => None
+      }
+      case terms.Mod(t0, t1) => (translate(t0), translate(t1)) match {
+        case (Some(e1), Some(e2)) => Some(ast.Mod(e1, e2)())
+        case _ => None
+      }
+      case terms.Not(t) => (translate(t)) match {
+        case Some(e) => Some(ast.Not(e)())
+        case _ => None
+      }
       // exhaustiveness warnings are suppressed by the following four cases; do
       // these employ match guards via the seq matching?
       case terms.Or(ts) =>
         ts match {
-          case t +: Seq() => ast.Or(translate(t), ast.FalseLit()())()
-          case t +: vs => ast.Or(translate(t), translate(terms.Or(vs)))()
+          case t +: Seq() => translate(t) match {
+            case None => None
+            case Some(e) => Some(ast.Or(e, ast.FalseLit()())())
+          }
+          case t +: vs => (translate(t), translate(terms.Or(vs))) match {
+            case (Some(e1), Some(e2)) => Some(ast.Or(e1, e2)())
+            case _ => None
+          }
         }
       case terms.And(ts) =>
         ts match {
-          case t +: Seq() => ast.And(translate(t), ast.TrueLit()())()
-          case t +: vs => ast.And(translate(t), translate(terms.And(vs)))()
+          case t +: Seq() => translate(t) match {
+            case None => None
+            case Some(e) => Some(ast.And(e, ast.TrueLit()())())
+          }
+          case t +: vs => (translate(t), translate(terms.And(vs))) match {
+            case (Some(e1), Some(e2)) => Some(ast.And(e1, e2)())
+            case _ => None
+          }
         }
-      case terms.Implies(t0, t1) => ast.Implies(translate(t0), translate(t1))()
-      case terms.Iff(t0, t1) => ast.And(ast.Implies(translate(t1), translate(t0))(),
-        ast.Implies(translate(t0), translate(t1))())()
-      case terms.Equals(t0, t1) => ast.EqCmp(translate(t0), translate(t1))()
-      case terms.Less(t0, t1) => ast.LtCmp(translate(t0), translate(t1))()
-      case terms.AtMost(t0, t1) => ast.LeCmp(translate(t0), translate(t1))()
-      case terms.AtLeast(t0, t1) => ast.GeCmp(translate(t0), translate(t1))()
-      case terms.Greater(t0, t1) => ast.GtCmp(translate(t0), translate(t1))()
-      case terms.Ite(t0, t1, t2) => ast.CondExp(translate(t0), translate(t1), translate(t2))()
+      case terms.Implies(t0, t1) => (translate(t0), translate(t1)) match {
+        case (Some(e1), Some(e2)) => Some(ast.Implies(e1, e2)())
+        case _ => None
+      }
+      case terms.Iff(t0, t1) => (translate(t0), translate(t1)) match {
+        case (Some(e1), Some(e2)) =>
+          Some(ast.And(ast.Implies(e1, e2)(), ast.Implies(e2, e1)())())
+        case _ => None
+      }
+      case terms.Equals(t0, t1) => (translate(t0), translate(t1)) match {
+        case (Some(e1), Some(e2)) => Some(ast.EqCmp(e1, e2)())
+        case _ => None
+      }
+      case terms.Less(t0, t1) => (translate(t0), translate(t1)) match {
+        case (Some(e1), Some(e2)) => Some(ast.LtCmp(e1, e2)())
+        case _ => None
+      }
+      case terms.AtMost(t0, t1) => (translate(t0), translate(t1)) match {
+        case (Some(e1), Some(e2)) => Some(ast.LeCmp(e1, e2)())
+        case _ => None
+      }
+      case terms.AtLeast(t0, t1) => (translate(t0), translate(t1)) match {
+        case (Some(e1), Some(e2)) => Some(ast.GeCmp(e1, e2)())
+        case _ => None
+      }
+      case terms.Greater(t0, t1) => (translate(t0), translate(t1)) match {
+        case (Some(e1), Some(e2)) => Some(ast.GtCmp(e1, e2)())
+        case _ => None
+      }
+      case terms.Ite(t0, t1, t2) => (translate(t0), translate(t1), translate(t2)) match {
+        case (Some(e1), Some(e2), Some(e3)) => Some(ast.CondExp(e1, e2, e3)())
+        case _ => None
+      }
       case terms.Var(name, sort) =>
         sort match {
-          case terms.sorts.Snap => ast.LocalVar("snapvar", ast.Int)()
+          case terms.sorts.Snap => {
+            println("WARNING: We encountered a snapshot variable, but this should not"
+              + "happen! Returning None")
+            None
+          }
           case _ => variableResolver(terms.Var(name, sort))
         }
       case terms.SortWrapper(t, sort) => variableResolver(terms.SortWrapper(t, sort))
@@ -58,10 +117,10 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
       // these cases only exist to prevent the translator from crashing during
       // testing; the translator is tested on the path condition, which
       // includes snapshot terms
-      case terms.Unit => ast.LocalVar("snapvar", ast.Int)()
-      case terms.First(_) => ast.LocalVar("snapvar", ast.Int)()
-      case terms.Second(_) => ast.LocalVar("snapvar", ast.Int)()
-      case terms.Combine(t0, t1) => ast.LocalVar("snapvar", ast.Int)()
+      case terms.Unit => None
+      case terms.First(_) => None
+      case terms.Second(_) => None
+      case terms.Combine(t0, t1) => None
       // }
       case _ => sys.error("match error in translate!")
     }
@@ -79,28 +138,21 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
 
   // TODO: make this return an Option[ast.Exp]; emit a warning in getAllAccessibilityPredicates,
   // and an error elsewhere...?
-  private def variableResolver(variable: terms.Term): ast.Exp = {
+  private def variableResolver(variable: terms.Term): Option[ast.Exp] = {
 
     variableResolverHelper(variable) match {
 
-      case Some(astVariable) => astVariable
+      case Some(astVariable) => Some(astVariable)
 
       case None => {
         
-        val pcsEquivalentVariables: Seq[terms.Term] = pcs.getEquivalentVariables(variable) match {
-          case Seq() => sys.error("Could not find an equivalent variable in the "
-            + s"path condition for the variable ${variable}!");
-          case equivalentVariables => equivalentVariables
-        }
+        val pcsEquivalentVariables: Seq[terms.Term] = pcs.getEquivalentVariables(variable)
 
-        pcsEquivalentVariables.foldRight[Option[ast.Exp]](None)((term, resolvedVariable) =>
-            resolvedVariable match {
-              case Some(_) => resolvedVariable
+        pcsEquivalentVariables.foldRight[Option[ast.Exp]](None)((term, potentialResolvedVariable) =>
+            potentialResolvedVariable match {
+              case Some(_) => potentialResolvedVariable
               case None => variableResolverHelper(term)
-            }) match {
-              case Some(resolvedVariable) => resolvedVariable
-              case None => sys.error(s"Could not resolve variable ${variable}")
-            }
+            })
       }
     }
   }
@@ -148,7 +200,7 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
     }
   }
 
-  def getAccessibilityPredicates: Iterable[ast.Exp] = {
+  def getAccessibilityPredicates: Seq[ast.Exp] = {
 
     (s.h.values ++ s.optimisticHeap.values).map(chunk => chunk match {
       case BasicChunk(resourceId, id, args, snap, perm) => resourceId match {
@@ -168,19 +220,43 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
 
           val varType = resolveType(args.head)
 
-          val astVar = s.g.getKeyForValue(args.head) match {
-            case None => sys.error(s"Could not resolve symbolic variable ${args.head}!")
-            case Some(astVar) => astVar
+          val potentialAstVar = s.g.getKeyForValue(args.head) match {
+            case None => {
+              println(s"Warning: unable to translate ${args.head}")
+              None
+            }
+            case Some(astVar) => Some(astVar)
           }
 
-          ast.FieldAccess(astVar, ast.Field(id.toString, varType)())()
+          potentialAstVar match {
+            case None => None
+            case Some(astVar) => Some(ast.FieldAccess(astVar, ast.Field(id.toString, varType)())())
+          }
         }
 
         case PredicateID => {
-          
-          ast.PredicateAccess(args.map(predicateArg => translate(predicateArg)), id.toString)()
+
+          val predicateArgs: Option[Seq[ast.Exp]] =
+            args.foldRight[Option[Seq[ast.Exp]]](Some(Seq[ast.Exp]()))((term, rest) => {
+              (translate(term), rest) match {
+                case (_, None) => None
+                case (Some(exp), Some(exprs)) => Some(exp +: exprs)
+                case (None, _) => None
+            }})
+
+          predicateArgs match {
+            case None => {
+              println(s"Warning: unable to translate predicate ${chunk}")
+              None
+            }
+            case Some(exprs) => Some(ast.PredicateAccess(exprs, id.toString)())
+          }
         }
       }
-    })
-  }
+      // Remove the parts of the heap we were unable to translate
+    }).foldRight(Seq[ast.Exp]())((potentialPredicate: Option[ast.Exp], rest: Seq[ast.Exp]) =>
+  potentialPredicate match {
+    case None => rest
+    case Some(predicate) => predicate +: rest
+  })}
 }
