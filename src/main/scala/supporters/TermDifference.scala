@@ -199,7 +199,7 @@ object TermDifference {
 
   // we'll need to add profiling here; every time a conjunct is eliminated, we
   // should record (or take note of) it
-  def termDifference(solver: Decider, symbolicValue: terms.Term): terms.Term = {
+  def termDifference(solver: Decider, symbolicValue: terms.Term, asserting: Boolean = false): terms.Term = {
 
     val timeout = Verifier.config.checkTimeout.toOption match {
       case None => 1000
@@ -210,7 +210,11 @@ object TermDifference {
     reduceConjuncts(
       expandConjuncts(symbolicValue).foldRight(Seq[terms.Term]())((term, terms) => {
       if (solver.check(term, timeout)) {
-        profilingInfo.incrementEliminatedConjuncts
+
+        if (asserting) {
+          profilingInfo.incrementEliminatedConjuncts
+        }
+
         terms
       } else {
         term +: terms

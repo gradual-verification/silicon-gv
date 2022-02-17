@@ -43,7 +43,7 @@ trait Decider {
 
   //Check to make sure Prover.scala doesn't need to be changed
   def check(t: Term, timeout: Int): Boolean
-  def checkgv(isImprecise: Boolean, t: Term, timeout: Option[Int]): (Boolean, Option[Term])
+  def checkgv(isImprecise: Boolean, t: Term, timeout: Option[Int], asserting: Boolean = false): (Boolean, Option[Term])
 
   /* TODO: Consider changing assert such that
    *         1. It passes State and Operations to the continuation
@@ -206,17 +206,30 @@ trait DefaultDeciderProvider extends VerifierComponent { this: Verifier =>
     def check(t: Term, timeout: Int) = deciderAssert(t, Some(timeout))
 
     // we need profiling information here
-    def checkgv(isImprecise: Boolean, t: Term, timeout: Option[Int]) = {
+    def checkgv(isImprecise: Boolean, t: Term, timeout: Option[Int], asserting: Boolean = false) = {
 
-      profilingInfo.incrementTotalConjuncts(t.topLevelConjuncts.length)
+      if (asserting) {
+        profilingInfo.incrementTotalConjuncts(t.topLevelConjuncts.length)
+      }
 
       if (deciderAssert(t, timeout)) {
-        profilingInfo.incrementEliminatedConjuncts(t.topLevelConjuncts.length)
+
+        if (asserting) {
+          profilingInfo.incrementEliminatedConjuncts(t.topLevelConjuncts.length)
+        }
+
         (true, None)
+
       } else if(isImprecise && !(deciderAssert(Not(t), timeout))) { //Make sure this part is correct
-        (true, Some(TermDifference.termDifference(this, t)))
+
+        (true, Some(TermDifference.termDifference(this, t, asserting)))
+
       } else {
-        profilingInfo.incrementEliminatedConjuncts(t.topLevelConjuncts.length)
+
+        if (asserting) {
+          profilingInfo.incrementEliminatedConjuncts(t.topLevelConjuncts.length)
+        }
+
         (false, None)
       }
     }
@@ -243,7 +256,7 @@ trait DefaultDeciderProvider extends VerifierComponent { this: Verifier =>
               (Q: Boolean => VerificationResult)
               : (VerificationResult, Option[Term]) = {
 
-      val checkResult = checkgv(isImprecise, t, timeout)
+      val checkResult = checkgv(isImprecise, t, timeout, true)
 
       val success = checkResult match {
         case (status, runtimeCheck) => status
