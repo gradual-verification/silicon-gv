@@ -163,20 +163,18 @@ object predicateSupporter extends PredicateSupportRules with Immutable {
     } else {
       val ve = pve dueTo InsufficientPermission(pa)
       val description = s"consume ${pa.pos}: $pa"
-      val s2 = stateConsolidator.consolidate(s1, v)
 
-      println(s"Setting unfold AST node in state: ${origin}")
-      val s3 = s2.copy(foldOrUnfoldAstNode = origin)
+      val s3 = s1.copy(foldOrUnfoldAstNode = origin)
 
       // we attempt to consume the predicate from the heap
-      chunkSupporter.consume(s3, s3.h, predicate, tArgs, s3.permissionScalingFactor, ve, v, description)((s4, h1, snap1, v1, status) => {
+      chunkSupporter.consume(s3, s3.h, true, predicate, tArgs, s3.permissionScalingFactor, ve, v, description)((s4, h1, snap1, v1, chunkExisted) => {
           
           profilingInfo.incrementTotalConjuncts
 
           if (s4.isImprecise) {
             // and then we attempt to consume it from the optimistic heap
-            chunkSupporter.consume(s4, s4.optimisticHeap, predicate, tArgs, s4.permissionScalingFactor, ve, v1, description)((s5, oh1, snap2, v2, status1) => {
-              if (!status && !status1) {
+            chunkSupporter.consume(s4, s4.optimisticHeap, false, predicate, tArgs, s4.permissionScalingFactor, ve, v1, description)((s5, oh1, snap2, v2, chunkExisted1) => {
+              if (!chunkExisted && chunkExisted1) {
 
                 val runtimeCheckAstNode =
                   (s5.methodCallAstNode, s5.foldOrUnfoldAstNode, s5.loopPosition) match {
@@ -203,7 +201,7 @@ object predicateSupporter extends PredicateSupportRules with Immutable {
                     true)
                 pa.addCheck(ast.PredicateAccessPredicate(pa, ast.FullPerm()())())
               }
-              if (status) {
+              if (chunkExisted) {
 
                 profilingInfo.incrementEliminatedConjuncts
 
@@ -240,7 +238,7 @@ object predicateSupporter extends PredicateSupportRules with Immutable {
                 })
               }
             })
-          } else if (status) {
+          } else if (chunkExisted) {
 
             profilingInfo.incrementEliminatedConjuncts
 

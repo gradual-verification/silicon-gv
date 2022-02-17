@@ -215,10 +215,9 @@ object consumer extends ConsumptionRules with Immutable {
      * consume.
      */
     val sInit = s.copy(h = h)
-//    executionFlowController.tryOrFail3[Heap, Heap, Term](sInit, v)((s0, v1, QS) => {
     val s0 = stateConsolidator.consolidate(sInit, v)
-    val h0 = s0.h /* h0 is h, but potentially consolidated */
-    val s1 = s0.copy(h = s.h) /* s1 is s, but the retrying flag might be set */
+    val h0 = s0.h /* h0 is h, but consolidated */
+    val s1 = s0.copy(h = s.h)
 
     /* TODO: To remove this cast: Add a type argument to the ConsumeRecord.
      *       Globally the types match, but locally the type system does not know.
@@ -227,7 +226,6 @@ object consumer extends ConsumptionRules with Immutable {
     consumeTlc(s1, impr, oh, h0, a, pve, v)((s2, oh2, h2, snap2, v1) => {
       SymbExLogger.currentLog().collapse(a, SEP_identifier)
       Q(s2, oh2, h2, snap2, v1)})
-  //  })(Q)
   }
 
   private def consumeTlc(s: State, impr: Boolean, oh: Heap, h: Heap, a: ast.Exp, pve: PartialVerificationError, v: Verifier)
@@ -552,18 +550,14 @@ object consumer extends ConsumptionRules with Immutable {
                 val description = s"consume ${a.pos}: $a"
                 var s3 = s2.copy(isImprecise = s.isImprecise)
 
-                // should we format the program like this?
-                chunkSupporter.consume(s3, h, resource, tArgs, loss, ve, v2, description)((s4, h1, snap1, v3, status) => {
+                chunkSupporter.consume(s3, h, true, resource, tArgs, loss, ve, v2, description)((s4, h1, snap1, v3, chunkExisted) => {
 
                   profilingInfo.incrementTotalConjuncts
 
                   if (s4.isImprecise) {
-
-                    chunkSupporter.consume(s4, oh, resource, tArgs, loss, ve, v3, description)((s5, oh1, snap2, v4, status1) => {
-
-                      if (!status && !status1) {
-
-                        println(s"Consume prapr: Adding runtime check ${a}")
+                    chunkSupporter.consume(s4, oh, false, resource, tArgs, loss, ve, v3, description)((s5, oh1, snap2, v4, chunkExisted1) => {
+                      
+                      if (!chunkExisted && !chunkExisted1) {
                         
                         val runtimeCheckAstNode: CheckPosition =
                           (s5.methodCallAstNode, s5.foldOrUnfoldAstNode, s5.loopPosition) match {
@@ -585,29 +579,27 @@ object consumer extends ConsumptionRules with Immutable {
                            v.decider.pcs.branchConditionsOrigins),
                            a,
                            true)
-
                       }
 
-                      if (status) {
+                      if (chunkExisted) {
+                        
+                        profilingInfo.incrementEliminatedConjuncts
+
+                        Q(s5, oh1, h1, snap1, v4)}
+
+                      else {
 
                         profilingInfo.incrementEliminatedConjuncts
 
-                        Q(s5, oh1, h1, snap1, v4)
+                        Q(s5, oh1, h1, snap2, v4)}})}
 
-                      } else {
-
-                        profilingInfo.incrementEliminatedConjuncts
-
-                        Q(s5, oh1, h1, snap2, v4)
-
-                      }})
-
-                  } else if (status) {
+                  else if (chunkExisted) {
 
                     profilingInfo.incrementEliminatedConjuncts
-                    Q(s4, oh, h1, snap1, v3)
 
-                  } else {
+                    Q(s4, oh, h1, snap1, v3)}
+
+                  else {
 
                     createFailure(pve dueTo InsufficientPermission(locacc), v3, s4)}})
 
@@ -638,17 +630,15 @@ object consumer extends ConsumptionRules with Immutable {
                 val description = s"consume ${a.pos}: $a"
                 var s3 = s2.copy(isImprecise = s.isImprecise)
 
-                chunkSupporter.consume(s3, h, resource, tArgs, loss, ve, v2, description)((s4, h1, snap1, v3, status) => {
+                chunkSupporter.consume(s3, h, true, resource, tArgs, loss, ve, v2, description)((s4, h1, snap1, v3, chunkExisted) => {
 
                   profilingInfo.incrementTotalConjuncts
 
                   // don't know if this should be s3 or s4 - J
                   if (s4.isImprecise) {
-                    chunkSupporter.consume(s4, oh, resource, tArgs, loss, ve, v3, description)((s5, oh1, snap2, v4, status1) => {
-                      if (!status && !status1) {
-
-                        // what was this for, again? looking into the != null issue, i think
-                        println(s"Consume field apr: Adding runtime check ${a}")
+                    chunkSupporter.consume(s4, oh, false, resource, tArgs, loss, ve, v3, description)((s5, oh1, snap2, v4, chunkExisted1) => {
+                      
+                      if (!chunkExisted && !chunkExisted1) {
 
                         val runtimeCheckAstNode: CheckPosition =
                           (s5.methodCallAstNode, s5.foldOrUnfoldAstNode, s5.loopPosition) match {
@@ -673,13 +663,15 @@ object consumer extends ConsumptionRules with Immutable {
                             a,
                             true)
                       }
-                      if (status) {
+
+                      if (chunkExisted) {
+
                         profilingInfo.incrementEliminatedConjuncts
                         Q(s5, oh1, h1, snap1, v4)}
                       else {
                         profilingInfo.incrementEliminatedConjuncts
                         Q(s5, oh1, h1, snap2, v4)}})}
-                  else if (status) {
+                  else if (chunkExisted) {
                     profilingInfo.incrementEliminatedConjuncts
                     Q(s4, oh, h1, snap1, v3)}
                   else {
