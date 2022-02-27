@@ -43,6 +43,7 @@ trait ExecutionRules extends SymbolicExecutionRules {
 }
 
 object executor extends ExecutionRules with Immutable {
+
   import consumer._
   import evaluator._
   import producer._
@@ -50,7 +51,7 @@ object executor extends ExecutionRules with Immutable {
 
   private def follow(s: State, originatingBlock: SilverBlock, edge: SilverEdge, v: Verifier)
                     (Q: (State, Verifier) => VerificationResult)
-                    : VerificationResult = {
+  : VerificationResult = {
 
     // state after loop is created here?
     val s1 = edge.kind match {
@@ -95,6 +96,10 @@ object executor extends ExecutionRules with Immutable {
       case ce: cfg.ConditionalEdge[ast.Stmt, ast.Exp] =>
         // condition being negated here
         eval(s1, ce.condition, IfFailed(ce.condition), v)((s2, tCond, v1) => {
+        /* Eval here likely results in the creation of two run-time checks for the same field when framing loop conditions:
+         * one in this eval + one in the eval in the loop block IN-edge case, both located before the loop.
+         * It will also create one for framing !e after loop, which is correct and should be kept. - JW
+         */
           /* Using branch(...) here ensures that the edge condition is recorded
            * as a branch condition on the pathcondition stack.
            */
@@ -106,7 +111,8 @@ object executor extends ExecutionRules with Immutable {
           // The loop location should be set for this branch, maybe
           brancher.branch(s2point5, tCond, ce.condition, s1.loopPosition, v1)(
             (s3, v3) => exec(s3, ce.target, ce.kind, v3)(Q),
-            (_, _)  => Success())})
+            (_, _) => Unreachable())
+        })
 
       // TODO: Should we be tracking loop positions here, too?
       case ue: cfg.UnconditionalEdge[ast.Stmt, ast.Exp] =>
@@ -123,15 +129,100 @@ object executor extends ExecutionRules with Immutable {
                       pvef: ast.Exp => PartialVerificationError,
                       v: Verifier)
                      (Q: (State, Verifier) => VerificationResult)
-                     : VerificationResult = {
+  : VerificationResult = {
 
     if (edges.isEmpty) {
       Q(s, v)
-    } else
-      edges.foldLeft(Success(): VerificationResult) {
-        case (fatalResult: FatalResult, _) => fatalResult
-        case (_, edge) => follow(s, originatingBlock, edge, v)(Q)
+    } else {
+      if (s.isImprecise) {
+        val rsTuple =
+        edges.foldLeft((Unreachable(): VerificationResult, edges.head: SilverEdge)) { (rs, edge) =>
+          val rsEdge = follow(s, originatingBlock, edge, v)(Q)
+          rs match {
+            case (Success(), prevEdge) => {
+              rsEdge match {
+                case Success() | Unreachable() => (Success(), edge)
+                case Failure(m) => {
+                  edge match {
+                    case ce: cfg.ConditionalEdge[ast.Stmt, ast.Exp] => {
+                      edge.kind match {
+                        case cfg.Kind.Out => (Failure(m), edge)
+                        case _ => {
+                          /* run-time check */
+                          val position: ast.Exp =
+                            prevEdge.asInstanceOf[cfg.ConditionalEdge[ast.Stmt, ast.Exp]].condition match {
+                              case ast.Not(e: ast.Exp) => e
+                              case e: ast.Exp => e
+                            }
+                          runtimeChecks.addChecks(CheckPosition.GenericNode(position),
+                            prevEdge.asInstanceOf[cfg.ConditionalEdge[ast.Stmt, ast.Exp]].condition,
+                            viper.silicon.utils.zip3(v.decider.pcs.branchConditions.map(branch =>
+                              (new Translator(s, v.decider.pcs).translate(branch)) match {
+                                case None => sys.error("Error translating! Exiting safely.")
+                                case Some(expr) => expr
+                              }),
+                              v.decider.pcs.branchConditionsAstNodes,
+                              v.decider.pcs.branchConditionsOrigins),
+                            position,
+                            true)
+
+                          (Success(), edge)
+                        }
+                      }
+                    }
+                    case _ => (Failure(m), edge)
+                  }
+                }
+              }
+            }
+            case (Unreachable(), prevEdge) => (rsEdge, edge)
+            case (Failure(m), prevEdge) => {
+              rsEdge match {
+                case Success() => {
+                  edge match {
+                    case ce: cfg.ConditionalEdge[ast.Stmt, ast.Exp] => {
+                      prevEdge.kind match {
+                        case cfg.Kind.Out => (Failure(m), edge)
+                        case _ => {
+                          /* run-time check */
+                          val position: ast.Exp =
+                            edge.asInstanceOf[cfg.ConditionalEdge[ast.Stmt, ast.Exp]].condition match {
+                              case ast.Not(e: ast.Exp) => e
+                              case e: ast.Exp => e
+                            }
+                          runtimeChecks.addChecks(CheckPosition.GenericNode(position),
+                            edge.asInstanceOf[cfg.ConditionalEdge[ast.Stmt, ast.Exp]].condition,
+                            viper.silicon.utils.zip3(v.decider.pcs.branchConditions.map(branch =>
+                              (new Translator(s, v.decider.pcs).translate(branch)) match {
+                                case None => sys.error("Error translating! Exiting safely.")
+                                case Some(expr) => expr
+                              }),
+                              v.decider.pcs.branchConditionsAstNodes,
+                              v.decider.pcs.branchConditionsOrigins),
+                            position,
+                            true)
+
+                          (Success(), edge)
+                        }
+                      }
+                    }
+                    case _ => (Failure(m), edge)
+                  }
+                }
+                case Unreachable() => (rs._1, edge)
+                case Failure(_) => (rs._1 && rsEdge, edge)
+              }
+            }
+          }
+        }
+        rsTuple._1
+      } else {
+        edges.foldLeft(Success(): VerificationResult) {
+          case (fatalResult: FatalResult, _) => fatalResult
+          case (_, edge) => follow(s, originatingBlock, edge, v)(Q)
+        }
       }
+    }
   }
 
   def exec(s: State, graph: SilverCfg, v: Verifier)
@@ -185,7 +276,6 @@ object executor extends ExecutionRules with Immutable {
             val sortedEdges = otherEdges ++ outEdges
             val edgeConditions = sortedEdges.collect{case ce: cfg.ConditionalEdge[ast.Stmt, ast.Exp] => ce.condition}
                                             .distinct
-                                            
             // verifying a loop is like verifying both a method body and method call, kinda?
             // method body when verifying the actual loop (produce invariant at beginning, consume at end
             // method call when encountering loop (consume invariant before, produce after)
