@@ -163,7 +163,7 @@ object State {
           // we do not care whether oldStore matches here; oldStore should not
           // stick around for that long?
           case State(`g1`, `oldStore1`, `h1`, `oldHeaps1`,
-                     `isImprecise`, optimisticHeap2,
+                     `isImprecise`, `optimisticHeap1`,
                      `parallelizeBranches1`,
                      `recordVisited1`, `visited1`,
                      `methodCfg1`, `invariantContexts1`,
@@ -184,7 +184,6 @@ object State {
                      `predicateSnapMap1`, `predicateFormalVarMap1`, `hack`,
                      `methodCallAstNode1`, `foldOrUnfoldAstNode1`, `loopPosition1`) =>
 
-            val optimisticHeap3 = Heap()
             val functionRecorder3 = functionRecorder1.merge(functionRecorder2)
             val triggerExp3 = triggerExp1 && triggerExp2
             val possibleTriggers3 = possibleTriggers1 ++ possibleTriggers2
@@ -195,8 +194,7 @@ object State {
 
             val ssCache3 = ssCache1 ++ ssCache2
 
-            s1.copy(optimisticHeap = optimisticHeap3,
-                    functionRecorder = functionRecorder3,
+            s1.copy(functionRecorder = functionRecorder3,
                     possibleTriggers = possibleTriggers3,
                     triggerExp = triggerExp3,
                     constrainableARPs = constrainableARPs3,
