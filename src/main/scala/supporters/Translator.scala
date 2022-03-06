@@ -1,9 +1,13 @@
 package viper.silicon.supporters
 
+import scala.util.matching.Regex
+
 import viper.silver.ast
 import viper.silicon.decider.RecordedPathConditions
 import viper.silicon.interfaces.state.Chunk
-import viper.silicon.state.{terms, State, Store, BasicChunk}
+import viper.silicon.state.{terms, State, Store,
+  BasicChunk, Identifier, SimpleIdentifier,
+  SuffixedIdentifier}
 import viper.silicon.resources.{FieldID, PredicateID}
 
 // should we use the path conditions from the state?
@@ -161,13 +165,14 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
       case terms.Var(_, terms.sorts.Perm) |
           terms.SortWrapper(_, terms.sorts.Perm) =>
         ast.Perm
-      case _ => sys.error("Match error in resolveType!")
     }
   }
 
   // TODO: make this return an Option[ast.Exp]; emit a warning in getAllAccessibilityPredicates,
   // and an error elsewhere...?
   private def variableResolver(variable: terms.Term): Option[ast.Exp] = {
+
+    println(s"Resolve target: ${variable}")
 
     variableResolverHelper(variable) match {
 
@@ -178,13 +183,96 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
         val pcsEquivalentVariables: Seq[terms.Term] =
           pcs.getEquivalentVariables(variable)
 
-        pcsEquivalentVariables.foldRight[Option[ast.Exp]](None)(
+        val potentialResolvedVariable = pcsEquivalentVariables.foldRight[Option[ast.Exp]](None)(
           (term, potentialResolvedVariable) =>
             potentialResolvedVariable match {
               case Some(_) => potentialResolvedVariable
               case None    => variableResolverHelper(term)
             }
         )
+
+        potentialResolvedVariable match {
+          case None => {
+
+            variable match {
+
+              // This is the last resort for translating a variable. It's not as robust
+              // as the previous methods, and should be inspected carefully
+              //
+              // Unfortunately, it's also the only way we can translate nested fields
+              //
+              // This may be the source of bugs!
+              case term_variable @ terms.Var(identifier: Identifier, termType) => {
+
+                // we must check that we have the top level receiver in the symbolic store
+                // symbolic values may point to separate variable names (with different names
+                // than the value, since the thing the symbolic value points to may change)
+
+                val store: Store = s.oldStore match {
+                  case None           => s.g
+                  case Some(oldStore) => oldStore
+                }
+
+                val varType = resolveType(variable)
+
+                // This regex removes the non-concrete-variable parts of the
+                // identifier
+                val fieldCleanupPattern = "@[0-9][0-9]*".r
+
+                // This extracts the identifier into an array of concrete
+                // names
+                val identifierArray: Array[String] =
+                  fieldCleanupPattern
+                    .replaceAllIn(identifier.name, "")
+                    .split('.')
+
+                // This will be the name of the field for the receiver
+                val fieldName: String =
+                  identifierArray
+                    .slice(1, identifierArray.length)
+                    .mkString(".")
+
+                // This regex extracts the part of the identifier that
+                // should be in the symbolic store
+                //
+                // For 'p@01@08.field@01@09.anotherField@01@10', it should
+                // yield 'p@01@08'
+                val receiverCleanupPattern = """\..*@[0-9][0-9]*.*""".r
+
+                // This will be the receiver
+                // Some complications come up because we were unable to find
+                // it from the heap (we're constructing this ourselves)
+                // Mostly, we'll need to specially search the store
+                val receiver: terms.Var =
+                  terms.Var(Identifier(
+                    receiverCleanupPattern.replaceAllIn(identifier.name, "")),
+                    if (identifierArray.length != 0) {
+                      terms.sorts.Ref
+                    } else {
+                      termType
+                    })
+
+                // We need to enable "lenient mode" for the store search
+                // here, because we've constructed our own identifier
+                // (identifiers appear to be compared non-structurally)
+                val astVar = store.getKeyForValue(receiver, true) match {
+                  case None => {
+                    println(s"WARNING: unable to resolve variable ${receiver}")
+                    return None
+                  }
+                  case Some(concreteVariable) => concreteVariable
+                }
+
+                // Return the translated variable
+                Some(ast.FieldAccess(astVar, ast.Field(fieldName, varType)())())
+
+              }
+
+              case _ => None
+            }
+          }
+          case Some(_) => potentialResolvedVariable
+        }
       }
     }
   }
