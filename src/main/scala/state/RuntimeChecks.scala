@@ -7,7 +7,7 @@ import scala.collection.concurrent.{Map, TrieMap}
 case class CheckInfo(checks: ast.Exp,
   branchInfo: Stack[(ast.Exp, Option[CheckPosition])],
   context: ast.Exp,
-  overlaps: Boolean)
+  forFraming: Boolean)
 
 object runtimeChecks {
 
@@ -26,20 +26,20 @@ object runtimeChecks {
     newCheck: ast.Exp,
     branchInfo: Stack[(ast.Exp, Option[CheckPosition])],
     context: ast.Exp,
-    overlaps: Boolean): Unit = {
+    forFraming: Boolean): Unit = {
     
     checks.get(programPoint) match {
       case None => (checks += (programPoint ->
         List(CheckInfo(newCheck,
           branchInfo,
           context,
-          overlaps))))
+          forFraming))))
       case Some(checkList) =>
         (checks += (programPoint ->
           (CheckInfo(newCheck,
             branchInfo,
             context,
-            overlaps)
+            forFraming)
           +: checkList)))
     }
   }
