@@ -34,7 +34,7 @@ trait Decider {
 
   def checkSmoke(): Boolean
 
-  def setCurrentBranchCondition(t: Term, astNode: ast.Node, origin: Option[CheckPosition])
+  def setCurrentBranchCondition(t: Term, astNode: ast.Exp, origin: Option[CheckPosition])
   def setPathConditionMark(): Mark
 
   def assume(t: Term)
@@ -163,7 +163,7 @@ trait DefaultDeciderProvider extends VerifierComponent { this: Verifier =>
       pathConditions.popScope()
     }
 
-    def setCurrentBranchCondition(t: Term, astNode: ast.Node, origin: Option[CheckPosition]) {
+    def setCurrentBranchCondition(t: Term, astNode: ast.Exp, origin: Option[CheckPosition]) {
       pathConditions.setCurrentBranchCondition(t, astNode, origin)
       assume(InsertionOrderedSet(Seq(t)))
     }

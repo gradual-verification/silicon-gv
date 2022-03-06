@@ -190,13 +190,7 @@ object predicateSupporter extends PredicateSupportRules with Immutable {
 
                 runtimeChecks.addChecks(runtimeCheckAstNode,
                   ast.PredicateAccessPredicate(pa, ast.FullPerm()())(),
-                  utils.zip3(v2.decider.pcs.branchConditions.map(branch =>
-                      (new Translator(s5, v2.decider.pcs).translate(branch)) match {
-                        case None => sys.error("Error translating! Exiting safely.")
-                        case Some(expr) => expr
-                      }),
-                    v2.decider.pcs.branchConditionsAstNodes,
-                    v.decider.pcs.branchConditionsOrigins),
+                    v2.decider.pcs.branchConditionsAstNodes.zip(v.decider.pcs.branchConditionsOrigins),
                     pa,
                     s5.forFraming)
                 pa.addCheck(ast.PredicateAccessPredicate(pa, ast.FullPerm()())())

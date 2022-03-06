@@ -311,8 +311,7 @@ object consumer extends ConsumptionRules with Immutable {
                 }
               }
 
-            // pass e0 instead of ite
-            branch(s2, t0, ite, branchPosition, v1)(
+            branch(s2, t0, e0, branchPosition, v1)(
               // the things in the branch (the then and else contents) may reach
               // the final case of consumeTlc, where we unset the method
               // callsite ast node
@@ -570,13 +569,8 @@ object consumer extends ConsumptionRules with Immutable {
 
                         runtimeChecks.addChecks(runtimeCheckAstNode,
                           a,
-                          utils.zip3(v4.decider.pcs.branchConditions.map(branch =>
-                              (new Translator(s5, v4.decider.pcs).translate(branch)) match {
-                                case None => sys.error("Could not translate term into Viper expression! Exiting safely.")
-                                case Some(expr) => expr
-                              }),
-                           v4.decider.pcs.branchConditionsAstNodes,
-                           v.decider.pcs.branchConditionsOrigins),
+                           v4.decider.pcs.branchConditionsAstNodes
+                             .zip(v.decider.pcs.branchConditionsOrigins),
                            a,
                            s5.forFraming)
                       }
@@ -653,13 +647,8 @@ object consumer extends ConsumptionRules with Immutable {
 
                         runtimeChecks.addChecks(runtimeCheckAstNode,
                           a,
-                          utils.zip3(v4.decider.pcs.branchConditions.map(branch =>
-                              (new Translator(s5, v4.decider.pcs).translate(branch)) match {
-                                case None => sys.error("Error translating! Exiting safely.")
-                                case Some(expr) => expr
-                              }),
-                            v4.decider.pcs.branchConditionsAstNodes,
-                            v.decider.pcs.branchConditionsOrigins),
+                            v4.decider.pcs.branchConditionsAstNodes
+                              .zip(v.decider.pcs.branchConditionsOrigins),
                             a,
                             s5.forFraming)
                       }
@@ -686,7 +675,7 @@ object consumer extends ConsumptionRules with Immutable {
                   potentialReturnedChecks match {
                     case None => ()
                     case Some(returnedChecks) => {
-                      // should use v2.decider.pcs here?
+                      // should use v2.decider.pcs here? yes
 
                       val runtimeCheckAstNode: CheckPosition =
                         (s2.methodCallAstNode, s2.foldOrUnfoldAstNode, s2.loopPosition) match {
@@ -700,17 +689,12 @@ object consumer extends ConsumptionRules with Immutable {
                         }
 
                       runtimeChecks.addChecks(runtimeCheckAstNode,
-                        (new Translator(s2, v.decider.pcs).translate(returnedChecks) match {
+                        (new Translator(s2, v2.decider.pcs).translate(returnedChecks) match {
                           case None => sys.error("Error translating! Exiting safely.")
                           case Some(expr) => expr
                         }),
-                        utils.zip3(v2.decider.pcs.branchConditions.map(branch =>
-                            (new Translator(s2, v2.decider.pcs).translate(branch)) match {
-                              case None => sys.error("Error translating! Exiting safely.")
-                              case Some(expr) => expr
-                            }),
-                          v2.decider.pcs.branchConditionsAstNodes,
-                          v.decider.pcs.branchConditionsOrigins),
+                          v2.decider.pcs.branchConditionsAstNodes
+                            .zip(v2.decider.pcs.branchConditionsOrigins),
                           a,
                           s2.forFraming)
                     }
@@ -848,13 +832,8 @@ object consumer extends ConsumptionRules with Immutable {
                     case None => sys.error("Error translating! Exiting safely.")
                     case Some(expr) => expr
                   }),
-                  utils.zip3(v.decider.pcs.branchConditions.map(branch =>
-                      (new Translator(s1, pcs).translate(branch)) match {
-                        case None => sys.error("Error translating! Exiting safely.")
-                        case Some(expr) => expr
-                      }),
-                    v.decider.pcs.branchConditionsAstNodes,
-                    v.decider.pcs.branchConditionsOrigins),
+                    v.decider.pcs.branchConditionsAstNodes
+                      .zip(v.decider.pcs.branchConditionsOrigins),
                     a,
                     s1.forFraming)
 

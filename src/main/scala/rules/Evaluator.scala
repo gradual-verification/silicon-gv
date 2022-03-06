@@ -7,6 +7,7 @@
 package viper.silicon.rules
 
 import viper.silver.ast
+import viper.silver.ast.utils.conjunctExps
 import viper.silver.ast.{Info, PredicateAccess}
 import viper.silver.verifier.{CounterexampleTransformer, PartialVerificationError}
 import viper.silver.verifier.errors.{ErrorWrapperWithExampleTransformer, PreconditionInAppFalse}
@@ -1775,8 +1776,9 @@ object evaluator extends EvaluationRules with Immutable {
        val preMark = v1.decider.setPathConditionMark()
       evals(s2, es1, _ => pve, v1)((s3, ts1, v2) => {
         val bc = And(ts1)
-        // can we just use the head node here? not sure
-        v2.decider.setCurrentBranchCondition(bc, es1.head, None)
+        // we call conjunctExps here to translate the Anded term to its
+        // equivalent ast form
+        v2.decider.setCurrentBranchCondition(bc, conjunctExps(es1), None)
         evals(s3, es2, _ => pve, v2)((s4, ts2, v3) => {
           evalTriggers(s4, optTriggers.getOrElse(Nil), pve, v3)((s5, tTriggers, v4) => { // TODO: v4 isn't forward - problem?
             val (auxGlobalQuants, auxNonGlobalQuants) =
@@ -1801,6 +1803,8 @@ object evaluator extends EvaluationRules with Immutable {
                          : VerificationResult = {
 
     joiner.join[Term, Term](s, v)((s1, v1, QB) =>
+      // TODO GV: we don't currently support this, so the branching information
+      // passed in the second and third arguments is not correct!
       brancher.branch(s1, tLhs, ast.NullLit()(), None, v1, fromShortCircuitingAnd)(
         (s2, v2) => eval(s2, eRhs, pve, v2)(QB),
         (s2, v2) => QB(s2, True(), v2))

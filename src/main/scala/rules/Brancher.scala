@@ -6,7 +6,7 @@
 
 package viper.silicon.rules
 
-import viper.silver.ast.Node
+import viper.silver.ast
 
 import java.util.concurrent._
 import viper.silicon.common.concurrency._
@@ -18,7 +18,7 @@ import viper.silicon.verifier.Verifier
 trait BranchingRules extends SymbolicExecutionRules {
   def branch(s: State,
              condition: Term,
-             position: Node,
+             position: ast.Exp,
              origin: Option[CheckPosition],
              v: Verifier,
              fromShortCircuitingAnd: Boolean = false)
@@ -30,7 +30,7 @@ trait BranchingRules extends SymbolicExecutionRules {
 object brancher extends BranchingRules with Immutable {
   def branch(s: State,
              condition: Term,
-             position: Node,
+             position: ast.Exp,
              origin: Option[CheckPosition],
              v: Verifier,
              fromShortCircuitingAnd: Boolean = false)

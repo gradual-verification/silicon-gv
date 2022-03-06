@@ -5,7 +5,7 @@ import viper.silver.ast
 import scala.collection.concurrent.{Map, TrieMap}
 
 case class CheckInfo(checks: ast.Exp,
-  branchInfo: Stack[(ast.Exp, ast.Node, Option[CheckPosition])],
+  branchInfo: Stack[(ast.Exp, Option[CheckPosition])],
   context: ast.Exp,
   overlaps: Boolean)
 
@@ -24,7 +24,7 @@ object runtimeChecks {
 
   def addChecks(programPoint: CheckPosition,
     newCheck: ast.Exp,
-    branchInfo: Stack[(ast.Exp, ast.Node, Option[CheckPosition])],
+    branchInfo: Stack[(ast.Exp, Option[CheckPosition])],
     context: ast.Exp,
     overlaps: Boolean): Unit = {
     

@@ -6,7 +6,7 @@
 
 package viper.silicon.decider
 
-import viper.silver.ast.Node
+import viper.silver.ast.Exp
 import viper.silicon.common.collections.immutable.InsertionOrderedSet
 import viper.silicon.Stack
 import viper.silicon.state.CheckPosition
@@ -25,7 +25,7 @@ import viper.silicon.utils.Counter
 
 trait RecordedPathConditions {
   def branchConditions: Stack[Term]
-  def branchConditionsAstNodes: Stack[Node]
+  def branchConditionsAstNodes: Stack[Exp]
   def branchConditionsOrigins: Stack[Option[CheckPosition]]
 
   def assumptions: InsertionOrderedSet[Term]
@@ -59,7 +59,7 @@ trait RecordedPathConditions {
 }
 
 trait PathConditionStack extends RecordedPathConditions {
-  def setCurrentBranchCondition(condition: Term, conditionAstNode: Node, conditionOrigin: Option[CheckPosition]): Unit
+  def setCurrentBranchCondition(condition: Term, conditionAstNode: Exp, conditionOrigin: Option[CheckPosition]): Unit
   def add(assumption: Term): Unit
   def add(declaration: Decl): Unit
   def pushScope(): Unit
@@ -80,14 +80,14 @@ private class PathConditionStackLayer
        with Cloneable {
 
   private var _branchCondition: Option[Term] = None
-  private var _branchConditionAstNode: Option[Node] = None
+  private var _branchConditionAstNode: Option[Exp] = None
   private var _branchConditionOrigin: Option[Option[CheckPosition]] = None
   private var _globalAssumptions: InsertionOrderedSet[Quantification] = InsertionOrderedSet.empty
   private var _nonGlobalAssumptions: InsertionOrderedSet[Term] = InsertionOrderedSet.empty
   private var _declarations: InsertionOrderedSet[Decl] = InsertionOrderedSet.empty
 
   def branchCondition: Option[Term] = _branchCondition
-  def branchConditionAstNode: Option[Node] = _branchConditionAstNode
+  def branchConditionAstNode: Option[Exp] = _branchConditionAstNode
   def branchConditionOrigin: Option[Option[CheckPosition]] = _branchConditionOrigin
   def globalAssumptions: InsertionOrderedSet[Quantification] = _globalAssumptions
   def nonGlobalAssumptions: InsertionOrderedSet[Term] = _nonGlobalAssumptions
@@ -104,7 +104,7 @@ private class PathConditionStackLayer
     _branchCondition = Some(condition)
   }
 
-  def branchConditionAstNode_=(conditionAstNode: Node) {
+  def branchConditionAstNode_=(conditionAstNode: Exp) {
 
     assert(_branchConditionAstNode.isEmpty,
         s"Branch condition position is already set (to ${_branchConditionAstNode.get}), "
@@ -163,7 +163,7 @@ private trait LayeredPathConditionStackLike {
   protected def branchConditions(layers: Stack[PathConditionStackLayer]): Stack[Term] =
     layers.flatMap(_.branchCondition)
 
-  protected def branchConditionsAstNodes(layers: Stack[PathConditionStackLayer]): Stack[Node] =
+  protected def branchConditionsAstNodes(layers: Stack[PathConditionStackLayer]): Stack[Exp] =
     layers.flatMap(_.branchConditionAstNode)
 
   protected def branchConditionsOrigins(layers: Stack[PathConditionStackLayer]): Stack[Option[CheckPosition]] =
@@ -229,7 +229,7 @@ private class DefaultRecordedPathConditions(from: Stack[PathConditionStackLayer]
        with Immutable {
 
   val branchConditions: Stack[Term] = branchConditions(from)
-  val branchConditionsAstNodes: Stack[Node] = branchConditionsAstNodes(from)
+  val branchConditionsAstNodes: Stack[Exp] = branchConditionsAstNodes(from)
   val branchConditionsOrigins: Stack[Option[CheckPosition]] = branchConditionsOrigins(from)
   val assumptions: InsertionOrderedSet[Term] = assumptions(from)
   val declarations: InsertionOrderedSet[Decl] = declarations(from)
@@ -266,7 +266,7 @@ private[decider] class LayeredPathConditionStack
 
   pushScope() /* Create an initial layer on the stack */
 
-  def setCurrentBranchCondition(condition: Term, conditionAstNode: Node, conditionOrigin: Option[CheckPosition]): Unit = {
+  def setCurrentBranchCondition(condition: Term, conditionAstNode: Exp, conditionOrigin: Option[CheckPosition]): Unit = {
     /* TODO: Split condition into top-level conjuncts as well? */
 
     layers.head.branchCondition = condition
@@ -334,7 +334,7 @@ private[decider] class LayeredPathConditionStack
 
   def branchConditions: Stack[Term] = layers.flatMap(_.branchCondition)
 
-  def branchConditionsAstNodes: Stack[Node] = layers.flatMap(_.branchConditionAstNode)
+  def branchConditionsAstNodes: Stack[Exp] = layers.flatMap(_.branchConditionAstNode)
 
   def branchConditionsOrigins: Stack[Option[CheckPosition]] = layers.flatMap(_.branchConditionOrigin)
 

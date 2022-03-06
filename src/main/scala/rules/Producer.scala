@@ -283,7 +283,7 @@ object producer extends ProductionRules with Immutable {
                     + "we want to know if this occurs!")
               }
 
-            branch(s1, t0, ite, branchPosition, v1)(
+            branch(s1, t0, e0, branchPosition, v1)(
               (s2, v2) => produceR(s2, sf, a1, pve, v2)((s3, v3) => {
                 val res1 = Q(s3, v3)
                 gbLog.finish_thnSubs()
