@@ -76,9 +76,6 @@ object executor extends ExecutionRules with Immutable {
           invariantContexts = s.invariantContexts.tail,
           loopPosition = potentialCheckPosition)
 
-        println("Potential location after loop set")
-        println(s"Potential state after loop: ${v.stateFormatter.format(s1.h)}, ${v.stateFormatter.format(s1.optimisticHeap)}")
-
         s1
       }
       case _ =>
@@ -100,8 +97,6 @@ object executor extends ExecutionRules with Immutable {
            */
 
           val s2point5 = s2.copy(loopPosition = None)
-
-          println("Potential location after loop unset")
 
           // The loop location should be set for this branch, maybe
           brancher.branch(s2point5, tCond, ce.condition, s1.loopPosition, v1)(
@@ -214,10 +209,6 @@ object executor extends ExecutionRules with Immutable {
 
                     val s1point5 = s1.copy(loopPosition = None)
 
-                    println("State potentially at beginning of loop body:"
-                      + s"${v.stateFormatter.format(s1.h)}, "
-                      + s"${v.stateFormatter.format(s1.optimisticHeap)}")
-
                   // unset for at beginning of loop body
                   // produces into phase1data
                   phase1data = phase1data :+ (s1point5,
@@ -243,9 +234,6 @@ object executor extends ExecutionRules with Immutable {
 
                   val sLeftover = sLeftover0.copy(loopPosition = None)
                   
-                  println("State potentially before beginning of loop: "
-                    + s"${v.stateFormatter.format(sLeftover.h)}, ${v.stateFormatter.format(sLeftover.optimisticHeap)}")
-
                   // unset enum for before loop in symbolic state here?
                   v1.decider.prover.comment("Loop head block: Execute statements of loop head block (in invariant state)")
                   // uses it (phase1data) again here after producing
@@ -277,9 +265,6 @@ object executor extends ExecutionRules with Immutable {
 
             consumes(s0, invs, e => LoopInvariantNotPreserved(e), v)((s1, _, _) => {
               
-              println(s"State potentially at end of loop body: "
-                + s"${v.stateFormatter.format(s1.h)}, ${v.stateFormatter.format(s1.optimisticHeap)}")
-
               Success()})
         }
 
@@ -401,25 +386,14 @@ object executor extends ExecutionRules with Immutable {
 
       case ass @ ast.FieldAssign(fa @ ast.FieldAccess(eRcvr, field), rhs) =>
        
-        println(s"Field assignment: ${ass}")
-
         assert(!s.exhaleExt)
         val pve = AssignmentFailed(ass)
-
-        println("Permissions before eval: "
-          + s"${new Translator(s, v.decider.pcs).getAccessibilityPredicates}")
 
         eval(s, eRcvr, pve, v)((s1, tRcvr, v1) =>
           eval(s1, rhs, pve, v1)((s2, tRhs, v2) => {
             val fap = ast.FieldAccessPredicate(fa, ast.FullPerm()(ass.pos))(ass.pos)
 
-            println("Permissions before consume: "
-              + s"${new Translator(s2, v2.decider.pcs).getAccessibilityPredicates}")
-
             consume(s2, fap, pve, v2)((s3, snap, v3) => {
-
-            println("Permissions before produce: "
-              + s"${new Translator(s3, v3.decider.pcs).getAccessibilityPredicates}")
 
               // TODO;EXTRA CHECK ISSUE(S): We assume the Ref is !== null here
               v3.decider.assume(tRcvr !== Null())
@@ -427,12 +401,7 @@ object executor extends ExecutionRules with Immutable {
               val id = BasicChunkIdentifier(field.name)
               val newChunk = BasicChunk(FieldID, id, Seq(tRcvr), tSnap, FullPerm())
 
-              println(s"New chunk: ${newChunk}")
-
               chunkSupporter.produce(s3, s3.h, newChunk, v3)((s4, h4, v4) => {
-                println("Permissions after produce: "
-                  + s"${new Translator(s4.copy(h = h4), v4.decider.pcs).getAccessibilityPredicates}")
-
               Q(s4.copy(h = h4), v4)})
             })
           })
@@ -575,8 +544,6 @@ object executor extends ExecutionRules with Immutable {
           // this is run unconditionally (or so it seems), so we can attach the
           // method call ast node here
           
-          println(s"Setting method call AST node in state: ${call}")
-
           val s2 = s1.copy(g = Store(fargs.zip(tArgs)),
             oldStore = Some(s1.g),
             recordVisited = true,
@@ -588,8 +555,6 @@ object executor extends ExecutionRules with Immutable {
             val gOuts = Store(outs.map(x => (x, v2.decider.fresh(x))).toMap)
             val s4 = s3.copy(g = s3.g + gOuts, oldHeaps = s3.oldHeaps + (Verifier.PRE_STATE_LABEL -> s1.h))
             produces(s4, freshSnap, meth.posts, _ => pveCall, v2)((s5, v3) => {
-
-              println(s"Unsetting method call AST node in state: ${s5.methodCallAstNode}")
 
               // we MUST unset both oldStore and the methodCallAstNode once we
               // are done with the method call

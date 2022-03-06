@@ -305,13 +305,13 @@ object consumer extends ConsumptionRules with Immutable {
                 case (None, Some(foldOrUnfoldAstNode), None) => Some(CheckPosition.GenericNode(foldOrUnfoldAstNode))
                 case (None, None, Some(_)) => s.loopPosition
                 case _ => {
-                  println("Conflicting positions found while determining position for runtime check!")
                   sys.error("This should not happen, at least until we support "
                     + "unfoldings, maybe! We don't deal with this case at the "
                     + "moment because we want to know if this happens!")
                 }
               }
 
+            // pass e0 instead of ite
             branch(s2, t0, ite, branchPosition, v1)(
               // the things in the branch (the then and else contents) may reach
               // the final case of consumeTlc, where we unset the method
@@ -685,10 +685,8 @@ object consumer extends ConsumptionRules with Immutable {
                 case (verificationResult, potentialReturnedChecks) => {
                   potentialReturnedChecks match {
                     case None => ()
-                    case Some(returnedChecks) =>
+                    case Some(returnedChecks) => {
                       // should use v2.decider.pcs here?
-                      println("Consume field apr assertgv: Adding runtime check " +
-                        s"${new Translator(s2, v.decider.pcs).translate(returnedChecks)}")
 
                       val runtimeCheckAstNode: CheckPosition =
                         (s2.methodCallAstNode, s2.foldOrUnfoldAstNode, s2.loopPosition) match {
@@ -845,8 +843,6 @@ object consumer extends ConsumptionRules with Immutable {
             returnedState match {
               case Some((s1, pcs)) => {
                 
-                println(s"Consume expression: Adding runtime check ${new Translator(s1, pcs).translate(returnedChecks)}")
-
                 runtimeChecks.addChecks(runtimeCheckAstNode,
                   (new Translator(s1, pcs).translate(returnedChecks) match {
                     case None => sys.error("Error translating! Exiting safely.")
