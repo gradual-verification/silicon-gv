@@ -279,17 +279,8 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
 
   private def variableResolverHelper(variable: terms.Term): Option[ast.Exp] = {
 
-    // TODO: this is not as efficient as it might be; we search both heaps when
-    // this may not be necessary
-    //
-    // a successful variable lookup in one heap obviates the need for a
-    // variable lookup in the other
-
-    // TODO: ASK JENNA: What is the old store for? It gets set before method
-    // calls
-    //
-    // Oh, is it for resolving variables in the precondition (and post) using
-    // the store from the context of the method call? maybe
+    // The old store is for resolving variables from the context of a pre- or
+    // post condition
     val store: Store = s.oldStore match {
       case None           => s.g
       case Some(oldStore) => oldStore
@@ -298,31 +289,27 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
     val varType = resolveType(variable)
 
     // TODO: Make this handle predicates
+    // Although, do we ever need to resolve predicates? And do they even appear
+    // in the heap?
 
     // TODO: The case where both the regular heap and optimistic heap have the
     // variable should never happen, maybe
-    (
-      s.h.getChunkForValue(variable),
-      s.optimisticHeap.getChunkForValue(variable)
-    ) match {
-      case (Some(_), Some(_)) =>
-        sys.error("match error in variableResolverHelper!")
-
-      case (Some((symVar, id)), None) =>
+    
+    // Search both heaps for the variable
+    s.h.getChunkForValue(variable) match {
+      case None => s.optimisticHeap.getChunkForValue(variable) match {
+        case None => store.getKeyForValue(variable)
+        case Some((symVar, id)) =>
+          store.getKeyForValue(symVar) match {
+            case None => None
+            case Some(astVar) => Some(ast.FieldAccess(astVar, ast.Field(id, varType)())())
+          }
+      }
+      case Some((symVar, id)) =>
         store.getKeyForValue(symVar) match {
           case None => None
-          case Some(astVar) =>
-            Some(ast.FieldAccess(astVar, ast.Field(id, varType)())())
+          case Some(astVar) => Some(ast.FieldAccess(astVar, ast.Field(id, varType)())())
         }
-
-      case (None, Some((symVar, id))) =>
-        store.getKeyForValue(symVar) match {
-          case None => None
-          case Some(astVar) =>
-            Some(ast.FieldAccess(astVar, ast.Field(id, varType)())())
-        }
-
-      case (None, None) => store.getKeyForValue(variable)
     }
   }
 
