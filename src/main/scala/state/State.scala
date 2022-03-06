@@ -138,7 +138,7 @@ object State {
     s1 match {
       /* Decompose state s1 */
       case State(g1, oldStore1, h1, oldHeaps1,
-                 isImprecise, optimisticHeap,
+                 isImprecise, optimisticHeap1,
                  parallelizeBranches1,
                  recordVisited1, visited1,
                  methodCfg1, invariantContexts1,
@@ -164,7 +164,7 @@ object State {
           // we do not care whether oldStore matches here; oldStore should not
           // stick around for that long?
           case State(`g1`, `oldStore1`, `h1`, `oldHeaps1`,
-                     `isImprecise`, `optimisticHeap`,
+                     `isImprecise`, `optimisticHeap1`,
                      `parallelizeBranches1`,
                      `recordVisited1`, `visited1`,
                      `methodCfg1`, `invariantContexts1`,
