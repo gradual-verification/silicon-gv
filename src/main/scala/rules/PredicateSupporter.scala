@@ -198,7 +198,7 @@ object predicateSupporter extends PredicateSupportRules with Immutable {
                     v2.decider.pcs.branchConditionsAstNodes,
                     v.decider.pcs.branchConditionsOrigins),
                     pa,
-                    true)
+                    s5.forFraming)
                 pa.addCheck(ast.PredicateAccessPredicate(pa, ast.FullPerm()())())
               }
               if (chunkExisted) {

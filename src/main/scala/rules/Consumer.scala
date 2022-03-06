@@ -578,7 +578,7 @@ object consumer extends ConsumptionRules with Immutable {
                            v4.decider.pcs.branchConditionsAstNodes,
                            v.decider.pcs.branchConditionsOrigins),
                            a,
-                           true)
+                           s5.forFraming)
                       }
 
                       if (chunkExisted) {
@@ -661,7 +661,7 @@ object consumer extends ConsumptionRules with Immutable {
                             v4.decider.pcs.branchConditionsAstNodes,
                             v.decider.pcs.branchConditionsOrigins),
                             a,
-                            true)
+                            s5.forFraming)
                       }
 
                       if (chunkExisted) {
@@ -714,7 +714,8 @@ object consumer extends ConsumptionRules with Immutable {
                           v2.decider.pcs.branchConditionsAstNodes,
                           v.decider.pcs.branchConditionsOrigins),
                           a,
-                          true)
+                          s2.forFraming)
+                    }
                   }
                   verificationResult
                 }
@@ -859,7 +860,7 @@ object consumer extends ConsumptionRules with Immutable {
                     v.decider.pcs.branchConditionsAstNodes,
                     v.decider.pcs.branchConditionsOrigins),
                     a,
-                    true)
+                    s1.forFraming)
 
                 verificationResult
               }

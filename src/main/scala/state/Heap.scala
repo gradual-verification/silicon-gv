@@ -40,7 +40,7 @@ final class ListBackedHeap private[state] (chunks: Vector[Chunk])
       }
     }) match {
       case None => None
-      case Some(BasicChunk(resourceID, id, args, snap, perm)) => Some(args.head, id.toString)
+      case Some(BasicChunk(resourceID, id, args, snap, perm)) => Some((args.head, id.toString))
     }
   }
 

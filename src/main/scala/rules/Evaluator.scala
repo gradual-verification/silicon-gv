@@ -779,14 +779,16 @@ object evaluator extends EvaluationRules with Immutable {
                                  * of the recorded snapshots - which is wrong (probably only
                                  * incomplete).
                                  */
-                             smDomainNeeded = true)
+                             smDomainNeeded = true,
+                             forFraming = true)
             consumes(s3, pres, _ => pvePre, v2)((s4, snap, v3) => {
+              val s4_1 = s4.copy(forFraming = false)
               val snap1 = snap.convert(sorts.Snap)
               val tFApp = App(v3.symbolConverter.toFunction(func), snap1 :: tArgs)
               val fr5 =
-                s4.functionRecorder.changeDepthBy(-1)
+                s4_1.functionRecorder.changeDepthBy(-1)
                                    .recordSnapshot(fapp, v3.decider.pcs.branchConditions, snap1)
-              val s5 = s4.copy(g = s2.g,
+              val s5 = s4_1.copy(g = s2.g,
                                h = s2.h,
                                recordVisited = s2.recordVisited,
                                functionRecorder = fr5,
@@ -810,7 +812,8 @@ object evaluator extends EvaluationRules with Immutable {
                 case true =>
                   joiner.join[Term, Term](s2, v2)((s3, v3, QB) => {
                     val s4 = s3.incCycleCounter(predicate)
-                               .copy(recordVisited = true)
+                               .copy(recordVisited = true,
+                                 forFraming = true)
                       /* [2014-12-10 Malte] The commented code should replace the code following
                        * it, but using it slows down RingBufferRd.sil significantly. The generated
                        * Z3 output looks nearly identical, so my guess is that it is some kind
@@ -821,10 +824,13 @@ object evaluator extends EvaluationRules with Immutable {
 //                        eval(σ1, eIn, pve, c4)((tIn, c5) =>
 //                          QB(tIn, c5))})
                     consume(s4, acc, pve, v3)((s5, snap, v4) => {
+
+                      val s5_1 = s5.copy(forFraming = false)
+
                       val fr6 =
-                        s5.functionRecorder.recordSnapshot(pa, v4.decider.pcs.branchConditions, snap)
+                        s5_1.functionRecorder.recordSnapshot(pa, v4.decider.pcs.branchConditions, snap)
                                            .changeDepthBy(+1)
-                      val s6 = s5.copy(functionRecorder = fr6,
+                      val s6 = s5_1.copy(functionRecorder = fr6,
                                        constrainableARPs = s1.constrainableARPs)
                         /* Recording the unfolded predicate's snapshot is necessary in order to create the
                          * additional predicate-based trigger function applications because these are applied
@@ -1530,14 +1536,18 @@ object evaluator extends EvaluationRules with Immutable {
                                  * of the recorded snapshots - which is wrong (probably only
                                  * incomplete).
                                  */
-                             smDomainNeeded = true)
+                             smDomainNeeded = true,
+                             forFraming = true)
             consumes(s3, pres, _ => pvePre, v2)((s4, snap, v3) => {
+              
+              val s4_1 = s4.copy(forFraming = false)
+
               val snap1 = snap.convert(sorts.Snap)
               val tFApp = App(v3.symbolConverter.toFunction(func), snap1 :: tArgs)
               val fr5 =
-                s4.functionRecorder.changeDepthBy(-1)
-                                   .recordSnapshot(fapp, v3.decider.pcs.branchConditions, snap1)
-              val s5 = s4.copy(g = s2.g,
+                s4_1.functionRecorder.changeDepthBy(-1)
+                  .recordSnapshot(fapp, v3.decider.pcs.branchConditions, snap1)
+              val s5 = s4_1.copy(g = s2.g,
                                h = s2.h,
                                recordVisited = s2.recordVisited,
                                functionRecorder = fr5,
@@ -1561,7 +1571,8 @@ object evaluator extends EvaluationRules with Immutable {
                 case true =>
                   joiner.join[Term, Term](s2, v2)((s3, v3, QB) => {
                     val s4 = s3.incCycleCounter(predicate)
-                               .copy(recordVisited = true)
+                               .copy(recordVisited = true
+                                 forFraming = true)
                       /* [2014-12-10 Malte] The commented code should replace the code following
                        * it, but using it slows down RingBufferRd.sil significantly. The generated
                        * Z3 output looks nearly identical, so my guess is that it is some kind
@@ -1572,10 +1583,13 @@ object evaluator extends EvaluationRules with Immutable {
 //                        eval(σ1, eIn, pve, c4)((tIn, c5) =>
 //                          QB(tIn, c5))})
                     consume(s4, acc, pve, v3)((s5, snap, v4) => {
+
+                      val s5_1 = s5.copy(forFraming = false)
+
                       val fr6 =
-                        s5.functionRecorder.recordSnapshot(pa, v4.decider.pcs.branchConditions, snap)
+                        s5_1.functionRecorder.recordSnapshot(pa, v4.decider.pcs.branchConditions, snap)
                                            .changeDepthBy(+1)
-                      val s6 = s5.copy(functionRecorder = fr6,
+                      val s6 = s5_1.copy(functionRecorder = fr6,
                                        constrainableARPs = s1.constrainableARPs)
                         /* Recording the unfolded predicate's snapshot is necessary in order to create the
                          * additional predicate-based trigger function applications because these are applied

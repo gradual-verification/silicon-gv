@@ -312,7 +312,7 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
                     v.decider.pcs.branchConditionsAstNodes,
                     v.decider.pcs.branchConditionsOrigins),
                     runtimeCheckFieldTarget,
-                    true)
+                    s2.forFraming)
                 runtimeCheckFieldTarget.addCheck(ast.FieldAccessPredicate(runtimeCheckFieldTarget, ast.FullPerm()())())
 
                 chunkSupporter.produce(s2, s2.optimisticHeap, ch, v)((s3, oh2, v2) =>
@@ -358,7 +358,7 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
                       v.decider.pcs.branchConditionsAstNodes,
                       v.decider.pcs.branchConditionsOrigins),
                       runtimeCheckFieldTarget,
-                      true)
+                      s.forFraming)
                   runtimeCheckFieldTarget.addCheck(ast.FieldAccessPredicate(runtimeCheckFieldTarget, ast.FullPerm()())())
                 }
 
