@@ -212,6 +212,9 @@ object brancher extends BranchingRules with Immutable {
                   case Some(expr) => expr
                 })
 
+              // It's okay to not look in the state for the right position here,
+              // because we already look in the state to pass the correct position
+              // into branch
               val runtimeCheckAstNode: CheckPosition =
                 origin match {
                   case Some(checkPosNode) => checkPosNode
