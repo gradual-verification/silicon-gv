@@ -192,6 +192,7 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
         )
 
         potentialResolvedVariable match {
+
           case None => {
 
             variable match {
@@ -202,9 +203,11 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
               // Unfortunately, it's also the only way we can translate nested fields
               //
               // This may be the source of bugs!
+              
               case term_variable @ terms.Var(identifier: Identifier, termType) => {
 
                 // we must check that we have the top level receiver in the symbolic store
+                //
                 // symbolic values may point to separate variable names (with different names
                 // than the value, since the thing the symbolic value points to may change)
 
@@ -217,7 +220,7 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
 
                 // This regex removes the non-concrete-variable parts of the
                 // identifier
-                val fieldCleanupPattern = "@[0-9][0-9]*".r
+                val fieldCleanupPattern = """@[0-9][0-9]*""".r
 
                 // This extracts the identifier into an array of concrete
                 // names
@@ -256,10 +259,7 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
                 // here, because we've constructed our own identifier
                 // (identifiers appear to be compared non-structurally)
                 val astVar = store.getKeyForValue(receiver, true) match {
-                  case None => {
-                    println(s"WARNING: unable to resolve variable ${receiver}")
-                    return None
-                  }
+                  case None => return None
                   case Some(concreteVariable) => concreteVariable
                 }
 

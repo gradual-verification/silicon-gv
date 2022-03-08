@@ -46,14 +46,12 @@ trait RecordedPathConditions {
   // If the heap does not contain a mapping for a snapshot(?) value, the path
   // condition must...? maybe
   def getEquivalentVariables(variable: Term): Seq[Term] = {
-    assumptions.filter(entry => entry match {
-      case Equals(var1, var2) => variable == var1 || variable == var2
-      case _ => false
-    }).foldRight(Seq.empty[Term])((equals, variables) => equals match {
-      case Equals(var1, var2) if var1 == variable => var2 +: variables
-      case Equals(var1, var2) if var2 == variable => var1 +: variables
-      case Equals(_, _) => variables
-      case _ => sys.error("Match failure in getEquivalentVariables!")
+    assumptions.foldRight[Seq[Term]](Seq.empty)((term, equivalentVars) => term match {
+      case Equals(var1 @ Var(_, _), var2 @ Var(_, _)) if var2 == variable =>
+        var1 +: equivalentVars
+      case Equals(var1 @ Var(_, _), var2 @ Var(_, _)) if var1 == variable =>
+        var2 +: equivalentVars
+      case _ => equivalentVars
     })
   }
 }
