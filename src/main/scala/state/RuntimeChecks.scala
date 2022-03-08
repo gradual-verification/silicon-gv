@@ -20,7 +20,7 @@ object runtimeChecks {
   //
   // a CheckList is a Seq[CheckInfo]
   
-  private val checks: Map[CheckPosition, CheckList] = new TrieMap[CheckPosition, CheckList]
+  private var checks: Map[CheckPosition, CheckList] = new TrieMap[CheckPosition, CheckList]
 
   def addChecks(programPoint: CheckPosition,
     newCheck: ast.Exp,
@@ -46,5 +46,11 @@ object runtimeChecks {
 
   def getChecks: Map[CheckPosition, CheckList] = {
     checks
+  }
+
+  // TODO: This is not thread safe! This may not be safely used to clear the
+  // map between parallel test runs
+  def reset = {
+    checks = new TrieMap[CheckPosition, CheckList]
   }
 }

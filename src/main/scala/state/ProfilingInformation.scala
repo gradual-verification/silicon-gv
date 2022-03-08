@@ -27,4 +27,8 @@ object profilingInfo {
 
   def getTotalConjuncts = totalConjuncts.get()
 
+  def reset = {
+    eliminatedConjuncts.set(0)
+    totalConjuncts.set(0)
+  }
 }
