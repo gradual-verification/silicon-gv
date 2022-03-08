@@ -7,12 +7,16 @@
 package viper.silicon.rules
 
 import viper.silver.ast
+import viper.silver.ast.Exp
+import viper.silver.ast.Node
 
 import java.util.concurrent._
 import viper.silicon.common.concurrency._
-import viper.silicon.interfaces.{Unreachable, VerificationResult}
-import viper.silicon.state.{State, CheckPosition}
+import viper.silicon.interfaces.{Unreachable, VerificationResult, Success, Failure}
+import viper.silicon.state.{State, CheckPosition, runtimeChecks}
 import viper.silicon.state.terms.{Not, Term}
+import viper.silicon.supporters.Translator
+import viper.silicon.utils
 import viper.silicon.verifier.Verifier
 
 trait BranchingRules extends SymbolicExecutionRules {
@@ -148,7 +152,7 @@ object brancher extends BranchingRules with Immutable {
         CompletableFuture.completedFuture(Seq(Unreachable()))
       }
 
-    (if (executeThenBranch) {
+    val rsThen: VerificationResult = (if (executeThenBranch) {
       executionFlowController.locally(s, v)((s1, v1) => {
         v1.decider.prover.comment(s"[then-branch: $cnt | $condition]")
         v1.decider.setCurrentBranchCondition(condition, position, origin)
@@ -157,7 +161,9 @@ object brancher extends BranchingRules with Immutable {
       })
     } else {
       Unreachable()
-    }) && {
+    })
+
+    val rsElse: VerificationResult = {
 
       /* [BRANCH-PARALLELISATION] */
       if (parallelizeElseBranch) {
@@ -191,6 +197,78 @@ object brancher extends BranchingRules with Immutable {
         assert(rs.length == 1, s"Expected a single verification result but found ${rs.length}")
         rs.head
       }
+    }
+
+    if (s.isImprecise && !fromShortCircuitingAnd) {
+      rsThen match {
+        case Success() => {
+          rsElse match {
+            case Success() | Unreachable() => Success()
+            case Failure(m1) => {
+              /* run-time check for rsThen branch */
+              val cond: Exp =
+                (new Translator(s, v.decider.pcs).translate(condition) match {
+                  case None => sys.error("Error translating! Exiting safely.")
+                  case Some(expr) => expr
+                })
+
+              val runtimeCheckAstNode: CheckPosition =
+                origin match {
+                  case Some(checkPosNode) => checkPosNode
+                  case None => CheckPosition.GenericNode(position)
+                }
+
+              runtimeChecks.addChecks(runtimeCheckAstNode,
+                cond,
+                v.decider.pcs.branchConditionsAstNodes
+                  .zip(v.decider.pcs.branchConditionsOrigins),
+                position.asInstanceOf[Exp],
+                true)
+
+              Success()
+              /* TODO: eventually should warn about failing branch to users - JW */
+            }
+          }
+        }
+        case Unreachable() => {
+          rsElse match {
+            case Success() | Failure(_) => rsElse
+            case Unreachable() => Unreachable()
+          }
+        }
+        case Failure(m1) => {
+          rsElse match {
+            case Success() => {
+              /* run-time check for rsElse branch */
+              val negCond: Exp =
+                (new Translator(s, v.decider.pcs).translate(negatedCondition) match {
+                  case None => sys.error("Error translating! Exiting safely.")
+                  case Some(expr) => expr
+                })
+
+              val runtimeCheckAstNode: CheckPosition =
+                origin match {
+                  case Some(checkPosNode) => checkPosNode
+                  case None => CheckPosition.GenericNode(position)
+                }
+
+              runtimeChecks.addChecks(runtimeCheckAstNode,
+                negCond,
+                v.decider.pcs.branchConditionsAstNodes
+                  .zip(v.decider.pcs.branchConditionsOrigins),
+                position.asInstanceOf[Exp],
+                true)
+
+              Success()
+              /* TODO: eventually should warn about failing branch to users - JW */
+            }
+            case Unreachable() => rsThen
+            case Failure(m2) => rsThen && rsElse
+          }
+        }
+      }
+    } else {
+      (rsThen && rsElse)
     }
   }
 }
