@@ -138,9 +138,6 @@ object producer extends ProductionRules with Immutable {
                           v: Verifier)
                          (Q: (State, Verifier) => VerificationResult)
                          : VerificationResult = {
-
-    // TODO: unset the method call ast node field here!
-    // TODO: check the other places where we do something like this...
     
     if (as.isEmpty)
       Q(s, v)

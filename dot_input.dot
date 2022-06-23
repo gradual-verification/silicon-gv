@@ -1,10 +1,10 @@
 digraph {
 node [shape=rectangle];
 
-    587655103 [label="method divide"];
+    2036681903 [label="method main"];
 
 
-    818226473 [label="method main"];
+    1549037211 [label="method test"];
 
 
 }
