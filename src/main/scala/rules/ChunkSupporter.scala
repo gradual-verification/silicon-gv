@@ -342,8 +342,8 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
               case _ => /* should never reach this case */
                 createFailure(ve, v, s, true).withLoad(args)
             }
-          // this is the evalpc case for adding runtime checks
-          case _ if s.isImprecise && !addToOh =>
+          // this is the evalpc (consume) case for adding runtime checks
+          case _ if s.isImprecise && !addToOh && s.generateChecks =>
             resource match {
               case f: ast.Field => {
                 val snap = v.decider.fresh(s"${args.head}.$id", v.symbolConverter.toSort(f.typ))
@@ -368,29 +368,17 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
                       case None => sys.error("Error translating! Exiting safely.")
                       case Some(expr) => expr
                     })
-
-                  if (s.generateChecks) {
-                    runtimeChecks.addChecks(runtimeCheckAstNode,
-                      ast.FieldAccessPredicate(ast.FieldAccess(translatedArgs.head, f)(), ast.FullPerm()())(),
-                      viper.silicon.utils.zip3(v.decider.pcs.branchConditionsSemanticAstNodes,
-                        v.decider.pcs.branchConditionsAstNodes,
-                        v.decider.pcs.branchConditionsOrigins).map(bc => BranchCond(bc._1, bc._2, bc._3)),
-                      runtimeCheckFieldTarget,
-                      s.forFraming)
-                    runtimeCheckFieldTarget.addCheck(ast.FieldAccessPredicate(ast.FieldAccess(translatedArgs.head, f)(), ast.FullPerm()())())
-                  }
-                  // TODO: ASK JENNA; if we don't generate checks here, should
-                  // we increment the number of eliminated conjuncts?
-                  //
-                  // (in the 'else' case)
-                } else {
-
-                  profilingInfo.incrementEliminatedConjuncts
-                }
-
+                  runtimeChecks.addChecks(runtimeCheckAstNode,
+                    ast.FieldAccessPredicate(ast.FieldAccess(translatedArgs.head, f)(), ast.FullPerm()())(),
+                    viper.silicon.utils.zip3(v.decider.pcs.branchConditionsSemanticAstNodes,
+                      v.decider.pcs.branchConditionsAstNodes,
+                      v.decider.pcs.branchConditionsOrigins).map(bc => BranchCond(bc._1, bc._2, bc._3)),
+                    runtimeCheckFieldTarget,
+                    s.forFraming)
+                  runtimeCheckFieldTarget.addCheck(ast.FieldAccessPredicate(ast.FieldAccess(translatedArgs.head, f)(), ast.FullPerm()())())
+              }
                 Q(s.copy(madeOptimisticAssumptions = true), snap, v)
               }
-              // TODO: ASK JENNA; should we be counting eliminated conjuncts here?
               case p: ast.Predicate => {
                 val snap = v.decider.fresh(s"$id(${args.mkString(",")})", sorts.Snap)
                 Q(s, snap, v)
@@ -399,7 +387,45 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
                 createFailure(ve, v, s, true).withLoad(args)
             }
 
-          case _ =>
+          // this is the evalpc case (produce) for NOT adding runtime checks
+          /* addtoOh         : determines whether or not to add a fresh heap chunk to the optimistic heap 
+                               and also says whether lookup is called from eval-pc or eval
+             s.generateChecks: flag that tells us whether or not we are in produce or consume from eval-pc
+                               — the flag is false if coming from a produce and true if coming from anything else
+          */
+          case _ if s.isImprecise && addToOh && !s.generateChecks =>
+            resource match {
+              case f : ast.Field => {
+                val snap = v.decider.fresh(s"${args.head}.$id", v.symbolConverter.toSort(f.typ))
+                val ch = BasicChunk(FieldID, BasicChunkIdentifier(f.name), args, snap, FullPerm())
+                val s1 = s.copy(madeOptimisticAssumptions = false)
+                val s2 = s1.copy(optimisticHeap = oh)
+
+                val (g, tH, tOH) = s.oldStore match {
+                    case Some(g) => (g, s.h + s.oldHeaps(Verifier.PRE_HEAP_LABEL), s.optimisticHeap + s.oldHeaps(Verifier.PRE_OPTHEAP_LABEL))
+                    case None => (s.g, s.h, s.optimisticHeap)
+                  }
+
+                if(!(s.madeOptimisticAssumptions && 
+                     s.needConditionFramingProduce && 
+                     s.needConditionFramingUnfold)) {
+                  profilingInfo.incrementEliminatedConjuncts
+                }
+                // ? What happens here
+                chunkSupporter.produce(s2, s2.optimisticHeap, ch, v)((s3, oh2, v2) =>
+                  Q(s2.copy(optimisticHeap = oh2), snap, v2))
+              }
+              case p : ast.Predicate => {
+                val snap = v.decider.fresh(s"$id(${args.mkString(",")})", sorts.Snap)
+                val ch = BasicChunk(PredicateID, BasicChunkIdentifier(p.name), args, snap, FullPerm())
+                val s2 = s.copy(optimisticHeap = oh)
+                // ? `chunkSupporter` is this needed
+                chunkSupporter.produce(s2, s2.optimisticHeap, ch, v)((s3, oh2, v2) =>
+                  Q(s.copy(optimisticHeap = oh2), snap, v2))
+              }
+            }
+          }
+          case _ => /* should never reach this case */
               createFailure(ve, v, s, true).withLoad(args)
         }
       }
