@@ -349,7 +349,10 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
                 val snap = v.decider.fresh(s"${args.head}.$id", v.symbolConverter.toSort(f.typ))
 
                 if (generateChecks) {
-
+                // This resolves positional information for the run-time check, and saves it to a 
+                // variable to later be attached to the run-time check. It is enumerating all the 
+                // possible sources and cases that could be involved in determining the right position 
+                // for the check.
                   val runtimeCheckAstNode: CheckPosition =
                     (s.methodCallAstNode, s.foldOrUnfoldAstNode, s.loopPosition) match {
                       case (None, None, None) => CheckPosition.GenericNode(runtimeCheckFieldTarget)
@@ -363,11 +366,20 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
                     case Some(g) => (g, s.h + s.oldHeaps(Verifier.PRE_HEAP_LABEL), s.optimisticHeap + s.oldHeaps(Verifier.PRE_OPTHEAP_LABEL))
                     case None => (s.g, s.h, s.optimisticHeap)
                   }
+                // the `Seq[ast.Exp]` should be thought of as a conjunction of a bunch of formula terms
                   val translatedArgs: Seq[ast.Exp] =
                     args.map(tArg => new Translator(s.copy(g = g, h = tH, optimisticHeap = tOH), v.decider.pcs).translate(tArg) match {
                       case None => sys.error("Error translating! Exiting safely.")
                       case Some(expr) => expr
                     })
+                    // This generates the check. The first argument is the position we found, the second 
+                    // is the run-time check we need at that program point. The third is branching 
+                    // information needed by the frontend to correctly determine, at run-time, when the 
+                    // check should be done (it should only be done down the specific branch on which it 
+                    // was generated). The fourth argument provides additional positioning information 
+                    // to the frontend, and the last argument provides information to the frontend on 
+                    // whether this check was a framing check: this allows for more efficient run-time 
+                    // checks to be inserted into the generated C0 program by the frontend.
                   runtimeChecks.addChecks(runtimeCheckAstNode,
                     ast.FieldAccessPredicate(ast.FieldAccess(translatedArgs.head, f)(), ast.FullPerm()())(),
                     viper.silicon.utils.zip3(v.decider.pcs.branchConditionsSemanticAstNodes,
@@ -401,6 +413,7 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
                 val s1 = s.copy(madeOptimisticAssumptions = false)
                 val s2 = s1.copy(optimisticHeap = oh)
 
+                // ? Probably not needed here
                 val (g, tH, tOH) = s.oldStore match {
                     case Some(g) => (g, s.h + s.oldHeaps(Verifier.PRE_HEAP_LABEL), s.optimisticHeap + s.oldHeaps(Verifier.PRE_OPTHEAP_LABEL))
                     case None => (s.g, s.h, s.optimisticHeap)
@@ -411,40 +424,7 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
                      s.needConditionFramingUnfold)) {
                   profilingInfo.incrementEliminatedConjuncts
                 }
-                /* ----- SOME COMMENTS ON WHAT THE CODE DOES IN CONSUME (this might need to change) -----
-                This resolves positional information for the run-time check, and saves it to a variable to later be attached to the run-time check. It is enumerating all the possible sources and cases that could be involved in determining the right position for the check.
-                */
-                // val runtimeCheckAstNode: CheckPosition =
-                //     (s.methodCallAstNode, s.foldOrUnfoldAstNode, s.loopPosition) match {
-                //       case (None, None, None) => CheckPosition.GenericNode(runtimeCheckFieldTarget)
-                //       case (Some(methodCallAstNode), None, None) => CheckPosition.GenericNode(methodCallAstNode)
-                //       case (None, Some(foldOrUnfoldAstNode), None) => CheckPosition.GenericNode(foldOrUnfoldAstNode)
-                //       case (None, None, Some(loopPosition)) => loopPosition
-                //       case _ => sys.error("Conflicting positions found while adding runtime check!")
-                //     }
 
-                /* ----- SOME COMMENTS ON WHAT THE CODE DOES IN CONSUME (this might need to change) -----
-                the `Seq[ast.Exp]` should be thought of as a conjunction of a bunch of formula terms
-                */
-                //   val translatedArgs: Seq[ast.Exp] =
-                //     args.map(tArg => new Translator(s.copy(g = g, h = tH, optimisticHeap = tOH), v.decider.pcs).translate(tArg) match {
-                //       case None => sys.error("Error translating! Exiting safely.")
-                //       case Some(expr) => expr
-                //     })
-
-                /* ----- SOME COMMENTS ON WHAT THE CODE DOES IN CONSUME (this might need to change) -----
-                This generates the check. The first argument is the position we found, the second is the run-time check we need at that program point. The third is branching information needed by the frontend to correctly determine, at run-time, when the check should be done (it should only be done down the specific branch on which it was generated). The fourth argument provides additional positioning information to the frontend, and the last argument provides information to the frontend on whether this check was a framing check: this allows for more efficient run-time checks to be inserted into the generated C0 program by the frontend.
-                */
-                //   runtimeChecks.addChecks(runtimeCheckAstNode,
-                //     ast.FieldAccessPredicate(ast.FieldAccess(translatedArgs.head, f)(), ast.FullPerm()())(),
-                //     viper.silicon.utils.zip3(v.decider.pcs.branchConditionsSemanticAstNodes,
-                //       v.decider.pcs.branchConditionsAstNodes,
-                //       v.decider.pcs.branchConditionsOrigins).map(bc => BranchCond(bc._1, bc._2, bc._3)),
-                //     runtimeCheckFieldTarget,
-                //     s.forFraming)
-                //   runtimeCheckFieldTarget.addCheck(ast.FieldAccessPredicate(ast.FieldAccess(translatedArgs.head, f)(), ast.FullPerm()())())
-
-                // ? What happens here
                 chunkSupporter.produce(s2, s2.optimisticHeap, ch, v)((s3, oh2, v2) =>
                   Q(s2.copy(optimisticHeap = oh2), snap, v2))
               }
@@ -452,7 +432,7 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
                 val snap = v.decider.fresh(s"$id(${args.mkString(",")})", sorts.Snap)
                 val ch = BasicChunk(PredicateID, BasicChunkIdentifier(p.name), args, snap, FullPerm())
                 val s2 = s.copy(optimisticHeap = oh)
-                // * Probably not necessary (reevaluate when `unfolding in` is added)
+                // TODO: Probably not necessary (reevaluate when `unfolding in` is added)
                 chunkSupporter.produce(s2, s2.optimisticHeap, ch, v)((s3, oh2, v2) =>
                   Q(s.copy(optimisticHeap = oh2), snap, v2))
               }
