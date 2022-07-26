@@ -443,7 +443,7 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
                 //     runtimeCheckFieldTarget,
                 //     s.forFraming)
                 //   runtimeCheckFieldTarget.addCheck(ast.FieldAccessPredicate(ast.FieldAccess(translatedArgs.head, f)(), ast.FullPerm()())())
-                
+
                 // ? What happens here
                 chunkSupporter.produce(s2, s2.optimisticHeap, ch, v)((s3, oh2, v2) =>
                   Q(s2.copy(optimisticHeap = oh2), snap, v2))
@@ -452,7 +452,7 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
                 val snap = v.decider.fresh(s"$id(${args.mkString(",")})", sorts.Snap)
                 val ch = BasicChunk(PredicateID, BasicChunkIdentifier(p.name), args, snap, FullPerm())
                 val s2 = s.copy(optimisticHeap = oh)
-                // ? `chunkSupporter` is this needed
+                // * Probably not necessary (reevaluate when `unfolding in` is added)
                 chunkSupporter.produce(s2, s2.optimisticHeap, ch, v)((s3, oh2, v2) =>
                   Q(s.copy(optimisticHeap = oh2), snap, v2))
               }
