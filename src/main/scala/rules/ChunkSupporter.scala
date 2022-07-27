@@ -436,15 +436,13 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
                 chunkSupporter.produce(s2, s2.optimisticHeap, ch, v)((s3, oh2, v2) =>
                   Q(s.copy(optimisticHeap = oh2), snap, v2))
               }
+              case _ => /* should never reach this case */
+                createFailure(ve, v, s, true).withLoad(args)
             }
           }
-          case _ => /* should never reach this case */
-              createFailure(ve, v, s, true).withLoad(args)
         }
       }
     }
-  }
-
 
   def inHeap[CH <: NonQuantifiedChunk: ClassTag]
             (h: Heap,

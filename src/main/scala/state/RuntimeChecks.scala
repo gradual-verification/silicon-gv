@@ -23,7 +23,7 @@ object runtimeChecks {
   //
   // a CheckList is a Seq[CheckInfo]
 
-  // ! Change to state-like (ref: Producer.scala)
+  // TODO: Change to state-like (ref: Producer.scala)
 
   private var checks: Map[CheckPosition, CheckList] = new TrieMap[CheckPosition, CheckList]
 
