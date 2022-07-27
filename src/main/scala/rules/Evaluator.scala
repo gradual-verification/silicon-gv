@@ -1114,7 +1114,7 @@ object evaluator extends EvaluationRules with Immutable {
           evalLocationAccesspc(s, fa, pve, v, generateChecks)((s1, _, tArgs, v1) => {
             val ve = pve dueTo InsufficientPermission(fa)
             val resource = fa.res(Verifier.program)
-            val addToOh = true /* so lookup knows whether or not to add optimistically assumed permissions to the optimistic heap */
+            val addToOh = false /* so lookup knows whether or not to add optimistically assumed permissions to the optimistic heap */
             
             val s1_0 = s1.copy(madeOptimisticAssumptions = false)
 

@@ -400,12 +400,7 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
             }
 
           // this is the evalpc case (produce) for NOT adding runtime checks
-          /* addtoOh         : determines whether or not to add a fresh heap chunk to the optimistic heap 
-                               and also says whether lookup is called from eval-pc or eval
-             s.generateChecks: flag that tells us whether or not we are in produce or consume from eval-pc
-                               — the flag is false if coming from a produce and true if coming from anything else
-          */
-          case _ if s.isImprecise && addToOh && !s.generateChecks =>
+          case _ if s.isImprecise && !addToOh && !s.generateChecks =>
             resource match {
               case f : ast.Field => {
                 val snap = v.decider.fresh(s"${args.head}.$id", v.symbolConverter.toSort(f.typ))
