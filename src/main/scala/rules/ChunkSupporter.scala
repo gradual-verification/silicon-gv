@@ -343,7 +343,7 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
                 createFailure(ve, v, s, true).withLoad(args)
             }
           // this is the evalpc (consume) case for adding runtime checks
-          case _ if s.isImprecise && !addToOh && s.generateChecks =>
+          case _ if s.isImprecise && !addToOh && !s.generateChecks =>
             resource match {
               case f: ast.Field => {
                 val snap = v.decider.fresh(s"${args.head}.$id", v.symbolConverter.toSort(f.typ))
@@ -400,7 +400,7 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
             }
 
           // this is the evalpc case (produce) for NOT adding runtime checks
-          case _ if s.isImprecise && !addToOh && !s.generateChecks =>
+          case _ if s.isImprecise && !addToOh && s.generateChecks =>
             resource match {
               case f : ast.Field => {
                 val snap = v.decider.fresh(s"${args.head}.$id", v.symbolConverter.toSort(f.typ))
