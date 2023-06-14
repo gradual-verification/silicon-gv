@@ -28,19 +28,19 @@ import viper.silver.cfg.silver.SilverCfg
 import viper.silver.plugin.PluginAwareReporter
 import viper.silver.reporter.{ConfigurationConfirmation, VerificationResultMessage}
 
-/* TODO: Extract a suitable MasterVerifier interface, probably including
+/* TODO: Extract a suitable PrimaryVerifier interface, probably including
  *         - def verificationPoolManager: VerificationPoolManager)
  *         - def uniqueIdCounter: String)
  */
 
-trait MasterVerifier extends Verifier {
+trait PrimaryVerifier extends Verifier {
   def nextUniqueVerifierId(): String
   def verificationPoolManager: VerificationPoolManager
 }
 
-class DefaultMasterVerifier(config: Config, override val reporter: PluginAwareReporter)
+class DefaultPrimaryVerifier(config: Config, override val reporter: PluginAwareReporter)
     extends BaseVerifier(config, "00")
-       with MasterVerifier
+       with PrimaryVerifier
        with DefaultFunctionVerificationUnitProvider
        with DefaultPredicateVerificationUnitProvider {
 

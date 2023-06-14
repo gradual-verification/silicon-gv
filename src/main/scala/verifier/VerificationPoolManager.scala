@@ -15,123 +15,123 @@ import viper.silver.components.StatefulComponent
 import viper.silicon.interfaces.decider.ProverLike
 import viper.silicon.state.terms.{Decl, Term}
 
-class VerificationPoolManager(master: MasterVerifier) extends StatefulComponent {
-  private val numberOfSlaveVerifiers: Int = Verifier.config.numberOfParallelVerifiers()
+class VerificationPoolManager(primary: PrimaryVerifier) extends StatefulComponent {
+  private val numberOfSecondaryVerifiers: Int = Verifier.config.numberOfParallelVerifiers()
 
-  /*private*/ var slaveVerifiers: Seq[SlaveVerifier] = _
-  /*private*/ var slaveVerifierExecutor: ExecutorService = _
-  /*private*/ var slaveVerifierPool: ObjectPool[SlaveVerifier] = _
+  /*private*/ var secondaryVerifiers: Seq[SecondaryVerifier] = _
+  /*private*/ var secondaryVerifierExecutor: ExecutorService = _
+  /*private*/ var secondaryVerifierPool: ObjectPool[SecondaryVerifier] = _
 
   /* private */ var runningVerificationTasks: ConcurrentHashMap[AnyRef, Boolean] = _
 
   private[verifier] object pooledVerifiers extends ProverLike {
-    def emit(content: String): Unit = slaveVerifiers foreach (_.decider.prover.emit(content))
-    def assume(term: Term): Unit = slaveVerifiers foreach (_.decider.prover.assume(term))
-    def declare(decl: Decl): Unit =  slaveVerifiers foreach (_.decider.prover.declare(decl))
-    def comment(content: String): Unit = slaveVerifiers foreach (_.decider.prover.comment(content))
+    def emit(content: String): Unit = secondaryVerifiers foreach (_.decider.prover.emit(content))
+    def assume(term: Term): Unit = secondaryVerifiers foreach (_.decider.prover.assume(term))
+    def declare(decl: Decl): Unit =  secondaryVerifiers foreach (_.decider.prover.declare(decl))
+    def comment(content: String): Unit = secondaryVerifiers foreach (_.decider.prover.comment(content))
 
     def saturate(data: Option[Config.Z3StateSaturationTimeout]): Unit =
-      slaveVerifiers foreach (_.decider.prover.saturate(data))
+      secondaryVerifiers foreach (_.decider.prover.saturate(data))
 
     def saturate(timeout: Int, comment: String): Unit =
-      slaveVerifiers foreach (_.decider.prover.saturate(timeout, comment))
+      secondaryVerifiers foreach (_.decider.prover.saturate(timeout, comment))
   }
 
   /* Verifier pool management */
 
-  private def setupSlaveVerifierPool(): Unit = {
-    slaveVerifiers = Vector.empty
+  private def setupSecondaryVerifierPool(): Unit = {
+    secondaryVerifiers = Vector.empty
     runningVerificationTasks = new ConcurrentHashMap()
 
-    val poolConfig: GenericObjectPoolConfig[SlaveVerifier] = new GenericObjectPoolConfig()
-    poolConfig.setMaxTotal(numberOfSlaveVerifiers)
-    poolConfig.setMaxIdle(numberOfSlaveVerifiers) /* Prevent pool from shutting down idle Z3 instances */
+    val poolConfig: GenericObjectPoolConfig[SecondaryVerifier] = new GenericObjectPoolConfig()
+    poolConfig.setMaxTotal(numberOfSecondaryVerifiers)
+    poolConfig.setMaxIdle(numberOfSecondaryVerifiers) /* Prevent pool from shutting down idle Z3 instances */
     poolConfig.setBlockWhenExhausted(true)
 
-    val factory = PoolUtils.synchronizedPooledFactory(slaveVerifierPoolableObjectFactory)
+    val factory = PoolUtils.synchronizedPooledFactory(secondaryVerifierPoolableObjectFactory)
 
-    slaveVerifierPool =
+    secondaryVerifierPool =
     //    PoolUtils.synchronizedPool(
-    new GenericObjectPool[SlaveVerifier](factory, poolConfig)
+    new GenericObjectPool[SecondaryVerifier](factory, poolConfig)
     //    )
 
-    PoolUtils.prefill(slaveVerifierPool, poolConfig.getMaxTotal)
+    PoolUtils.prefill(secondaryVerifierPool, poolConfig.getMaxTotal)
     //  Thread.sleep(2000)
 
-    assert(slaveVerifiers.length == poolConfig.getMaxTotal)
-    slaveVerifiers foreach (_.start())
+    assert(secondaryVerifiers.length == poolConfig.getMaxTotal)
+    secondaryVerifiers foreach (_.start())
 
-    slaveVerifierExecutor = Executors.newFixedThreadPool(poolConfig.getMaxTotal)
-//    slaveVerifierExecutor = Executors.newWorkStealingPool(poolConfig.getMaxTotal)
+    secondaryVerifierExecutor = Executors.newFixedThreadPool(poolConfig.getMaxTotal)
+//    secondaryVerifierExecutor = Executors.newWorkStealingPool(poolConfig.getMaxTotal)
   }
 
-  private def resetSlaveVerifierPool(): Unit = {
-    slaveVerifiers foreach (_.reset())
+  private def resetSecondaryVerifierPool(): Unit = {
+    secondaryVerifiers foreach (_.reset())
 
     runningVerificationTasks.clear()
   }
 
-  private def teardownSlaveVerifierPool(): Unit = {
-    if (slaveVerifiers != null) {
-      slaveVerifiers foreach (_.stop())
+  private def teardownSecondaryVerifierPool(): Unit = {
+    if (secondaryVerifiers != null) {
+      secondaryVerifiers foreach (_.stop())
 
-      slaveVerifierExecutor.shutdown()
-      slaveVerifierExecutor.awaitTermination(10, TimeUnit.SECONDS)
+      secondaryVerifierExecutor.shutdown()
+      secondaryVerifierExecutor.awaitTermination(10, TimeUnit.SECONDS)
     }
 
-    if (slaveVerifierPool != null) {
-      slaveVerifierPool.close()
+    if (secondaryVerifierPool != null) {
+      secondaryVerifierPool.close()
     }
   }
 
-  private object slaveVerifierPoolableObjectFactory extends BasePooledObjectFactory[SlaveVerifier] {
-    def create(): SlaveVerifier = {
-      val slave = new SlaveVerifier(master, master.nextUniqueVerifierId(), master.reporter)
-      slaveVerifiers = slave +: slaveVerifiers
+  private object secondaryVerifierPoolableObjectFactory extends BasePooledObjectFactory[SecondaryVerifier] {
+    def create(): SecondaryVerifier = {
+      val secondary = new SecondaryVerifier(primary, primary.nextUniqueVerifierId(), primary.reporter)
+      secondaryVerifiers = secondary +: secondaryVerifiers
 
-      slave
+      secondary
     }
 
-    def wrap(arg: SlaveVerifier): PooledObject[SlaveVerifier] = new DefaultPooledObject(arg)
+    def wrap(arg: SecondaryVerifier): PooledObject[SecondaryVerifier] = new DefaultPooledObject(arg)
   }
 
   /* Verification task management */
 
-  private final class SlaveBorrowingVerificationTask(task: SlaveVerifier => Seq[VerificationResult])
+  private final class SecondaryBorrowingVerificationTask(task: SecondaryVerifier => Seq[VerificationResult])
       extends Callable[Seq[VerificationResult]] {
 
     def call(): Seq[VerificationResult] = {
-      var slave: SlaveVerifier = null
+      var secondary: SecondaryVerifier = null
 
       try {
-        slave = slaveVerifierPool.borrowObject()
+        secondary = secondaryVerifierPool.borrowObject()
 
-        task(slave)
+        task(secondary)
       } finally {
-        if (slave != null) {
-          slaveVerifierPool.returnObject(slave)
+        if (secondary != null) {
+          secondaryVerifierPool.returnObject(secondary)
         }
       }
     }
   }
 
-  def queueVerificationTask(task: SlaveVerifier => Seq[VerificationResult])
+  def queueVerificationTask(task: SecondaryVerifier => Seq[VerificationResult])
                            : Future[Seq[VerificationResult]] = {
 
-    slaveVerifierExecutor.submit(new SlaveBorrowingVerificationTask(task))
+    secondaryVerifierExecutor.submit(new SecondaryBorrowingVerificationTask(task))
   }
 
   /* Lifetime */
 
   def start(): Unit = {
-    setupSlaveVerifierPool()
+    setupSecondaryVerifierPool()
   }
 
   def reset(): Unit = {
-    resetSlaveVerifierPool()
+    resetSecondaryVerifierPool()
   }
 
   def stop(): Unit = {
-    teardownSlaveVerifierPool()
+    teardownSecondaryVerifierPool()
   }
 }

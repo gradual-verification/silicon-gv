@@ -10,7 +10,7 @@ import viper.silver.components.StatefulComponent
 import viper.silicon.supporters._
 import viper.silver.plugin.PluginAwareReporter
 
-class SlaveVerifier(master: MasterVerifier,
+class SecondaryVerifier(primary: PrimaryVerifier,
                     uniqueId: String,
                     override val reporter: PluginAwareReporter)
     extends BaseVerifier(Verifier.config, uniqueId)
@@ -22,7 +22,7 @@ class SlaveVerifier(master: MasterVerifier,
     cfgSupporter
   )
 
-  def verificationPoolManager: VerificationPoolManager = master.verificationPoolManager
+  def verificationPoolManager: VerificationPoolManager = primary.verificationPoolManager
 
   /* Lifetime */
 

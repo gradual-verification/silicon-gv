@@ -181,7 +181,7 @@ object brancher extends BranchingRules with Immutable {
 
       /* [BRANCH-PARALLELISATION] */
       if (parallelizeElseBranch) {
-//          && v.verificationPoolManager.slaveVerifierPool.getNumIdle == 0
+//          && v.verificationPoolManager.secondaryVerifierPool.getNumIdle == 0
 //          && !v.verificationPoolManager.runningVerificationTasks.containsKey(elseBranchVerificationTask)
 //                /* TODO: This attempt to ensure that the elseBranchVerificationTask is not already
 //                 *       being executed is most likely not thread-safe since checking if a task

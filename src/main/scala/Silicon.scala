@@ -21,7 +21,7 @@ import viper.silver.verifier.{DefaultDependency => SilDefaultDependency, Failure
 import viper.silicon.common.config.Version
 import viper.silicon.interfaces.Failure
 import viper.silicon.reporting.condenseToViperResult
-import viper.silicon.verifier.DefaultMasterVerifier
+import viper.silicon.verifier.DefaultPrimaryVerifier
 import viper.silver.cfg.silver.SilverCfg
 import viper.silver.logger.ViperStdOutLogger
 import viper.silver.plugin.PluginAwareReporter
@@ -104,7 +104,7 @@ class Silicon(val reporter: PluginAwareReporter, private var debugInfo: Seq[(Str
   }
 
   private var lifetimeState: LifetimeState = LifetimeState.Instantiated
-  private var verifier: DefaultMasterVerifier = _
+  private var verifier: DefaultPrimaryVerifier = _
 
   private var startTime: Long = _
   private var elapsedMillis: Long = _
@@ -131,7 +131,7 @@ class Silicon(val reporter: PluginAwareReporter, private var debugInfo: Seq[(Str
 
     setLogLevelsFromConfig()
 
-    verifier = new DefaultMasterVerifier(config, reporter)
+    verifier = new DefaultPrimaryVerifier(config, reporter)
     verifier.start()
   }
 
