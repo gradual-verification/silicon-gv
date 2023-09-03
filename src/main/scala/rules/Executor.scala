@@ -536,18 +536,22 @@ object executor extends ExecutionRules with Immutable {
         v.decider.assume(ts)
         Q(s1, v)
 
-      // commenting this out causes disjunction_fast to fail
-      // also I think we have a problem with error messages
-      /*
+      // Note: commenting this out causes disjunction_fast to fail; disjunction_fast uses
+      //       abstract methods which are verified with a body of Inhale(FalseLit); so,
+      //       currently this special case is necessary for abstract methods; the rest of the
+      //       functionality is commented out for now until we support inhale fully - JD
+      //       No other entry points to inhale outside of abstract methods should be possible;
+      //       if it does happen remove those other entry points until inhale supported - JD
       case inhale @ ast.Inhale(a) => a match {
         case _: ast.FalseLit =>
           Success()
-        case _ =>
-          produce(s, freshSnap, a, InhaleFailed(inhale), v)((s1, v1) => {
+        case _ => createFailure(createUnexpectedNodeError(stmt,""), v, s)
+          /*produce(s, freshSnap, a, InhaleFailed(inhale), v)((s1, v1) => {
             v1.decider.prover.saturate(Verifier.config.z3SaturationTimeouts.afterInhale)
-            Q(s1, v1)})
+            Q(s1, v1)})*/
       }
-
+      
+      /*
       case exhale @ ast.Exhale(a) =>
         val pve = ExhaleFailed(exhale)
         consume(s, a, pve, v)((s1, _, v1) =>
@@ -800,8 +804,7 @@ object executor extends ExecutionRules with Immutable {
            | _: ast.While => sys.error(s"Unexpected statement (${stmt.getClass.getName}): $stmt")
 
       /* These cases were commented out, because they are not supported by Silicon-gv. */
-      case _: ast.Inhale
-           | _: ast.Exhale
+      case _: ast.Exhale
            | _: ast.Package
            | _: ast.Apply => createFailure(createUnexpectedNodeError(stmt,""), v, s)
     }
