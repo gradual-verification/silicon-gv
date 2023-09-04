@@ -93,7 +93,10 @@ object wellFormedness extends WellFormednessRules with Immutable {
           visitedPreds = visitedPreds :+ predicateName
           val predicate = Verifier.program.findPredicate(predicateName)
           var res = false
-          res = isEquiImpR(predicate.body.get)     
+          predicate.body match {
+            case Some(bdy) => res = isEquiImpR(predicate.body.get)
+            case None => res = true // abstract predicates are treated as ? - JD
+          }
           visitedPreds = visitedPreds.filter(p => p != predicateName)
           res
         }
