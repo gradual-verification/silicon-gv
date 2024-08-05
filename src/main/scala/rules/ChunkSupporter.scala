@@ -128,8 +128,16 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
         Q(s2.copy(h = s.h), h2, optCh2.map(_.snap), v)
 
       // should never reach this case
-      case _ if v.decider.checkSmoke() =>
+      case _ if v.decider.checkSmoke() => {
+        // Case 2 of recognizing a path:
+        // When the path condition is unreachable and the predicate fails to be consumed,
+        // then the path ends and we can print out its time.
+        val timestampAtFinal = System.nanoTime()
+        val totalTime = s1.totalTimeBeforeLastSplit + (timestampAtFinal - s1.timestampAtLastSplit)
+        println("ending at consuming resource " + resource.toString().take(30) + "..., path total time " + totalTime)
+
         Success()
+      }
 
       case (Incomplete(p), s2, h2, None) =>
         Q(s2.copy(h = s.h), h2, None, v)

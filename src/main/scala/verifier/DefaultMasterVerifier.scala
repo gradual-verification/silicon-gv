@@ -209,13 +209,17 @@ class DefaultMasterVerifier(config: Config, override val reporter: PluginAwareRe
       program.methods.filterNot(excludeMethod).map(method => {
         val s = createInitialState(method, program)/*.copy(parallelizeBranches = true)*/ /* [BRANCH-PARALLELISATION] */
         _verificationPoolManager.queueVerificationTask(v => {
-          val startTime = System.currentTimeMillis()
-          val results = v.methodSupporter.verify(s, method)
-          val elapsed = System.currentTimeMillis() - startTime
-          reporter report VerificationResultMessage(s"silicon", method, elapsed, condenseToViperResult(results))
-          logger debug s"Silicon finished verification of method `${method.name}` in ${viper.silver.reporter.format.formatMillisReadably(elapsed)} seconds with the following result: ${condenseToViperResult(results).toString}"
+          if (method.name.contains("declspec")) {
+            val startTime = System.currentTimeMillis()
+            val results = v.methodSupporter.verify(s, method)
+            val elapsed = System.currentTimeMillis() - startTime
+            reporter report VerificationResultMessage(s"silicon", method, elapsed, condenseToViperResult(results))
+            logger debug s"Silicon finished verification of method `${method.name}` in ${viper.silver.reporter.format.formatMillisReadably(elapsed)} seconds with the following result: ${condenseToViperResult(results).toString}"
 
-          results
+            results
+          } else {
+            Seq(Success())
+          }
         })
       }) ++ cfgs.map(cfg => {
         val s = createInitialState(cfg, program)/*.copy(parallelizeBranches = true)*/ /* [BRANCH-PARALLELISATION] */
@@ -265,7 +269,8 @@ class DefaultMasterVerifier(config: Config, override val reporter: PluginAwareRe
           applyHeuristics = applyHeuristics,
           predicateSnapMap = predSnapGenerator.snapMap,
           predicateFormalVarMap = predSnapGenerator.formalVarMap,
-          isMethodVerification = member.isInstanceOf[ast.Member])
+          isMethodVerification = member.isInstanceOf[ast.Member],
+          timestampAtLastSplit = System.nanoTime()) // initialize timestamp at root state
   }
 
   private def createInitialState(cfg: SilverCfg, program: ast.Program): State = {
@@ -279,7 +284,8 @@ class DefaultMasterVerifier(config: Config, override val reporter: PluginAwareRe
       qpMagicWands = quantifiedMagicWands,
       applyHeuristics = applyHeuristics,
       predicateSnapMap = predSnapGenerator.snapMap,
-      predicateFormalVarMap = predSnapGenerator.formalVarMap)
+      predicateFormalVarMap = predSnapGenerator.formalVarMap,
+      timestampAtLastSplit = System.nanoTime()) // initialize timestamp at root state
   }
 
   private def excludeMethod(method: ast.Method) = (

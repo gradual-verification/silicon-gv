@@ -111,7 +111,7 @@ object executor extends ExecutionRules with Immutable {
           }
 
           // The loop location should be set for this branch, maybe
-          brancher.branch(s2point5, tCond, positionalCondition, s1.loopPosition, v1)(
+          brancher.branch(s2point5, tCond, positionalCondition, s1.loopPosition, v1, isFollowing = true)(
             (s3, v3) => exec(s3, ce.target, ce.kind, v3)(Q),
             (_, _) => Unreachable())
         })
@@ -132,22 +132,49 @@ object executor extends ExecutionRules with Immutable {
                       v: Verifier)
                      (Q: (State, Verifier) => VerificationResult)
   : VerificationResult = {
+    // For counting time spent on each path in each branch
+    // the starting time of first foldLeft
+    var branchStartTimestamp : Long = 0
+    // number of edges that have been followed
+    var edgeCnt : Int = 0
 
     if (edges.isEmpty) {
+      // Case 4 of recognizing a path:
+      // When there is no outgoing edge on a basic block (i.e., sink),
+      // then the path ends (since the execution terminates) and we can print out its time.
+      val timestampAtFinal = System.nanoTime()
+      val totalTime = s.totalTimeBeforeLastSplit + (timestampAtFinal - s.timestampAtLastSplit)
+      println("ending at no edge from " + originatingBlock + ", path total time " + totalTime)
+
       Q(s, v)
     } else {
       val isImprecise = originatingBlock match {
         case cfg.LoopHeadBlock(_, _) => s.invariantContexts.head._1
         case _ => s.isImprecise
       }
+
+      // the final result after accumulation
+      var finalResult : VerificationResult = NextUnreachable()
+
       if (isImprecise) {
-        val rsTuple =
-        edges.foldLeft((Unreachable(): VerificationResult, edges.head: SilverEdge)) { (rs, edge) =>
-          val rsEdge = follow(s, originatingBlock, edge, v)(Q)
+        // in the accumulator, NextUnreachable is with the lowest priority and can be overwritten by other result
+        val rsTuple = edges.foldLeft((NextUnreachable(): VerificationResult, edges.head: SilverEdge)) { (rs, edge) =>
+          // count time before starting current branch
+          val currTimestamp = System.nanoTime()
+          if (edgeCnt == 0) {
+            branchStartTimestamp = currTimestamp
+          }
+          edgeCnt += 1
+
+          // update the state's time before this branch
+          val sCopy = s.setTime(branchStartTimestamp, currTimestamp)
+
+          val rsEdge = follow(sCopy, originatingBlock, edge, v)(Q)
           rs match {
             case (Success(), prevEdge) => {
               rsEdge match {
-                case Success() | Unreachable() => (Success(), edge)
+                // the NextUnreachable of current result cannot overwrite the Success on accumulator
+                case Success() | Unreachable() | NextUnreachable() => (Success(), edge)
                 case Failure(m) => {
                   edge match {
                     case ce: cfg.ConditionalEdge[ast.Stmt, ast.Exp] => {
@@ -161,7 +188,7 @@ object executor extends ExecutionRules with Immutable {
                               case e: ast.Exp => e
                             }
 
-                          if (s.generateChecks) {
+                          if (sCopy.generateChecks) {
                             runtimeChecks.addChecks(CheckPosition.GenericNode(position),
                               prevEdge.asInstanceOf[cfg.ConditionalEdge[ast.Stmt, ast.Exp]].condition,
                               viper.silicon.utils.zip3(v.decider.pcs.branchConditionsSemanticAstNodes,
@@ -180,7 +207,15 @@ object executor extends ExecutionRules with Immutable {
                 }
               }
             }
-            case (Unreachable(), prevEdge) => (rsEdge, edge)
+            // Unreachable of previous accumulator has the second lowest priority
+            // the result can be overwritten by any value except NextUnreachable
+            // the edge is overwritten by the current edge
+            case (Unreachable(), _) => {
+              rsEdge match {
+                case NextUnreachable() => (Unreachable(), edge)
+                case _ => (rsEdge, edge)
+              }
+            }
             case (Failure(m), prevEdge) => {
               rsEdge match {
                 case Success() => {
@@ -195,7 +230,7 @@ object executor extends ExecutionRules with Immutable {
                               case ast.Not(e: ast.Exp) => e
                               case e: ast.Exp => e
                             }
-                          if (s.generateChecks) {
+                          if (sCopy.generateChecks) {
                             runtimeChecks.addChecks(CheckPosition.GenericNode(position),
                               edge.asInstanceOf[cfg.ConditionalEdge[ast.Stmt, ast.Exp]].condition,
                               viper.silicon.utils.zip3(v.decider.pcs.branchConditionsSemanticAstNodes,
@@ -212,18 +247,53 @@ object executor extends ExecutionRules with Immutable {
                     case _ => (Failure(m), edge)
                   }
                 }
-                case Unreachable() => (rs._1, edge)
+                // Both Unreachable and NextUnreachable of current result cannot affect the Failure of accumulator
+                case Unreachable() | NextUnreachable() => (rs._1, edge)
                 case Failure(_) => (rs._1 && rsEdge, edge)
               }
             }
+            // NextUnreachable is the original value of previous accumulator,
+            // which has the lowest priority
+            case (NextUnreachable(), _) => (rsEdge, edge)
           }
         }
-        rsTuple._1
+        finalResult = rsTuple._1
       } else {
-        edges.foldLeft(Success(): VerificationResult) {
+        val rs = edges.foldLeft(NextUnreachable(): VerificationResult) {
           case (fatalResult: FatalResult, _) => fatalResult
-          case (_, edge) => follow(s, originatingBlock, edge, v)(Q)
+          case (nonFatalResult : NonFatalResult, edge) => {
+            // count time before starting current branch
+            val currTimestamp = System.nanoTime()
+            if (edgeCnt == 0) {
+              branchStartTimestamp = currTimestamp
+            }
+            edgeCnt += 1
+
+            // update the state's time before this branch
+            val sCopy = s.setTime(branchStartTimestamp, currTimestamp)
+
+            val currentRs = follow(sCopy, originatingBlock, edge, v)(Q)
+            // NextUnreachable has the lowest priority
+            currentRs match {
+              case NextUnreachable() => nonFatalResult
+              case _ => currentRs
+            }
+          }
         }
+        finalResult = rs
+      }
+
+      // Case 1 of recognizing a path:
+      // When all conditional edges are not executed at next level,
+      // then the path ends and we can print out its time.
+      // Also, remove the info of "next" in order not to interfere with upper level
+      if (finalResult == NextUnreachable()) {
+        val timestampAtFinal = System.nanoTime()
+        val totalTime = s.totalTimeBeforeLastSplit + (timestampAtFinal - s.timestampAtLastSplit)
+        println("ending at conditional edge from " + originatingBlock + ", path total time " + totalTime)
+        Unreachable()
+      } else {
+        finalResult
       }
     }
   }
@@ -332,11 +402,28 @@ object executor extends ExecutionRules with Immutable {
                   // unset enum for before loop in symbolic state here?
                   v1.decider.prover.comment("Loop head block: Execute statements of loop head block (in invariant state)")
 
+                  // For counting time spent on each path in each branch
+                  // the starting time of first foldLeft
+                  var branchStartTimestamp : Long = 0
+                  // number of edges that have been followed
+                  var edgeCnt : Int = 0
+
                   phase1data.foldLeft(Success(): VerificationResult) {
                     case (fatalResult: FatalResult, _) => fatalResult
                     case (intermediateResult, (s1, pcs, ff1)) => /* [BRANCH-PARALLELISATION] ff1 */
+
+                      // count time before starting current branch
+                      val currTimestamp = System.nanoTime()
+                      if (edgeCnt == 0) {
+                        branchStartTimestamp = currTimestamp
+                      }
+                      edgeCnt += 1
+
                       val s2 = s1.copy(invariantContexts = (s0.isImprecise, sLeftover.isImprecise, sLeftover.h, sLeftover.optimisticHeap) +: s1.invariantContexts)
-                      intermediateResult && executionFlowController.locally(s2, v1)((s3, v2) => {
+                      // update the state's time before this branch
+                      val s2Copy = s2.setTime(branchStartTimestamp, currTimestamp)
+
+                      intermediateResult && executionFlowController.locally(s2Copy, v1)((s3, v2) => {
   //                    v2.decider.declareAndRecordAsFreshFunctions(ff1 -- v2.decider.freshFunctions) /* [BRANCH-PARALLELISATION] */
                         v2.decider.assume(pcs.assumptions)
                         v2.decider.prover.saturate(Verifier.config.z3SaturationTimeouts.afterContract)
@@ -373,8 +460,17 @@ object executor extends ExecutionRules with Immutable {
             eval(s0, edgeConditions.head, IfFailed(edgeConditions.head), v)((_, _, _) => 
               Success())
             // consume the loop invariant
-            consumes(s0, invs, e => LoopInvariantNotPreserved(e), v)((s1, _, _) => {
+            val result = consumes(s0, invs, e => LoopInvariantNotPreserved(e), v)((s1, _, _) => {
               Success()})
+
+            // Case 3 of recognizing a path:
+            // When the execution goes back to loop head via back-edge,
+            // then the path ends (since the execution terminates) and we can print out its time.
+            val timestampAtFinal = System.nanoTime()
+            val totalTime = s.totalTimeBeforeLastSplit + (timestampAtFinal - s.timestampAtLastSplit)
+            println("ending at loop head of block " + block + " (via backedge), path total time " + totalTime)
+
+            result
         }
 
       case cfg.ConstrainingBlock(vars: Seq[ast.AbstractLocalVar @unchecked], body: SilverCfg) =>

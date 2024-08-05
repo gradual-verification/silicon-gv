@@ -932,7 +932,14 @@ object consumer extends ConsumptionRules with Immutable {
                            exhaleExt = s.exhaleExt)
           Q(s5, Unit, v1)
         case false =>
-        //  println("pve " + pve + "\ne " + e + "\nv1 " + v1 + "\ns3 " + s3)
+          // Case 5 of recognizing a path:
+          // When assertion fails,
+          // then the path ends and we can print out its time.
+          val timestampAtFinal = System.nanoTime()
+          val totalTime = s4.totalTimeBeforeLastSplit + (timestampAtFinal - s4.timestampAtLastSplit)
+          println("ending at evaluation " + e + ", path total time " + totalTime)
+
+          //  println("pve " + pve + "\ne " + e + "\nv1 " + v1 + "\ns3 " + s3)
           //println("heap: " + s.h + "\noh: " + s.optimisticHeap)
           //val s4 = s3.copy(isImprecise = false)
           createFailure(pve dueTo AssertionFalse(e), v1, s3)

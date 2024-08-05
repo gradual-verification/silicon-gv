@@ -12,8 +12,8 @@ import viper.silver.ast.Node
 
 import java.util.concurrent._
 import viper.silicon.common.concurrency._
-import viper.silicon.interfaces.{Unreachable, VerificationResult, Success, Failure}
-import viper.silicon.state.{State, CheckPosition, runtimeChecks, BranchCond}
+import viper.silicon.interfaces.{Failure, NextUnreachable, Success, Unreachable, VerificationResult}
+import viper.silicon.state.{BranchCond, CheckPosition, State, runtimeChecks}
 import viper.silicon.state.terms.{Not, Term}
 import viper.silicon.supporters.Translator
 import viper.silicon.utils
@@ -25,7 +25,10 @@ trait BranchingRules extends SymbolicExecutionRules {
              position: ast.Exp,
              origin: Option[CheckPosition],
              v: Verifier,
-             fromShortCircuitingAnd: Boolean = false)
+             fromShortCircuitingAnd: Boolean = false,
+             // Whether it is called when following a conditional edge.
+             // if so, the else branch is unreachable.
+             isFollowing: Boolean = false)
             (fTrue: (State, Verifier) => VerificationResult,
              fFalse: (State, Verifier) => VerificationResult)
             : VerificationResult
@@ -37,7 +40,8 @@ object brancher extends BranchingRules with Immutable {
              position: ast.Exp,
              origin: Option[CheckPosition],
              v: Verifier,
-             fromShortCircuitingAnd: Boolean = false)
+             fromShortCircuitingAnd: Boolean = false,
+             isFollowing: Boolean = false)
             (fThen: (State, Verifier) => VerificationResult,
              fElse: (State, Verifier) => VerificationResult)
             : VerificationResult = {
@@ -84,6 +88,9 @@ object brancher extends BranchingRules with Immutable {
     v.decider.prover.comment(thenBranchComment)
     v.decider.prover.comment(elseBranchComment)
 
+    // the timestamp at the start of the then branch
+    var timestampAtThen : Long = 0
+
     val elseBranchVerificationTask: Verifier => VerificationResult =
       if (executeElseBranch) {
 /* [BRANCH-PARALLELISATION] */
@@ -106,7 +113,12 @@ object brancher extends BranchingRules with Immutable {
 //        v.decider.pcs.branchConditions foreach (a => println(s"    $a"))
 
         (v0: Verifier) => {
-          executionFlowController.locally(s, v0)((s1, v1) => {
+          // get the timestamp at the beginning of the else branch
+          // update the state's time before else branch
+          val timestampAtElse = System.nanoTime()
+          val sAtElse = s.setTime(timestampAtThen, timestampAtElse)
+
+          executionFlowController.locally(sAtElse, v0)((s1, v1) => {
             if (v.uniqueId != v1.uniqueId) {
 
               /* [BRANCH-PARALLELISATION] */
@@ -161,8 +173,16 @@ object brancher extends BranchingRules with Immutable {
         CompletableFuture.completedFuture(Seq(Unreachable()))
       }
 
+    // get the timestamp at the beginning of the then branch
+    // (even if the then branch is not executed, because it will be used in counting time of else branch)
+    // this is always executed before the else branch (if we don't enable parallelism).
+    timestampAtThen = System.nanoTime()
+
     val rsThen: VerificationResult = (if (executeThenBranch) {
-      executionFlowController.locally(s, v)((s1, v1) => {
+      // update the state's time before then branch
+      val sAtThen = s.setTime(timestampAtThen, timestampAtThen)
+
+      executionFlowController.locally(sAtThen, v)((s1, v1) => {
         v1.decider.prover.comment(s"[then-branch: $cnt | $condition]")
         val cond: Exp =
           (new Translator(s1.copy(g = g, h = h, optimisticHeap = oh), v1.decider.pcs).translate(condition) match {
@@ -213,11 +233,16 @@ object brancher extends BranchingRules with Immutable {
       }
     }
 
-    if (s.isImprecise && !fromShortCircuitingAnd) {
+    // mark that the execution stops on current step
+    if (isFollowing && !executeThenBranch) {
+      NextUnreachable()
+    } else if (s.isImprecise && !fromShortCircuitingAnd) {
+      // both results cannot be NextUnreachable (since they are handled)
+      // but just list NextUnreachable here by default
       rsThen match {
         case Success() => {
           rsElse match {
-            case Success() | Unreachable() => Success()
+            case Success() | Unreachable() | NextUnreachable() => Success()
             case Failure(m1) => {
               /* run-time check for rsThen branch */
               val cond: Exp =
@@ -253,7 +278,7 @@ object brancher extends BranchingRules with Immutable {
         case Unreachable() => {
           rsElse match {
             case Success() | Failure(_) => rsElse
-            case Unreachable() => Unreachable()
+            case Unreachable() | NextUnreachable() => Unreachable()
           }
         }
         case Failure(m1) => {
@@ -287,8 +312,10 @@ object brancher extends BranchingRules with Immutable {
             }
             case Unreachable() => rsThen
             case Failure(m2) => rsThen && rsElse
+            case NextUnreachable() => Unreachable()
           }
         }
+        case NextUnreachable() => Unreachable()
       }
     } else {
       (rsThen && rsElse)

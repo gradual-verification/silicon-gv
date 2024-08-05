@@ -72,6 +72,12 @@ case class Unreachable() extends NonFatalResult {
   override val toString = "Unreachable"
 }
 
+// Showing that the result of execution on the next step is unreachable
+// This can used for avoiding repeatedly counting the path.
+case class NextUnreachable() extends NonFatalResult {
+  override val toString = "NextUnreachable"
+}
+
 case class Failure/*[ST <: Store[ST],
                    H <: Heap[H],
                    S <: State[ST, H, S]]*/

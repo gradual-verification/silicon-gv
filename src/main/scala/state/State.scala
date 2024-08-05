@@ -78,8 +78,23 @@ final case class State(g: Store = Store(),
                        generateChecks: Boolean = true,
                        needConditionFramingUnfold: Boolean = false,
                        needConditionFramingProduce: Boolean = false,
-                       madeOptimisticAssumptions: Boolean = false)
+                       madeOptimisticAssumptions: Boolean = false,
+                       // the data to measure the time of each execution path from the start to a termination
+                       // (need to be careful on split/branch)
+                       totalTimeBeforeLastSplit: Long = 0,
+                       timestampAtLastSplit: Long = 0)
     extends Mergeable[State] {
+
+  // Given the start time of branch and the current timestamp at a branch/split point,
+  // update the time in current state.
+  // Note that we shouldn't consider the execution time on the sibling branch,
+  // so the new newTotalTimeBeforeLastSplit is the time spent on predecessor path of the new split point.
+  def setTime(branchStartTimestamp: Long, currTimestamp: Long): State = {
+    val newTotalTimeBeforeLastSplit =
+      this.totalTimeBeforeLastSplit + (branchStartTimestamp - this.timestampAtLastSplit)
+
+    this.copy(totalTimeBeforeLastSplit = newTotalTimeBeforeLastSplit, timestampAtLastSplit = currTimestamp)
+  }
 
   def incCycleCounter(m: ast.Predicate) =
     if (recordVisited) copy(visited = m :: visited)
@@ -166,7 +181,7 @@ object State {
                  predicateSnapMap1, predicateFormalVarMap1, hack,
                  methodCallAstNode1, foldOrUnfoldAstNode1, loopPosition1, forFraming, generateChecks,
                  needConditionFramingUnfold, needConditionFramingProduce,
-                 madeOptimisticAssumptions) =>
+                 madeOptimisticAssumptions, totalTimeBeforeLastSplit1, timestampAtLastSplit1) =>
 
         /* Decompose state s2: most values must match those of s1 */
         s2 match {
@@ -195,7 +210,8 @@ object State {
                      `predicateSnapMap1`, `predicateFormalVarMap1`, `hack`,
                      `methodCallAstNode1`, `foldOrUnfoldAstNode1`, `loopPosition1`, `forFraming`,
                      `generateChecks`, `needConditionFramingUnfold`,
-                     `needConditionFramingProduce`, `madeOptimisticAssumptions`) =>
+                     `needConditionFramingProduce`, `madeOptimisticAssumptions`,
+                      totalTimeBeforeLastSplit2, timestampAtLastSplit2) =>
 
             val functionRecorder3 = functionRecorder1.merge(functionRecorder2)
             val triggerExp3 = triggerExp1 && triggerExp2
@@ -207,13 +223,22 @@ object State {
 
             val ssCache3 = ssCache1 ++ ssCache2
 
+            // for time measurement of each path
+            // on merge, the merged time just follows the state whose last split comes first
+            // (actually, I think any state is fine)
+            val s1First = if (totalTimeBeforeLastSplit1 <= totalTimeBeforeLastSplit2) true else false
+            val totalTimeBeforeLastSplit3 = if (s1First) totalTimeBeforeLastSplit1 else totalTimeBeforeLastSplit2
+            val timestampAtLastSplit3 = if (s1First) timestampAtLastSplit1 else timestampAtLastSplit2
+
             s1.copy(functionRecorder = functionRecorder3,
                     possibleTriggers = possibleTriggers3,
                     triggerExp = triggerExp3,
                     constrainableARPs = constrainableARPs3,
                     ssCache = ssCache3,
                     smCache = smCache3,
-                    pmCache = pmCache3)
+                    pmCache = pmCache3,
+                    totalTimeBeforeLastSplit = totalTimeBeforeLastSplit3,
+                    timestampAtLastSplit = timestampAtLastSplit3)
 
           case _ =>
             sys.error("State merging failed: unexpected mismatch between symbolic states")

@@ -1870,7 +1870,7 @@ object evaluator extends EvaluationRules with Immutable {
     joiner.join[Term, Term](s, v)((s1, v1, QB) =>
       // TODO GV: we don't currently support this, so the branching information
       // passed in the second and third arguments is not correct!
-      brancher.branch(s1, tLhs, ast.NullLit()(), None, v1, fromShortCircuitingAnd)(
+      brancher.branch(s1, tLhs, ast.NullLit()(), None, v1, fromShortCircuitingAnd = fromShortCircuitingAnd)(
         (s2, v2) => eval(s2, eRhs, pve, v2)(QB),
         (s2, v2) => QB(s2, True(), v2))
     )(entries => {
@@ -2364,7 +2364,7 @@ object evaluator extends EvaluationRules with Immutable {
             }
 
           joiner.join[Term, Term](s1, v1)((s2, v2, QB) =>            
-            brancher.branch(s2, t0, exps.head, branchCondOrigin, v2, true) _ tupled swapIfAnd(
+            brancher.branch(s2, t0, exps.head, branchCondOrigin, v2, fromShortCircuitingAnd = true) _ tupled swapIfAnd(
               (s3, v3) => QB(s3, constructor(Seq(t0)), v3),
               (s3, v3) => evalSeqShortCircuit(constructor, s3, exps.tail, pve, v3)(QB))
             ){case Seq(ent) =>
