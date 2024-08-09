@@ -469,7 +469,7 @@ class Config(args: Seq[String]) extends SilFrontendConfig(args, "Silicon") {
   val numberOfParallelVerifiers: ScallopOption[Int] = opt[Int]("numberOfParallelVerifiers",
     descr = (  "Number of verifiers run in parallel. This number plus one is the number of provers "
              + s"run in parallel (default: ${Runtime.getRuntime.availableProcessors()}"),
-    default = Some(1),
+    default = Some(10),
     noshort = true
   )
 

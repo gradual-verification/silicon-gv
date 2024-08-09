@@ -6,18 +6,20 @@
 
 package viper.silicon.rules
 
+import viper.silicon.common.collections.immutable.InsertionOrderedSet
 import viper.silver.ast
 import viper.silver.ast.Exp
 import viper.silver.ast.Node
 
 import java.util.concurrent._
 import viper.silicon.common.concurrency._
-import viper.silicon.interfaces.{Unreachable, VerificationResult, Success, Failure}
-import viper.silicon.state.{State, CheckPosition, runtimeChecks, BranchCond}
-import viper.silicon.state.terms.{Not, Term}
+import viper.silicon.interfaces.{Failure, Success, Unreachable, VerificationResult}
+import viper.silicon.state.{BranchCond, CheckPosition, State, runtimeChecks}
+import viper.silicon.state.terms.{FunctionDecl, MacroDecl, Not, Term}
 import viper.silicon.supporters.Translator
 import viper.silicon.utils
 import viper.silicon.verifier.Verifier
+import viper.silicon.decider.PathConditionStack
 
 trait BranchingRules extends SymbolicExecutionRules {
   def branch(s: State,
@@ -43,7 +45,6 @@ object brancher extends BranchingRules with Immutable {
             : VerificationResult = {
 
     val negatedCondition = Not(condition)
-    val parallelizeElseBranch = s.parallelizeBranches && !s.underJoin
     val (g, h, oh) = s.oldStore match {
       case Some(store) => (store, s.h + s.oldHeaps(Verifier.PRE_HEAP_LABEL), s.optimisticHeap + s.oldHeaps(Verifier.PRE_OPTHEAP_LABEL))
       case None => (s.g, s.h, s.optimisticHeap)
@@ -70,6 +71,9 @@ object brancher extends BranchingRules with Immutable {
       || skipPathFeasibilityCheck
       || !v.decider.check(condition, Verifier.config.checkTimeout()))
 
+    //val parallelizeElseBranch = s.parallelizeBranches && !s.underJoin && executeThenBranch && executeElseBranch
+    val parallelizeElseBranch = !s.underJoin && executeThenBranch && executeElseBranch
+
 //    val additionalPaths =
 //      if (executeThenBranch && exploreFalseBranch) 1
 //      else 0
@@ -83,6 +87,21 @@ object brancher extends BranchingRules with Immutable {
 
     v.decider.prover.comment(thenBranchComment)
     v.decider.prover.comment(elseBranchComment)
+
+    // for saving the previous context of current decider
+    var functionsOfCurrentDecider: InsertionOrderedSet[FunctionDecl] = null
+    var macrosOfCurrentDecider: Vector[MacroDecl] = null
+    var pcsOfCurrentBranchDecider: PathConditionStack = null
+    ///var noOfErrors = 0
+
+    // compute the context before the branch in advance,
+    // in case that they are modified in then branch
+    if (executeElseBranch && parallelizeElseBranch) {
+      functionsOfCurrentDecider = v.decider.freshFunctions
+      macrosOfCurrentDecider = v.decider.freshMacros
+      pcsOfCurrentBranchDecider = v.decider.pcs.duplicate()
+      ///noOfErrors = v.errorsReportedSoFar.get()
+    }
 
     val elseBranchVerificationTask: Verifier => VerificationResult =
       if (executeElseBranch) {
@@ -106,11 +125,10 @@ object brancher extends BranchingRules with Immutable {
 //        v.decider.pcs.branchConditions foreach (a => println(s"    $a"))
 
         (v0: Verifier) => {
-          executionFlowController.locally(s, v0)((s1, v1) => {
-            if (v.uniqueId != v1.uniqueId) {
 
+          if (v.uniqueId != v0.uniqueId) {
               /* [BRANCH-PARALLELISATION] */
-              throw new RuntimeException("Branch parallelisation is expected to be deactivated for now")
+              //              throw new RuntimeException("Branch parallelisation is expected to be deactivated for now")
 
 //                val newFunctions = functionsOfCurrentDecider -- v1.decider.freshFunctions
 //                val newMacros = macrosOfCurrentDecider.diff(v1.decider.freshMacros)
@@ -124,17 +142,28 @@ object brancher extends BranchingRules with Immutable {
 //                v1.decider.prover.comment(s"Taking path conditions from source verifier ${v.uniqueId}")
 //                v1.decider.setPcs(pcsOfCurrentDecider)
 //                v1.decider.pcs.pushScope() /* Empty scope for which the branch condition can be set */
-            }
 
-            v1.decider.prover.comment(s"[else-branch: $cnt | $negatedCondition]")
-            val negCond: Exp =
-              (new Translator(s1.copy(g = g, h = h, optimisticHeap = oh), v1.decider.pcs).translate(negatedCondition) match {
-                case None => sys.error("Error translating! Exiting safely.")
-                case Some(expr) => expr
-              })
-            v1.decider.setCurrentBranchCondition(negatedCondition, negCond, position, origin)
+            // overwrite the context of else branch decider by the original decider
+            val newFunctions = functionsOfCurrentDecider -- v0.decider.freshFunctions
+            val newMacros = macrosOfCurrentDecider.diff(v0.decider.freshMacros)
 
-            fElse(stateConsolidator.consolidateIfRetrying(s1, v1), v1)
+            v0.decider.declareAndRecordAsFreshFunctions(newFunctions)
+            v0.decider.declareAndRecordAsFreshMacros(newMacros)
+            v0.decider.setPcs(pcsOfCurrentBranchDecider)
+            /// v0.errorsReportedSoFar.set(noOfErrors)
+          }
+
+          executionFlowController.locally(s, v0)((s1, v1) => {
+
+              v1.decider.prover.comment(s"[else-branch: $cnt | $negatedCondition]")
+              val negCond: Exp =
+                (new Translator(s1.copy(g = g, h = h, optimisticHeap = oh), v1.decider.pcs).translate(negatedCondition) match {
+                  case None => sys.error("Error translating! Exiting safely.")
+                  case Some(expr) => expr
+                })
+              v1.decider.setCurrentBranchCondition(negatedCondition, negCond, position, origin)
+
+              fElse(stateConsolidator.consolidateIfRetrying(s1, v1), v1)
           })
         }
       } else {
@@ -145,15 +174,15 @@ object brancher extends BranchingRules with Immutable {
       if (executeElseBranch) {
         if (parallelizeElseBranch) {
           /* [BRANCH-PARALLELISATION] */
-          throw new RuntimeException("Branch parallelisation is expected to be deactivated for now")
-//          v.verificationPoolManager.queueVerificationTask(v0 => {
+//          throw new RuntimeException("Branch parallelisation is expected to be deactivated for now")
+          v.verificationPoolManager.queueVerificationTask(v0 => {
 //            v0.verificationPoolManager.runningVerificationTasks.put(elseBranchVerificationTask, true)
-//            val res = elseBranchVerificationTask(v0)
-//
+            val res = elseBranchVerificationTask(v0)
+
 //            v0.verificationPoolManager.runningVerificationTasks.remove(elseBranchVerificationTask)
-//
-//            Seq(res)
-//          })
+
+            Seq(res)
+          })
         } else {
           new SynchronousFuture(Seq(elseBranchVerificationTask(v)))
         }
@@ -180,7 +209,7 @@ object brancher extends BranchingRules with Immutable {
     val rsElse: VerificationResult = {
 
       /* [BRANCH-PARALLELISATION] */
-      if (parallelizeElseBranch) {
+//      if (parallelizeElseBranch) {
 //          && v.verificationPoolManager.slaveVerifierPool.getNumIdle == 0
 //          && !v.verificationPoolManager.runningVerificationTasks.containsKey(elseBranchVerificationTask)
 //                /* TODO: This attempt to ensure that the elseBranchVerificationTask is not already
@@ -189,7 +218,7 @@ object brancher extends BranchingRules with Immutable {
 //                 *       I.e. the task may be taken out of the queue in between.
 //                 */
 
-        throw new RuntimeException("Branch parallelisation is expected to be deactivated for now")
+//        throw new RuntimeException("Branch parallelisation is expected to be deactivated for now")
 
 //        /* Cancelling the task should result in the underlying task being removed from the task
 //         * queue/executor
@@ -198,7 +227,7 @@ object brancher extends BranchingRules with Immutable {
 //
 //        /* Run the task on the current thread */
 //        elseBranchVerificationTask(v)
-      } else {
+    //  } else {
         var rs: Seq[VerificationResult] = null
         try {
           rs = elseBranchFuture.get()
@@ -210,7 +239,7 @@ object brancher extends BranchingRules with Immutable {
 
         assert(rs.length == 1, s"Expected a single verification result but found ${rs.length}")
         rs.head
-      }
+//      }
     }
 
     if (s.isImprecise && !fromShortCircuitingAnd) {

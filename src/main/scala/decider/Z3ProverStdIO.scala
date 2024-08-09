@@ -28,7 +28,7 @@ class Z3ProverStdIO(uniqueId: String,
     extends Prover
        with LazyLogging {
 
-  private var pushPopScopeDepth = 0
+  var pushPopScopeDepth = 0
   private var lastTimeout: Int = -1
   private var logfileWriter: PrintWriter = _
   private var z3: Process = _

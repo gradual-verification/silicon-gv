@@ -307,7 +307,7 @@ object executor extends ExecutionRules with Immutable {
                   // produces into phase1data
                   phase1data = phase1data :+ (s1point5,
                                               v1.decider.pcs.after(mark),
-                                              InsertionOrderedSet.empty[FunctionDecl] /*v2.decider.freshFunctions*/ /* [BRANCH-PARALLELISATION] */)
+                                              /*InsertionOrderedSet.empty[FunctionDecl]*/ v1.decider.freshFunctions /* [BRANCH-PARALLELISATION] */)
                   v1.decider.prover.comment("Loop head block: Check well-definedness of edge conditions")
                   edgeConditions.foldLeft(Success(): VerificationResult) {
                     case (fatalResult: FatalResult, _) => fatalResult
@@ -337,7 +337,7 @@ object executor extends ExecutionRules with Immutable {
                     case (intermediateResult, (s1, pcs, ff1)) => /* [BRANCH-PARALLELISATION] ff1 */
                       val s2 = s1.copy(invariantContexts = (s0.isImprecise, sLeftover.isImprecise, sLeftover.h, sLeftover.optimisticHeap) +: s1.invariantContexts)
                       intermediateResult && executionFlowController.locally(s2, v1)((s3, v2) => {
-  //                    v2.decider.declareAndRecordAsFreshFunctions(ff1 -- v2.decider.freshFunctions) /* [BRANCH-PARALLELISATION] */
+                        v2.decider.declareAndRecordAsFreshFunctions(ff1 -- v2.decider.freshFunctions) /* [BRANCH-PARALLELISATION] */
                         v2.decider.assume(pcs.assumptions)
                         v2.decider.prover.saturate(Verifier.config.z3SaturationTimeouts.afterContract)
                         if (v2.decider.checkSmoke())

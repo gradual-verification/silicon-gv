@@ -59,8 +59,12 @@ class DefaultMasterVerifier(config: Config, override val reporter: PluginAwareRe
   protected val predSnapGenerator = new PredicateSnapGenerator(symbolConverter, snapshotSupporter)
   protected val predicateAndWandSnapFunctionsContributor = new DefaultPredicateAndWandSnapFunctionsContributor(preambleReader, termConverter, predSnapGenerator, config)
 
-  private val _verificationPoolManager: VerificationPoolManager = new VerificationPoolManager(this)
-  def verificationPoolManager: VerificationPoolManager = _verificationPoolManager
+  // coworker verifiers in _coworkerVerificationPoolManager execute branches in parallel,
+  // while worker verifiers in _workerVerificationPoolManager execute methods or cfg in parallel
+  private val _coworkerVerificationPoolManager: VerificationPoolManager = new VerificationPoolManager(this)
+  private val _workerVerificationPoolManager: VerificationPoolManager = new VerificationPoolManager(this)
+
+  def verificationPoolManager: VerificationPoolManager = _coworkerVerificationPoolManager
 
   private val statefulSubcomponents = List[StatefulComponent](
     uniqueIdCounter,
@@ -68,7 +72,8 @@ class DefaultMasterVerifier(config: Config, override val reporter: PluginAwareRe
     fieldValueFunctionsContributor,
     predSnapGenerator, predicateAndWandSnapFunctionsContributor,
     functionsSupporter, predicateSupporter,
-    _verificationPoolManager,
+    _coworkerVerificationPoolManager,
+    _workerVerificationPoolManager,
     MultiRunRecorders /* In lieu of a better place, include MultiRunRecorders singleton here */
   )
 
@@ -94,32 +99,38 @@ class DefaultMasterVerifier(config: Config, override val reporter: PluginAwareRe
   private object allProvers extends ProverLike {
     def emit(content: String): Unit = {
       decider.prover.emit(content)
-      _verificationPoolManager.pooledVerifiers.emit(content)
+      _coworkerVerificationPoolManager.pooledVerifiers.emit(content)
+      _workerVerificationPoolManager.pooledVerifiers.emit(content)
     }
 
     def assume(term: Term): Unit = {
       decider.prover.assume(term)
-      _verificationPoolManager.pooledVerifiers.assume(term)
+      _coworkerVerificationPoolManager.pooledVerifiers.assume(term)
+      _workerVerificationPoolManager.pooledVerifiers.assume(term)
     }
 
     def declare(decl: Decl): Unit = {
       decider.prover.declare(decl)
-      _verificationPoolManager.pooledVerifiers.declare(decl)
+      _coworkerVerificationPoolManager.pooledVerifiers.declare(decl)
+      _workerVerificationPoolManager.pooledVerifiers.declare(decl)
     }
 
     def comment(content: String): Unit = {
       decider.prover.comment(content)
-      _verificationPoolManager.pooledVerifiers.comment(content)
+      _coworkerVerificationPoolManager.pooledVerifiers.comment(content)
+      _workerVerificationPoolManager.pooledVerifiers.comment(content)
     }
 
     def saturate(timeout: Int, comment: String): Unit = {
       decider.prover.saturate(timeout, comment)
-      _verificationPoolManager.pooledVerifiers.saturate(timeout, comment)
+      _coworkerVerificationPoolManager.pooledVerifiers.saturate(timeout, comment)
+      _workerVerificationPoolManager.pooledVerifiers.saturate(timeout, comment)
     }
 
     def saturate(data: Option[Config.Z3StateSaturationTimeout]): Unit = {
       decider.prover.saturate(data)
-      _verificationPoolManager.pooledVerifiers.saturate(data)
+      _coworkerVerificationPoolManager.pooledVerifiers.saturate(data)
+      _workerVerificationPoolManager.pooledVerifiers.saturate(data)
     }
   }
 
@@ -194,21 +205,21 @@ class DefaultMasterVerifier(config: Config, override val reporter: PluginAwareRe
     })
     decider.prover.stop()
 
-    _verificationPoolManager.pooledVerifiers.comment("-" * 60)
-    _verificationPoolManager.pooledVerifiers.comment("Begin function- and predicate-related preamble")
-    predicateSupporter.declareSortsAfterVerification(_verificationPoolManager.pooledVerifiers)
-    functionsSupporter.declareSortsAfterVerification(_verificationPoolManager.pooledVerifiers)
-    predicateSupporter.declareSymbolsAfterVerification(_verificationPoolManager.pooledVerifiers)
-    functionsSupporter.declareSymbolsAfterVerification(_verificationPoolManager.pooledVerifiers)
-    predicateSupporter.emitAxiomsAfterVerification(_verificationPoolManager.pooledVerifiers)
-    functionsSupporter.emitAxiomsAfterVerification(_verificationPoolManager.pooledVerifiers)
-    _verificationPoolManager.pooledVerifiers.comment("End function- and predicate-related preamble")
-    _verificationPoolManager.pooledVerifiers.comment("-" * 60)
+    _workerVerificationPoolManager.pooledVerifiers.comment("-" * 60)
+    _workerVerificationPoolManager.pooledVerifiers.comment("Begin function- and predicate-related preamble")
+    predicateSupporter.declareSortsAfterVerification(_workerVerificationPoolManager.pooledVerifiers)
+    functionsSupporter.declareSortsAfterVerification(_workerVerificationPoolManager.pooledVerifiers)
+    predicateSupporter.declareSymbolsAfterVerification(_workerVerificationPoolManager.pooledVerifiers)
+    functionsSupporter.declareSymbolsAfterVerification(_workerVerificationPoolManager.pooledVerifiers)
+    predicateSupporter.emitAxiomsAfterVerification(_workerVerificationPoolManager.pooledVerifiers)
+    functionsSupporter.emitAxiomsAfterVerification(_workerVerificationPoolManager.pooledVerifiers)
+    _workerVerificationPoolManager.pooledVerifiers.comment("End function- and predicate-related preamble")
+    _workerVerificationPoolManager.pooledVerifiers.comment("-" * 60)
 
     val verificationTaskFutures: Seq[Future[Seq[VerificationResult]]] =
       program.methods.filterNot(excludeMethod).map(method => {
-        val s = createInitialState(method, program)/*.copy(parallelizeBranches = true)*/ /* [BRANCH-PARALLELISATION] */
-        _verificationPoolManager.queueVerificationTask(v => {
+        val s = createInitialState(method, program).copy(parallelizeBranches = true) /* [BRANCH-PARALLELISATION] */
+        _workerVerificationPoolManager.queueVerificationTask(v => {
           val startTime = System.currentTimeMillis()
           val results = v.methodSupporter.verify(s, method)
           val elapsed = System.currentTimeMillis() - startTime
@@ -218,10 +229,10 @@ class DefaultMasterVerifier(config: Config, override val reporter: PluginAwareRe
           results
         })
       }) ++ cfgs.map(cfg => {
-        val s = createInitialState(cfg, program)/*.copy(parallelizeBranches = true)*/ /* [BRANCH-PARALLELISATION] */
+        val s = createInitialState(cfg, program).copy(parallelizeBranches = true) /* [BRANCH-PARALLELISATION] */
 
 
-        _verificationPoolManager.queueVerificationTask(v => {
+        _workerVerificationPoolManager.queueVerificationTask(v => {
           val startTime = System.currentTimeMillis()
           val results = v.cfgSupporter.verify(s, cfg)
           val elapsed = System.currentTimeMillis() - startTime

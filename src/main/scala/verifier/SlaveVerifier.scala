@@ -22,6 +22,8 @@ class SlaveVerifier(master: MasterVerifier,
     cfgSupporter
   )
 
+  // the coworker verifiers in verificationPoolManager execute branches in parallel,
+  // and their context doesn't need to be resumed each time.
   def verificationPoolManager: VerificationPoolManager = master.verificationPoolManager
 
   /* Lifetime */
