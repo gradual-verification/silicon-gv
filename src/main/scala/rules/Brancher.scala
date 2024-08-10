@@ -27,7 +27,10 @@ trait BranchingRules extends SymbolicExecutionRules {
              position: ast.Exp,
              origin: Option[CheckPosition],
              v: Verifier,
-             fromShortCircuitingAnd: Boolean = false)
+             fromShortCircuitingAnd: Boolean = false,
+             // mark that it is called when following a conditional edge,
+             // where only the then branch is called
+             inConditionalEdge: Boolean = false)
             (fTrue: (State, Verifier) => VerificationResult,
              fFalse: (State, Verifier) => VerificationResult)
             : VerificationResult
@@ -39,7 +42,8 @@ object brancher extends BranchingRules with Immutable {
              position: ast.Exp,
              origin: Option[CheckPosition],
              v: Verifier,
-             fromShortCircuitingAnd: Boolean = false)
+             fromShortCircuitingAnd: Boolean = false,
+             inConditionalEdge: Boolean = false)
             (fThen: (State, Verifier) => VerificationResult,
              fElse: (State, Verifier) => VerificationResult)
             : VerificationResult = {
@@ -71,8 +75,8 @@ object brancher extends BranchingRules with Immutable {
       || skipPathFeasibilityCheck
       || !v.decider.check(condition, Verifier.config.checkTimeout()))
 
-    //val parallelizeElseBranch = s.parallelizeBranches && !s.underJoin && executeThenBranch && executeElseBranch
-    val parallelizeElseBranch = !s.underJoin && executeThenBranch && executeElseBranch
+    val parallelizeElseBranch = s.parallelizeBranches && !s.underJoin &&
+                !inConditionalEdge && executeThenBranch && executeElseBranch
 
 //    val additionalPaths =
 //      if (executeThenBranch && exploreFalseBranch) 1
@@ -89,16 +93,12 @@ object brancher extends BranchingRules with Immutable {
     v.decider.prover.comment(elseBranchComment)
 
     // for saving the previous context of current decider
-    var functionsOfCurrentDecider: InsertionOrderedSet[FunctionDecl] = null
-    var macrosOfCurrentDecider: Vector[MacroDecl] = null
     var pcsOfCurrentBranchDecider: PathConditionStack = null
     ///var noOfErrors = 0
 
     // compute the context before the branch in advance,
     // in case that they are modified in then branch
     if (executeElseBranch && parallelizeElseBranch) {
-      functionsOfCurrentDecider = v.decider.freshFunctions
-      macrosOfCurrentDecider = v.decider.freshMacros
       pcsOfCurrentBranchDecider = v.decider.pcs.duplicate()
       ///noOfErrors = v.errorsReportedSoFar.get()
     }
@@ -144,8 +144,9 @@ object brancher extends BranchingRules with Immutable {
 //                v1.decider.pcs.pushScope() /* Empty scope for which the branch condition can be set */
 
             // overwrite the context of else branch decider by the original decider
-            val newFunctions = functionsOfCurrentDecider -- v0.decider.freshFunctions
-            val newMacros = macrosOfCurrentDecider.diff(v0.decider.freshMacros)
+            // (it is okay to declare more, since it doesn't affect the functionality)
+            val newFunctions = v.decider.freshFunctions -- v0.decider.freshFunctions
+            val newMacros = v.decider.freshMacros.diff(v0.decider.freshMacros)
 
             v0.decider.declareAndRecordAsFreshFunctions(newFunctions)
             v0.decider.declareAndRecordAsFreshMacros(newMacros)

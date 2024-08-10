@@ -111,7 +111,7 @@ object executor extends ExecutionRules with Immutable {
           }
 
           // The loop location should be set for this branch, maybe
-          brancher.branch(s2point5, tCond, positionalCondition, s1.loopPosition, v1)(
+          brancher.branch(s2point5, tCond, positionalCondition, s1.loopPosition, v1, inConditionalEdge = true)(
             (s3, v3) => exec(s3, ce.target, ce.kind, v3)(Q),
             (_, _) => Unreachable())
         })
