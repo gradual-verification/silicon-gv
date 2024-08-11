@@ -15,7 +15,7 @@ import viper.silver.{ast, cfg}
 import viper.silicon.common.collections.immutable.InsertionOrderedSet
 import viper.silicon.common.concurrency.SynchronousFuture
 import viper.silicon.decider.{PathConditionStack, RecordedPathConditions}
-import viper.silicon.interfaces._
+import viper.silicon.interfaces.{VerificationResult, _}
 import viper.silicon.resources.FieldID
 import viper.silicon.state._
 import viper.silicon.state.terms._
@@ -29,6 +29,7 @@ import viper.silicon.{ExecuteRecord, Map, MethodCallRecord, SymbExLogger}
 
 import java.util.concurrent.{ExecutionException, Future}
 import viper.silicon.common.concurrency._
+import scala.collection.mutable
 
 trait ExecutionRules extends SymbolicExecutionRules {
   def exec(s: State,
@@ -52,6 +53,11 @@ object executor extends ExecutionRules with Immutable {
   import evaluator._
   import producer._
   import wellFormedness._
+
+  // the depth of each basic block in cfg
+  // it is used for parallelizing the execution on blocks that are not too deep
+  private val blockDepthMap: mutable.Map[SilverBlock, Int] = mutable.Map.empty[SilverBlock, Int]
+  private var maxDepth: Int = 0
 
   private def follow(s: State, originatingBlock: SilverBlock, edge: SilverEdge, v: Verifier)
                     (Q: (State, Verifier) => VerificationResult)
@@ -148,7 +154,8 @@ object executor extends ExecutionRules with Immutable {
       var futures: Vector[Future[Seq[VerificationResult]]] = Vector.empty
       var edgeToResults: Map[SilverEdge, VerificationResult] = Map.empty[SilverEdge, VerificationResult]
 
-      val parallelBranches = edges.size > 1
+      val depth = blockDepthMap.getOrElse(originatingBlock, maxDepth)
+      val parallelBranches = edges.size > 1 && depth < maxDepth/7
       // for saving the previous context of current decider
       var pcsOfCurrentBranchDecider: PathConditionStack = null
 
@@ -305,8 +312,39 @@ object executor extends ExecutionRules with Immutable {
   def exec(s: State, graph: SilverCfg, v: Verifier)
           (Q: (State, Verifier) => VerificationResult)
           : VerificationResult = {
-
+    calculateBlockDepthMap(graph)
     exec(s, graph.entry, cfg.Kind.Normal, v)(Q)
+  }
+
+  // using BFS to traverse the cfg and get the depth of each block from the entry block
+  def calculateBlockDepthMap(graph: SilverCfg): Unit = {
+    val start = graph.entry
+
+    val visited = mutable.Set[SilverBlock]()
+    val queue = mutable.Queue[SilverBlock]()
+    var currDepth: Int = 0
+
+    // start BFS from the start node
+    queue.enqueue(start)
+    visited.add(start)
+    blockDepthMap += (start -> 0)
+
+    while (queue.nonEmpty) {
+      val currBlock = queue.dequeue()
+      currDepth = blockDepthMap.getOrElse(currBlock, 0)
+
+      // enqueue all unvisited adjacent nodes
+      for (outEdge <- graph.outEdges(currBlock)) {
+        val nextBlock = outEdge.target
+        if (!visited.contains(nextBlock)) {
+          visited.add(nextBlock)
+          queue.enqueue(nextBlock)
+          blockDepthMap += (nextBlock -> (currDepth + 1))
+        }
+      }
+    }
+
+    maxDepth = currDepth
   }
 
   def exec(s: State, block: SilverBlock, incomingEdgeKind: cfg.Kind.Value, v: Verifier)
@@ -528,7 +566,7 @@ object executor extends ExecutionRules with Immutable {
               sortedEdges
                 .collect{case ce: cfg.ConditionalEdge[ast.Stmt, ast.Exp] => ce.condition}
                 .distinct
-            
+            println("back to loop head")
             // call eval on the loop condition to get checks for framing it if needed
             eval(s0, edgeConditions.head, IfFailed(edgeConditions.head), v)((_, _, _) => 
               Success())
