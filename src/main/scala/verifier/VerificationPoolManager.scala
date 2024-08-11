@@ -24,6 +24,9 @@ class VerificationPoolManager(master: MasterVerifier) extends StatefulComponent 
 
   /* private */ var runningVerificationTasks: ConcurrentHashMap[AnyRef, Boolean] = _
 
+  // number of tasks in the running/to be run
+  private var numOfTask = 0
+
   private[verifier] object pooledVerifiers extends ProverLike {
     def emit(content: String): Unit = slaveVerifiers foreach (_.decider.prover.emit(content))
     def assume(term: Term): Unit = slaveVerifiers foreach (_.decider.prover.assume(term))
@@ -62,6 +65,7 @@ class VerificationPoolManager(master: MasterVerifier) extends StatefulComponent 
     slaveVerifiers foreach (_.start())
 
     slaveVerifierExecutor = Executors.newFixedThreadPool(poolConfig.getMaxTotal)
+    numOfTask = 0
 //    slaveVerifierExecutor = Executors.newWorkStealingPool(poolConfig.getMaxTotal)
   }
 
@@ -69,6 +73,7 @@ class VerificationPoolManager(master: MasterVerifier) extends StatefulComponent 
     slaveVerifiers foreach (_.reset())
 
     runningVerificationTasks.clear()
+    numOfTask = 0
   }
 
   private def teardownSlaveVerifierPool(): Unit = {
@@ -82,6 +87,7 @@ class VerificationPoolManager(master: MasterVerifier) extends StatefulComponent 
     if (slaveVerifierPool != null) {
       slaveVerifierPool.close()
     }
+    numOfTask = 0
   }
 
   private object slaveVerifierPoolableObjectFactory extends BasePooledObjectFactory[SlaveVerifier] {
@@ -110,6 +116,7 @@ class VerificationPoolManager(master: MasterVerifier) extends StatefulComponent 
       } finally {
         if (slave != null) {
           slaveVerifierPool.returnObject(slave)
+          numOfTask -= 1
         }
       }
     }
@@ -117,8 +124,13 @@ class VerificationPoolManager(master: MasterVerifier) extends StatefulComponent 
 
   def queueVerificationTask(task: SlaveVerifier => Seq[VerificationResult])
                            : Future[Seq[VerificationResult]] = {
-
+    numOfTask += 1
     slaveVerifierExecutor.submit(new SlaveBorrowingVerificationTask(task))
+  }
+
+  // to avoid being blocked by no available thread
+  def isAvailable(): Boolean = {
+    numOfTask < numberOfSlaveVerifiers
   }
 
   /* Lifetime */

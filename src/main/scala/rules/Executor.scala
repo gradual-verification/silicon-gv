@@ -13,9 +13,9 @@ import viper.silver.verifier.errors._
 import viper.silver.verifier.reasons._
 import viper.silver.{ast, cfg}
 import viper.silicon.common.collections.immutable.InsertionOrderedSet
-import viper.silicon.decider.RecordedPathConditions
+import viper.silicon.common.concurrency.SynchronousFuture
+import viper.silicon.decider.{PathConditionStack, RecordedPathConditions}
 import viper.silicon.interfaces._
-import viper.silicon.interfaces.state.{NonQuantifiedChunk}
 import viper.silicon.resources.FieldID
 import viper.silicon.state._
 import viper.silicon.state.terms._
@@ -26,6 +26,9 @@ import viper.silicon.utils.{freshSnap, zip3}
 import viper.silicon.utils.consistency.createUnexpectedNodeError
 import viper.silicon.verifier.Verifier
 import viper.silicon.{ExecuteRecord, Map, MethodCallRecord, SymbExLogger}
+
+import java.util.concurrent.{ExecutionException, Future}
+import viper.silicon.common.concurrency._
 
 trait ExecutionRules extends SymbolicExecutionRules {
   def exec(s: State,
@@ -140,10 +143,81 @@ object executor extends ExecutionRules with Immutable {
         case cfg.LoopHeadBlock(_, _) => s.invariantContexts.head._1
         case _ => s.isImprecise
       }
+
+      // for storing results for each branch
+      var futures: Vector[Future[Seq[VerificationResult]]] = Vector.empty
+      var edgeToResults: Map[SilverEdge, VerificationResult] = Map.empty[SilverEdge, VerificationResult]
+
+      val parallelBranches = edges.size > 1
+      // for saving the previous context of current decider
+      var pcsOfCurrentBranchDecider: PathConditionStack = null
+
+      // compute the context before the branch in advance,
+      // in case that they are modified in then branch
+      if (parallelBranches) {
+        pcsOfCurrentBranchDecider = v.decider.pcs.duplicate()
+      }
+
       if (isImprecise) {
+        /* [BRANCH-PARALLELISATION] */
+        for (edge <- edges) {
+          // define the continuation for exploring each edge
+          val branchVerificationTask: Verifier => VerificationResult =
+            (vNew: Verifier) => {
+              var differentThread = false
+              if (v.uniqueId != vNew.uniqueId) {
+                // overwrite the context of else branch decider by the original decider
+                // (it is okay to declare more, since it doesn't affect the functionality)
+                val newFunctions = v.decider.freshFunctions -- vNew.decider.freshFunctions
+                val newMacros = v.decider.freshMacros.diff(vNew.decider.freshMacros)
+
+                vNew.decider.declareAndRecordAsFreshFunctions(newFunctions)
+                vNew.decider.declareAndRecordAsFreshMacros(newMacros)
+                vNew.decider.setPcs(pcsOfCurrentBranchDecider.duplicate())
+                differentThread = true
+              }
+
+              executionFlowController.locally(s, vNew)((s1, v1) => {
+                follow(s1, originatingBlock, edge, v1)(Q)
+              })
+            }
+
+          // submit the execution
+          val branchVerificationFuture: Future[Seq[VerificationResult]] =
+            if (parallelBranches && v.verificationPoolManager.isAvailable()) {
+              v.verificationPoolManager.queueVerificationTask(v0 => {
+                val res = branchVerificationTask(v0)
+                Seq(res)
+              })
+            } else {
+              new SynchronousFuture(Seq(branchVerificationTask(v)))
+            }
+
+          futures = futures :+ branchVerificationFuture
+        }
+
+        // get the result of each execution
+        for ((future, edge) <- futures.zip(edges)) {
+          val branchVerificationResult: VerificationResult = {
+            var rs: Seq[VerificationResult] = null
+            try {
+              rs = future.get()
+            } catch {
+              case ex: ExecutionException =>
+                ex.getCause.printStackTrace()
+                throw ex
+            }
+
+            assert(rs.length == 1, s"Expected a single verification result but found ${rs.length}")
+            rs.head
+          }
+
+          edgeToResults = edgeToResults + (edge -> branchVerificationResult)
+        }
+
         val rsTuple =
         edges.foldLeft((Unreachable(): VerificationResult, edges.head: SilverEdge)) { (rs, edge) =>
-          val rsEdge = follow(s, originatingBlock, edge, v)(Q)
+          val rsEdge = edgeToResults.getOrElse(edge, Unreachable())
           rs match {
             case (Success(), prevEdge) => {
               rsEdge match {
@@ -332,20 +406,106 @@ object executor extends ExecutionRules with Immutable {
                   // unset enum for before loop in symbolic state here?
                   v1.decider.prover.comment("Loop head block: Execute statements of loop head block (in invariant state)")
 
-                  phase1data.foldLeft(Success(): VerificationResult) {
+                  // for storing results for each branch
+                  var phase1Futures: Vector[Future[Seq[VerificationResult]]] = Vector.empty
+                  var phase1Results: Vector[VerificationResult] = Vector.empty
+
+                  val parallelBranches = phase1data.size > 1
+                  // for saving the previous context of current decider
+                  var pcsOfCurrentBranchDecider: PathConditionStack = null
+
+                  // compute the context before the branch in advance,
+                  // in case that they are modified in then branch
+                  if (parallelBranches) {
+                    pcsOfCurrentBranchDecider = v1.decider.pcs.duplicate()
+                  }
+
+                  /* [BRANCH-PARALLELISATION] */
+                  for (element <- phase1data) {
+                    val s1 = element._1
+                    val pcs = element._2
+                    val ff1 = element._3
+
+                    val branchVerificationTask: Verifier => VerificationResult =
+                      (vNew: Verifier) => {
+                        if (v1.uniqueId != vNew.uniqueId) {
+                          // overwrite the context of else branch decider by the original decider
+                          // (it is okay to declare more, since it doesn't affect the functionality)
+                          val newFunctions = v1.decider.freshFunctions -- vNew.decider.freshFunctions
+                          val newMacros = v1.decider.freshMacros.diff(vNew.decider.freshMacros)
+
+                          vNew.decider.declareAndRecordAsFreshFunctions(newFunctions)
+                          vNew.decider.declareAndRecordAsFreshMacros(newMacros)
+                          vNew.decider.setPcs(v1.decider.pcs.duplicate())
+                        }
+
+                        val s2 = s1.copy(invariantContexts = (s0.isImprecise, sLeftover.isImprecise, sLeftover.h,
+                                                              sLeftover.optimisticHeap) +: s1.invariantContexts)
+
+                        executionFlowController.locally(s2, vNew)((s3, v2) => {
+                          v2.decider.declareAndRecordAsFreshFunctions(ff1 -- v2.decider.freshFunctions) /* [BRANCH-PARALLELISATION] */
+                          v2.decider.assume(pcs.assumptions)
+                          v2.decider.prover.saturate(Verifier.config.z3SaturationTimeouts.afterContract)
+                          if (v2.decider.checkSmoke())
+                            Success()
+                          else {
+                            execs(s3, stmts, v2)((s4, v3) => {
+                              v3.decider.prover.comment("Loop head block: Follow loop-internal edges")
+                              follows(s4, block, sortedEdges, WhileFailed, v3)(Q)})
+                          }
+                        })
+                      }
+
+                    val branchVerificationFuture: Future[Seq[VerificationResult]] =
+                      if (parallelBranches && v1.verificationPoolManager.isAvailable()) {
+                          v1.verificationPoolManager.queueVerificationTask(v0 => {
+                            val res = branchVerificationTask(v0)
+                            Seq(res)
+                          })
+                      } else {
+                        new SynchronousFuture(Seq(branchVerificationTask(v1)))
+                      }
+
+                    phase1Futures = phase1Futures :+ branchVerificationFuture
+                  }
+
+                  for (future <- phase1Futures) {
+                    val branchVerificationResult: VerificationResult = {
+                      var rs: Seq[VerificationResult] = null
+                      try {
+                        rs = future.get()
+                      } catch {
+                        case ex: ExecutionException =>
+                          ex.getCause.printStackTrace()
+                          throw ex
+                      }
+
+                      assert(rs.length == 1, s"Expected a single verification result but found ${rs.length}")
+                      rs.head
+                    }
+                    phase1Results = phase1Results :+ branchVerificationResult
+                  }
+
+                  phase1Results.foldLeft(Success(): VerificationResult) {
                     case (fatalResult: FatalResult, _) => fatalResult
-                    case (intermediateResult, (s1, pcs, ff1)) => /* [BRANCH-PARALLELISATION] ff1 */
-                      val s2 = s1.copy(invariantContexts = (s0.isImprecise, sLeftover.isImprecise, sLeftover.h, sLeftover.optimisticHeap) +: s1.invariantContexts)
-                      intermediateResult && executionFlowController.locally(s2, v1)((s3, v2) => {
-                        v2.decider.declareAndRecordAsFreshFunctions(ff1 -- v2.decider.freshFunctions) /* [BRANCH-PARALLELISATION] */
-                        v2.decider.assume(pcs.assumptions)
-                        v2.decider.prover.saturate(Verifier.config.z3SaturationTimeouts.afterContract)
-                        if (v2.decider.checkSmoke())
-                          Success()
-                        else {
-                          execs(s3, stmts, v2)((s4, v3) => {
-                            v3.decider.prover.comment("Loop head block: Follow loop-internal edges")
-                            follows(s4, block, sortedEdges, WhileFailed, v3)(Q)})}})}})}))
+                    case (intermediateResult, currentResult) => intermediateResult && currentResult
+                  }
+
+                  //phase1data.foldLeft(Success(): VerificationResult) {
+                  //  case (fatalResult: FatalResult, _) => fatalResult
+                  //  case (intermediateResult, (s1, pcs, ff1)) => /* [BRANCH-PARALLELISATION] ff1 */
+                  //    val s2 = s1.copy(invariantContexts = (s0.isImprecise, sLeftover.isImprecise, sLeftover.h, sLeftover.optimisticHeap) +: s1.invariantContexts)
+                  //    intermediateResult && executionFlowController.locally(s2, v1)((s3, v2) => {
+                  //      v2.decider.declareAndRecordAsFreshFunctions(ff1 -- v2.decider.freshFunctions) /* [BRANCH-PARALLELISATION] */
+                  //      v2.decider.assume(pcs.assumptions)
+                  //      v2.decider.prover.saturate(Verifier.config.z3SaturationTimeouts.afterContract)
+                  //      if (v2.decider.checkSmoke())
+                  //        Success()
+                  //      else {
+                  //        execs(s3, stmts, v2)((s4, v3) => {
+                  //          v3.decider.prover.comment("Loop head block: Follow loop-internal edges")
+                  //          follows(s4, block, sortedEdges, WhileFailed, v3)(Q)})}})}
+                })}))
 
           case _ =>
             /* We've reached a loop head block via an edge other than an in-edge: a normal edge or
