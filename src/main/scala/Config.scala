@@ -488,7 +488,7 @@ class Config(args: Seq[String]) extends SilFrontendConfig(args, "Silicon") {
   val printMethodCFGs: ScallopOption[Boolean] = opt[Boolean]("printMethodCFGs",
     descr = "Print a DOT (Graphviz) representation of the CFG of each method to verify to " +
             "a file '<tempDirectory>/<methodName>.dot'.",
-    default = Some(true),
+    default = Some(false),
     noshort = true
   )
 

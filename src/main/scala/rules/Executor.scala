@@ -259,9 +259,31 @@ object executor extends ExecutionRules with Immutable {
         }
         rsTuple._1
       } else {
+        /* [BRANCH-PARALLELISATION] */
+        // the first element is executed in current thread, to reduce the cost of using another thread
+        var i = 0
+        for (edge <- edges) {
+          // define the continuation for exploring each edge
+          val branchVerificationTask = createBranchVerificationTask(s, v, pcsOfCurrentBranchDecider)(
+            (s1, v1) => follow(s1, originatingBlock, edge, v1)(Q))
+
+          // submit the execution
+          val branchVerificationFuture = createBranchVerificationFuture(parallelBranches && i != 0,
+                                                                        v, branchVerificationTask)
+
+          futures = futures :+ branchVerificationFuture
+          i += 1
+        }
+
+        // get the result of each execution
+        for ((future, edge) <- futures.zip(edges)) {
+          val branchVerificationResult = getBranchVerificationResult(future)
+          edgeToResults = edgeToResults + (edge -> branchVerificationResult)
+        }
+
         edges.foldLeft(Success(): VerificationResult) {
           case (fatalResult: FatalResult, _) => fatalResult
-          case (_, edge) => follow(s, originatingBlock, edge, v)(Q)
+          case (_, edge) => edgeToResults.getOrElse(edge, Unreachable())
         }
       }
     }

@@ -358,7 +358,7 @@ package object utils {
                                        branchVerificationTask: Verifier => VerificationResult)
                                        : Future[Seq[VerificationResult]] = {
 
-      if (doParallel && v.verificationPoolManager.isAvailable()) {
+      if (doParallel && v.verificationPoolManager.isAvailable) {
         v.verificationPoolManager.queueVerificationTask(v0 => {
           val res = branchVerificationTask(v0)
           Seq(res)
