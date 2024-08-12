@@ -225,7 +225,7 @@ class DefaultMasterVerifier(config: Config, override val reporter: PluginAwareRe
           val elapsed = System.currentTimeMillis() - startTime
           reporter report VerificationResultMessage(s"silicon", method, elapsed, condenseToViperResult(results))
           logger debug s"Silicon finished verification of method `${method.name}` in ${viper.silver.reporter.format.formatMillisReadably(elapsed)} seconds with the following result: ${condenseToViperResult(results).toString}"
-
+          println(s"Silicon finished verification of method `${method.name}` in ${viper.silver.reporter.format.formatMillisReadably(elapsed)} seconds with the following result: ${condenseToViperResult(results).toString}")
           results
         })
       }) ++ cfgs.map(cfg => {
@@ -276,7 +276,8 @@ class DefaultMasterVerifier(config: Config, override val reporter: PluginAwareRe
           applyHeuristics = applyHeuristics,
           predicateSnapMap = predSnapGenerator.snapMap,
           predicateFormalVarMap = predSnapGenerator.formalVarMap,
-          isMethodVerification = member.isInstanceOf[ast.Member])
+          isMethodVerification = member.isInstanceOf[ast.Member],
+          depth = 0)
   }
 
   private def createInitialState(cfg: SilverCfg, program: ast.Program): State = {
@@ -290,7 +291,8 @@ class DefaultMasterVerifier(config: Config, override val reporter: PluginAwareRe
       qpMagicWands = quantifiedMagicWands,
       applyHeuristics = applyHeuristics,
       predicateSnapMap = predSnapGenerator.snapMap,
-      predicateFormalVarMap = predSnapGenerator.formalVarMap)
+      predicateFormalVarMap = predSnapGenerator.formalVarMap,
+      depth = 0)
   }
 
   private def excludeMethod(method: ast.Method) = (

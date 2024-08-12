@@ -13,7 +13,6 @@ import viper.silver.verifier.errors._
 import viper.silver.verifier.reasons._
 import viper.silver.{ast, cfg}
 import viper.silicon.common.collections.immutable.InsertionOrderedSet
-import viper.silicon.common.concurrency.SynchronousFuture
 import viper.silicon.decider.{PathConditionStack, RecordedPathConditions}
 import viper.silicon.interfaces.{VerificationResult, _}
 import viper.silicon.resources.FieldID
@@ -24,12 +23,11 @@ import viper.silicon.state.terms.predef.`?r`
 import viper.silicon.supporters.Translator
 import viper.silicon.utils.{freshSnap, zip3}
 import viper.silicon.utils.consistency.createUnexpectedNodeError
+import viper.silicon.utils.parallelEnabler._
 import viper.silicon.verifier.Verifier
 import viper.silicon.{ExecuteRecord, Map, MethodCallRecord, SymbExLogger}
 
-import java.util.concurrent.{ExecutionException, Future}
-import viper.silicon.common.concurrency._
-import scala.collection.mutable
+import java.util.concurrent.Future
 
 trait ExecutionRules extends SymbolicExecutionRules {
   def exec(s: State,
@@ -53,11 +51,6 @@ object executor extends ExecutionRules with Immutable {
   import evaluator._
   import producer._
   import wellFormedness._
-
-  // the depth of each basic block in cfg
-  // it is used for parallelizing the execution on blocks that are not too deep
-  private val blockDepthMap: mutable.Map[SilverBlock, Int] = mutable.Map.empty[SilverBlock, Int]
-  private var maxDepth: Int = 0
 
   private def follow(s: State, originatingBlock: SilverBlock, edge: SilverEdge, v: Verifier)
                     (Q: (State, Verifier) => VerificationResult)
@@ -113,7 +106,7 @@ object executor extends ExecutionRules with Immutable {
            * as a branch condition on the pathcondition stack.
            */
 
-          val s2point5 = s2.copy(loopPosition = None)
+          val s2point5 = s2.copy(loopPosition = None, depth = s2.depth + 1)
           val positionalCondition = ce.condition match {
             case ast.Not(e) => e
             case _ => ce.condition
@@ -128,7 +121,7 @@ object executor extends ExecutionRules with Immutable {
       // TODO: Should we be tracking loop positions here, too?
       case ue: cfg.UnconditionalEdge[ast.Stmt, ast.Exp] =>
 
-        val s1point5 = s1.copy(loopPosition = None)
+        val s1point5 = s1.copy(loopPosition = None, depth = s1.depth + 1)
 
         exec(s1point5, ue.target, ue.kind, v)(Q)
     }
@@ -154,8 +147,7 @@ object executor extends ExecutionRules with Immutable {
       var futures: Vector[Future[Seq[VerificationResult]]] = Vector.empty
       var edgeToResults: Map[SilverEdge, VerificationResult] = Map.empty[SilverEdge, VerificationResult]
 
-      val depth = blockDepthMap.getOrElse(originatingBlock, maxDepth)
-      val parallelBranches = edges.size > 1 && depth < maxDepth/7
+      val parallelBranches = edges.size > 1 && s.depth <= Verifier.config.depthThresholdForParallelism()
       // for saving the previous context of current decider
       var pcsOfCurrentBranchDecider: PathConditionStack = null
 
@@ -167,58 +159,24 @@ object executor extends ExecutionRules with Immutable {
 
       if (isImprecise) {
         /* [BRANCH-PARALLELISATION] */
+        // the first element is executed in current thread, to reduce the cost of using another thread
+        var i = 0
         for (edge <- edges) {
           // define the continuation for exploring each edge
-          val branchVerificationTask: Verifier => VerificationResult =
-            (vNew: Verifier) => {
-              var differentThread = false
-              if (v.uniqueId != vNew.uniqueId) {
-                // overwrite the context of else branch decider by the original decider
-                // (it is okay to declare more, since it doesn't affect the functionality)
-                val newFunctions = v.decider.freshFunctions -- vNew.decider.freshFunctions
-                val newMacros = v.decider.freshMacros.diff(vNew.decider.freshMacros)
-
-                vNew.decider.declareAndRecordAsFreshFunctions(newFunctions)
-                vNew.decider.declareAndRecordAsFreshMacros(newMacros)
-                vNew.decider.setPcs(pcsOfCurrentBranchDecider.duplicate())
-                differentThread = true
-              }
-
-              executionFlowController.locally(s, vNew)((s1, v1) => {
-                follow(s1, originatingBlock, edge, v1)(Q)
-              })
-            }
+          val branchVerificationTask = createBranchVerificationTask(s, v, pcsOfCurrentBranchDecider)(
+                                            (s1, v1) => follow(s1, originatingBlock, edge, v1)(Q))
 
           // submit the execution
-          val branchVerificationFuture: Future[Seq[VerificationResult]] =
-            if (parallelBranches && v.verificationPoolManager.isAvailable()) {
-              v.verificationPoolManager.queueVerificationTask(v0 => {
-                val res = branchVerificationTask(v0)
-                Seq(res)
-              })
-            } else {
-              new SynchronousFuture(Seq(branchVerificationTask(v)))
-            }
+          val branchVerificationFuture = createBranchVerificationFuture(parallelBranches && i != 0,
+                                                                        v, branchVerificationTask)
 
           futures = futures :+ branchVerificationFuture
+          i += 1
         }
 
         // get the result of each execution
         for ((future, edge) <- futures.zip(edges)) {
-          val branchVerificationResult: VerificationResult = {
-            var rs: Seq[VerificationResult] = null
-            try {
-              rs = future.get()
-            } catch {
-              case ex: ExecutionException =>
-                ex.getCause.printStackTrace()
-                throw ex
-            }
-
-            assert(rs.length == 1, s"Expected a single verification result but found ${rs.length}")
-            rs.head
-          }
-
+          val branchVerificationResult = getBranchVerificationResult(future)
           edgeToResults = edgeToResults + (edge -> branchVerificationResult)
         }
 
@@ -312,39 +270,8 @@ object executor extends ExecutionRules with Immutable {
   def exec(s: State, graph: SilverCfg, v: Verifier)
           (Q: (State, Verifier) => VerificationResult)
           : VerificationResult = {
-    calculateBlockDepthMap(graph)
+
     exec(s, graph.entry, cfg.Kind.Normal, v)(Q)
-  }
-
-  // using BFS to traverse the cfg and get the depth of each block from the entry block
-  def calculateBlockDepthMap(graph: SilverCfg): Unit = {
-    val start = graph.entry
-
-    val visited = mutable.Set[SilverBlock]()
-    val queue = mutable.Queue[SilverBlock]()
-    var currDepth: Int = 0
-
-    // start BFS from the start node
-    queue.enqueue(start)
-    visited.add(start)
-    blockDepthMap += (start -> 0)
-
-    while (queue.nonEmpty) {
-      val currBlock = queue.dequeue()
-      currDepth = blockDepthMap.getOrElse(currBlock, 0)
-
-      // enqueue all unvisited adjacent nodes
-      for (outEdge <- graph.outEdges(currBlock)) {
-        val nextBlock = outEdge.target
-        if (!visited.contains(nextBlock)) {
-          visited.add(nextBlock)
-          queue.enqueue(nextBlock)
-          blockDepthMap += (nextBlock -> (currDepth + 1))
-        }
-      }
-    }
-
-    maxDepth = currDepth
   }
 
   def exec(s: State, block: SilverBlock, incomingEdgeKind: cfg.Kind.Value, v: Verifier)
@@ -448,7 +375,7 @@ object executor extends ExecutionRules with Immutable {
                   var phase1Futures: Vector[Future[Seq[VerificationResult]]] = Vector.empty
                   var phase1Results: Vector[VerificationResult] = Vector.empty
 
-                  val parallelBranches = phase1data.size > 1
+                  val parallelBranches = phase1data.size > 1 && sLeftover.depth <= Verifier.config.depthThresholdForParallelism()
                   // for saving the previous context of current decider
                   var pcsOfCurrentBranchDecider: PathConditionStack = null
 
@@ -459,28 +386,19 @@ object executor extends ExecutionRules with Immutable {
                   }
 
                   /* [BRANCH-PARALLELISATION] */
+                  // the first element is executed in current thread, to reduce the cost of using another thread
+                  var i = 0
                   for (element <- phase1data) {
                     val s1 = element._1
                     val pcs = element._2
                     val ff1 = element._3
 
-                    val branchVerificationTask: Verifier => VerificationResult =
-                      (vNew: Verifier) => {
-                        if (v1.uniqueId != vNew.uniqueId) {
-                          // overwrite the context of else branch decider by the original decider
-                          // (it is okay to declare more, since it doesn't affect the functionality)
-                          val newFunctions = v1.decider.freshFunctions -- vNew.decider.freshFunctions
-                          val newMacros = v1.decider.freshMacros.diff(vNew.decider.freshMacros)
+                    // define the continuation for exploring each edge
+                    val branchVerificationTask = createBranchVerificationTask(s1, v1, pcsOfCurrentBranchDecider)(
+                        (s1Copy, v2) => {
+                          val s3 = s1Copy.copy(invariantContexts = (s0.isImprecise, sLeftover.isImprecise, sLeftover.h,
+                                                                    sLeftover.optimisticHeap) +: s1Copy.invariantContexts)
 
-                          vNew.decider.declareAndRecordAsFreshFunctions(newFunctions)
-                          vNew.decider.declareAndRecordAsFreshMacros(newMacros)
-                          vNew.decider.setPcs(v1.decider.pcs.duplicate())
-                        }
-
-                        val s2 = s1.copy(invariantContexts = (s0.isImprecise, sLeftover.isImprecise, sLeftover.h,
-                                                              sLeftover.optimisticHeap) +: s1.invariantContexts)
-
-                        executionFlowController.locally(s2, vNew)((s3, v2) => {
                           v2.decider.declareAndRecordAsFreshFunctions(ff1 -- v2.decider.freshFunctions) /* [BRANCH-PARALLELISATION] */
                           v2.decider.assume(pcs.assumptions)
                           v2.decider.prover.saturate(Verifier.config.z3SaturationTimeouts.afterContract)
@@ -491,36 +409,20 @@ object executor extends ExecutionRules with Immutable {
                               v3.decider.prover.comment("Loop head block: Follow loop-internal edges")
                               follows(s4, block, sortedEdges, WhileFailed, v3)(Q)})
                           }
-                        })
-                      }
+                        }
+                    )
 
-                    val branchVerificationFuture: Future[Seq[VerificationResult]] =
-                      if (parallelBranches && v1.verificationPoolManager.isAvailable()) {
-                          v1.verificationPoolManager.queueVerificationTask(v0 => {
-                            val res = branchVerificationTask(v0)
-                            Seq(res)
-                          })
-                      } else {
-                        new SynchronousFuture(Seq(branchVerificationTask(v1)))
-                      }
+                    // submit the execution
+                    val branchVerificationFuture = createBranchVerificationFuture(parallelBranches && i != 0,
+                                                      v1, branchVerificationTask)
 
                     phase1Futures = phase1Futures :+ branchVerificationFuture
+                    i += 1
                   }
 
+                  // get the result of each execution
                   for (future <- phase1Futures) {
-                    val branchVerificationResult: VerificationResult = {
-                      var rs: Seq[VerificationResult] = null
-                      try {
-                        rs = future.get()
-                      } catch {
-                        case ex: ExecutionException =>
-                          ex.getCause.printStackTrace()
-                          throw ex
-                      }
-
-                      assert(rs.length == 1, s"Expected a single verification result but found ${rs.length}")
-                      rs.head
-                    }
+                    val branchVerificationResult = getBranchVerificationResult(future)
                     phase1Results = phase1Results :+ branchVerificationResult
                   }
 
@@ -566,7 +468,7 @@ object executor extends ExecutionRules with Immutable {
               sortedEdges
                 .collect{case ce: cfg.ConditionalEdge[ast.Stmt, ast.Exp] => ce.condition}
                 .distinct
-            println("back to loop head")
+
             // call eval on the loop condition to get checks for framing it if needed
             eval(s0, edgeConditions.head, IfFailed(edgeConditions.head), v)((_, _, _) => 
               Success())

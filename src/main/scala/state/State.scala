@@ -78,7 +78,8 @@ final case class State(g: Store = Store(),
                        generateChecks: Boolean = true,
                        needConditionFramingUnfold: Boolean = false,
                        needConditionFramingProduce: Boolean = false,
-                       madeOptimisticAssumptions: Boolean = false)
+                       madeOptimisticAssumptions: Boolean = false,
+                       depth: Int = -1)
     extends Mergeable[State] {
 
   def incCycleCounter(m: ast.Predicate) =
@@ -166,7 +167,7 @@ object State {
                  predicateSnapMap1, predicateFormalVarMap1, hack,
                  methodCallAstNode1, foldOrUnfoldAstNode1, loopPosition1, forFraming, generateChecks,
                  needConditionFramingUnfold, needConditionFramingProduce,
-                 madeOptimisticAssumptions) =>
+                 madeOptimisticAssumptions, depth) =>
 
         /* Decompose state s2: most values must match those of s1 */
         s2 match {
@@ -195,7 +196,7 @@ object State {
                      `predicateSnapMap1`, `predicateFormalVarMap1`, `hack`,
                      `methodCallAstNode1`, `foldOrUnfoldAstNode1`, `loopPosition1`, `forFraming`,
                      `generateChecks`, `needConditionFramingUnfold`,
-                     `needConditionFramingProduce`, `madeOptimisticAssumptions`) =>
+                     `needConditionFramingProduce`, `madeOptimisticAssumptions`, `depth`) =>
 
             val functionRecorder3 = functionRecorder1.merge(functionRecorder2)
             val triggerExp3 = triggerExp1 && triggerExp2

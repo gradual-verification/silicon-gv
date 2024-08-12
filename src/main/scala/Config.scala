@@ -469,7 +469,13 @@ class Config(args: Seq[String]) extends SilFrontendConfig(args, "Silicon") {
   val numberOfParallelVerifiers: ScallopOption[Int] = opt[Int]("numberOfParallelVerifiers",
     descr = (  "Number of verifiers run in parallel. This number plus one is the number of provers "
              + s"run in parallel (default: ${Runtime.getRuntime.availableProcessors()}"),
-    default = Some(10),
+    default = Some(16),
+    noshort = true
+  )
+
+  val depthThresholdForParallelism: ScallopOption[Int] = opt[Int]("depthThresholdForParallelism",
+    descr = "the maximum depth of on block that allows parallel execution. If its value is bigger, then it allows more parallelism",
+    default = Some(-1),
     noshort = true
   )
 
@@ -482,7 +488,7 @@ class Config(args: Seq[String]) extends SilFrontendConfig(args, "Silicon") {
   val printMethodCFGs: ScallopOption[Boolean] = opt[Boolean]("printMethodCFGs",
     descr = "Print a DOT (Graphviz) representation of the CFG of each method to verify to " +
             "a file '<tempDirectory>/<methodName>.dot'.",
-    default = Some(false),
+    default = Some(true),
     noshort = true
   )
 

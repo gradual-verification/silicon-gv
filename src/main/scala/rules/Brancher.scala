@@ -20,6 +20,7 @@ import viper.silicon.supporters.Translator
 import viper.silicon.utils
 import viper.silicon.verifier.Verifier
 import viper.silicon.decider.PathConditionStack
+import viper.silicon.utils.parallelEnabler._
 
 trait BranchingRules extends SymbolicExecutionRules {
   def branch(s: State,
@@ -76,7 +77,8 @@ object brancher extends BranchingRules with Immutable {
       || !v.decider.check(condition, Verifier.config.checkTimeout()))
 
     val parallelizeElseBranch = s.parallelizeBranches && !s.underJoin &&
-                !inConditionalEdge && executeThenBranch && executeElseBranch
+                                executeThenBranch && executeElseBranch &&
+                                !inConditionalEdge && s.depth <= Verifier.config.depthThresholdForParallelism()
 
 //    val additionalPaths =
 //      if (executeThenBranch && exploreFalseBranch) 1
@@ -105,6 +107,27 @@ object brancher extends BranchingRules with Immutable {
 
     val elseBranchVerificationTask: Verifier => VerificationResult =
       if (executeElseBranch) {
+        createBranchVerificationTask(s, v, pcsOfCurrentBranchDecider)(
+          (s1, v1) => {
+            v1.decider.prover.comment(s"[else-branch: $cnt | $negatedCondition]")
+            val negCond: Exp =
+              (new Translator(s1.copy(g = g, h = h, optimisticHeap = oh), v1.decider.pcs).translate(negatedCondition) match {
+                case None => sys.error("Error translating! Exiting safely.")
+                case Some(expr) => expr
+              })
+            v1.decider.setCurrentBranchCondition(negatedCondition, negCond, position, origin)
+
+            fElse(stateConsolidator.consolidateIfRetrying(s1, v1), v1)
+          }
+        )
+      } else {
+        _ => Unreachable()
+      }
+
+    val elseBranchFuture = createBranchVerificationFuture(parallelizeElseBranch, v, elseBranchVerificationTask)
+
+    //    val elseBranchVerificationTask: Verifier => VerificationResult =
+//      if (executeElseBranch) {
 /* [BRANCH-PARALLELISATION] */
         /* Compute the following sets
          *   1. only if the else-branch needs to be explored
@@ -124,9 +147,9 @@ object brancher extends BranchingRules with Immutable {
 //        println("  v.decider.pcs.branchConditions = ")
 //        v.decider.pcs.branchConditions foreach (a => println(s"    $a"))
 
-        (v0: Verifier) => {
+        //(v0: Verifier) => {
 
-          if (v.uniqueId != v0.uniqueId) {
+          //if (v.uniqueId != v0.uniqueId) {
               /* [BRANCH-PARALLELISATION] */
               //              throw new RuntimeException("Branch parallelisation is expected to be deactivated for now")
 
@@ -145,51 +168,50 @@ object brancher extends BranchingRules with Immutable {
 
             // overwrite the context of else branch decider by the original decider
             // (it is okay to declare more, since it doesn't affect the functionality)
-            val newFunctions = v.decider.freshFunctions -- v0.decider.freshFunctions
-            val newMacros = v.decider.freshMacros.diff(v0.decider.freshMacros)
+            //val newFunctions = v.decider.freshFunctions -- v0.decider.freshFunctions
+            //val newMacros = v.decider.freshMacros.diff(v0.decider.freshMacros)
 
-            v0.decider.declareAndRecordAsFreshFunctions(newFunctions)
-            v0.decider.declareAndRecordAsFreshMacros(newMacros)
-            v0.decider.setPcs(pcsOfCurrentBranchDecider)
+            //v0.decider.declareAndRecordAsFreshFunctions(newFunctions)
+            //v0.decider.declareAndRecordAsFreshMacros(newMacros)
+            //v0.decider.setPcs(pcsOfCurrentBranchDecider)
             /// v0.errorsReportedSoFar.set(noOfErrors)
-          }
+          //}
 
-          executionFlowController.locally(s, v0)((s1, v1) => {
+          //executionFlowController.locally(s, v0)((s1, v1) => {
 
-              v1.decider.prover.comment(s"[else-branch: $cnt | $negatedCondition]")
-              val negCond: Exp =
-                (new Translator(s1.copy(g = g, h = h, optimisticHeap = oh), v1.decider.pcs).translate(negatedCondition) match {
-                  case None => sys.error("Error translating! Exiting safely.")
-                  case Some(expr) => expr
-                })
-              v1.decider.setCurrentBranchCondition(negatedCondition, negCond, position, origin)
+              //v1.decider.prover.comment(s"[else-branch: $cnt | $negatedCondition]")
+              //val negCond: Exp =
+                //(new Translator(s1.copy(g = g, h = h, optimisticHeap = oh), v1.decider.pcs).translate(negatedCondition) match {
+                 // case None => sys.error("Error translating! Exiting safely.")
+                 // case Some(expr) => expr
+                //})
+              //v1.decider.setCurrentBranchCondition(negatedCondition, negCond, position, origin)
+//
+          //})
+        //}
+      //} else {
+       // _ => Unreachable()
+      //}
 
-              fElse(stateConsolidator.consolidateIfRetrying(s1, v1), v1)
-          })
-        }
-      } else {
-        _ => Unreachable()
-      }
-
-    val elseBranchFuture: Future[Seq[VerificationResult]] =
-      if (executeElseBranch) {
-        if (parallelizeElseBranch) {
+    //val elseBranchFuture: Future[Seq[VerificationResult]] =
+    //  if (executeElseBranch) {
+    //    if (parallelizeElseBranch) {
           /* [BRANCH-PARALLELISATION] */
 //          throw new RuntimeException("Branch parallelisation is expected to be deactivated for now")
-          v.verificationPoolManager.queueVerificationTask(v0 => {
+   //       v.verificationPoolManager.queueVerificationTask(v0 => {
 //            v0.verificationPoolManager.runningVerificationTasks.put(elseBranchVerificationTask, true)
-            val res = elseBranchVerificationTask(v0)
+    //        val res = elseBranchVerificationTask(v0)
 
 //            v0.verificationPoolManager.runningVerificationTasks.remove(elseBranchVerificationTask)
 
-            Seq(res)
-          })
-        } else {
-          new SynchronousFuture(Seq(elseBranchVerificationTask(v)))
-        }
-      } else {
-        CompletableFuture.completedFuture(Seq(Unreachable()))
-      }
+    //        Seq(res)
+    //      })
+     //   } else {
+     //     new SynchronousFuture(Seq(elseBranchVerificationTask(v)))
+     //   }
+    //  } else {
+     //   CompletableFuture.completedFuture(Seq(Unreachable()))
+     // }
 
     val rsThen: VerificationResult = (if (executeThenBranch) {
       executionFlowController.locally(s, v)((s1, v1) => {
@@ -207,7 +229,9 @@ object brancher extends BranchingRules with Immutable {
       Unreachable()
     })
 
-    val rsElse: VerificationResult = {
+    val rsElse: VerificationResult = getBranchVerificationResult(elseBranchFuture)
+
+//    val rsElse: VerificationResult = {
 
       /* [BRANCH-PARALLELISATION] */
 //      if (parallelizeElseBranch) {
@@ -229,19 +253,19 @@ object brancher extends BranchingRules with Immutable {
 //        /* Run the task on the current thread */
 //        elseBranchVerificationTask(v)
     //  } else {
-        var rs: Seq[VerificationResult] = null
-        try {
-          rs = elseBranchFuture.get()
-        } catch {
-          case ex: ExecutionException =>
-            ex.getCause.printStackTrace()
-            throw ex
-        }
-
-        assert(rs.length == 1, s"Expected a single verification result but found ${rs.length}")
-        rs.head
+//        var rs: Seq[VerificationResult] = null
+//        try {
+//          rs = elseBranchFuture.get()
+//        } catch {
+//          case ex: ExecutionException =>
+//            ex.getCause.printStackTrace()
+//            throw ex
+//        }
+//
+//        assert(rs.length == 1, s"Expected a single verification result but found ${rs.length}")
+//        rs.head
 //      }
-    }
+//    }
 
     if (s.isImprecise && !fromShortCircuitingAnd) {
       rsThen match {

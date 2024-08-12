@@ -6,6 +6,10 @@
 
 package viper.silicon
 
+import viper.silicon.decider.PathConditionStack
+import viper.silicon.interfaces.VerificationResult
+import viper.silicon.rules.executionFlowController
+import viper.silicon.state.State
 import viper.silver
 import viper.silver.components.StatefulComponent
 import viper.silver.verifier.{VerificationError, errors}
@@ -14,6 +18,9 @@ import viper.silver.verifier.reasons.{FeatureUnsupported, UnexpectedNode}
 import viper.silver.ast.utility.rewriter.Traverse
 import viper.silicon.state.terms.{Sort, Term, Var}
 import viper.silicon.verifier.Verifier
+
+import java.util.concurrent.{ExecutionException, Future}
+import viper.silicon.common.concurrency._
 
 package object utils {
   def freshSnap: (Sort, Verifier) => Var = (sort, v) => v.decider.fresh(sort)
@@ -319,6 +326,66 @@ package object utils {
       val stackTrace = new Throwable().getStackTrace
 
       Internal(offendingNode, UnexpectedNode(offendingNode, explanation, stackTrace))
+    }
+  }
+
+  object parallelEnabler {
+    // for enabling parallelism on a branch,
+    // first define how to copy the context of verifier and execute on the new verifier
+    def createBranchVerificationTask(s: State, v: Verifier,
+                                     pcsOfCurrentBranchDecider: PathConditionStack)
+                                    (Q: (State, Verifier) => VerificationResult)
+                                    : Verifier => VerificationResult = {
+      (vNew: Verifier) => {
+        if (v.uniqueId != vNew.uniqueId) {
+          // Overwrite the context of the else branch decider by the original decider
+          val newFunctions = v.decider.freshFunctions -- vNew.decider.freshFunctions
+          val newMacros = v.decider.freshMacros.diff(vNew.decider.freshMacros)
+
+          vNew.decider.declareAndRecordAsFreshFunctions(newFunctions)
+          vNew.decider.declareAndRecordAsFreshMacros(newMacros)
+          vNew.decider.setPcs(pcsOfCurrentBranchDecider.duplicate())
+        }
+
+        executionFlowController.locally(s, vNew)((s1, v1) => Q(s1, v1))
+      }
+    }
+
+    // for enabling parallelism on a branch,
+    // second submit the task
+    def createBranchVerificationFuture(doParallel: Boolean,
+                                       v: Verifier,
+                                       branchVerificationTask: Verifier => VerificationResult)
+                                       : Future[Seq[VerificationResult]] = {
+
+      if (doParallel && v.verificationPoolManager.isAvailable()) {
+        v.verificationPoolManager.queueVerificationTask(v0 => {
+          val res = branchVerificationTask(v0)
+          Seq(res)
+        })
+      } else {
+        new SynchronousFuture(Seq(branchVerificationTask(v)))
+      }
+    }
+
+    // for enabling parallelism on a branch,
+    // finally get the result from the synchronous or asynchronous execution
+    def getBranchVerificationResult(future: Future[Seq[VerificationResult]])
+                                    : VerificationResult = {
+
+      var rs: Seq[VerificationResult] = null
+      try {
+        // Blocking call to retrieve the result of the Future
+        rs = future.get()
+      } catch {
+        case ex: ExecutionException =>
+          ex.getCause.printStackTrace()
+          throw ex
+      }
+
+      // Ensure that exactly one verification result is present
+      assert(rs.length == 1, s"Expected a single verification result but found ${rs.length}")
+      rs.head
     }
   }
 }
