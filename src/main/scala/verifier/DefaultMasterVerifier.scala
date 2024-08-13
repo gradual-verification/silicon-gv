@@ -225,7 +225,7 @@ class DefaultMasterVerifier(config: Config, override val reporter: PluginAwareRe
           val elapsed = System.currentTimeMillis() - startTime
           reporter report VerificationResultMessage(s"silicon", method, elapsed, condenseToViperResult(results))
           logger debug s"Silicon finished verification of method `${method.name}` in ${viper.silver.reporter.format.formatMillisReadably(elapsed)} seconds with the following result: ${condenseToViperResult(results).toString}"
-          println(s"Silicon finished verification of method `${method.name}` in ${viper.silver.reporter.format.formatMillisReadably(elapsed)} seconds with the following result: ${condenseToViperResult(results).toString}")
+
           results
         })
       }) ++ cfgs.map(cfg => {
