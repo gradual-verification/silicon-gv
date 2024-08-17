@@ -339,11 +339,6 @@ package object utils {
       (vNew: Verifier) => {
         if (v.uniqueId != vNew.uniqueId) {
           // Overwrite the context of the else branch decider by the original decider
-          val newFunctions = v.decider.freshFunctions -- vNew.decider.freshFunctions
-          val newMacros = v.decider.freshMacros.diff(vNew.decider.freshMacros)
-
-          vNew.decider.declareAndRecordAsFreshFunctions(newFunctions)
-          vNew.decider.declareAndRecordAsFreshMacros(newMacros)
           vNew.decider.setPcs(pcsOfCurrentBranchDecider.duplicate())
         }
 

@@ -17,6 +17,7 @@ import viper.silicon.decider.SMTLib2PreambleReader
 import viper.silicon.interfaces._
 import viper.silicon.interfaces.decider.ProverLike
 import viper.silicon.reporting.{MultiRunRecorders, condenseToViperResult}
+import viper.silicon.rules.executionFlowController
 import viper.silicon.state._
 import viper.silicon.state.terms.{Decl, Sort, Term, sorts}
 import viper.silicon.supporters._
@@ -187,8 +188,14 @@ class DefaultMasterVerifier(config: Config, override val reporter: PluginAwareRe
      *       Otherwise Set will be used internally and some error messages will be lost.
      */
     val functionVerificationResults = functionsSupporter.units.toList flatMap (function => {
+      val s = createInitialState(function, program)
       val startTime = System.currentTimeMillis()
-      val results = functionsSupporter.verify(createInitialState(function, program), function)
+      // making declarations of local variable pushed and popped,
+      // so that they won't be kept in the bottom of Z3
+      val results = Seq(executionFlowController.locally(s, this)((_, _) => {
+        val verificationResults = this.functionsSupporter.verify(s, function)
+        verificationResults.head
+      }))
       val elapsed = System.currentTimeMillis() - startTime
       reporter report VerificationResultMessage(s"silicon", function, elapsed, condenseToViperResult(results))
       logger debug s"Silicon finished verification of function `${function.name}` in ${viper.silver.reporter.format.formatMillisReadably(elapsed)} seconds with the following result: ${condenseToViperResult(results).toString}"
@@ -196,8 +203,14 @@ class DefaultMasterVerifier(config: Config, override val reporter: PluginAwareRe
     })
 
     val predicateVerificationResults = predicateSupporter.units.toList flatMap (predicate => {
+      val s = createInitialState(predicate, program)
       val startTime = System.currentTimeMillis()
-      val results = predicateSupporter.verify(createInitialState(predicate, program), predicate)
+      // making declarations of local variable pushed and popped
+      // so that they won't be kept in the bottom of Z3
+      val results = Seq(executionFlowController.locally(s, this)((_, _) => {
+        val verificationResults = this.predicateSupporter.verify(s, predicate)
+        verificationResults.head
+      }))
       val elapsed = System.currentTimeMillis() - startTime
       reporter report VerificationResultMessage(s"silicon", predicate, elapsed, condenseToViperResult(results))
       logger debug s"Silicon finished verification of predicate `${predicate.name}` in ${viper.silver.reporter.format.formatMillisReadably(elapsed)} seconds with the following result: ${condenseToViperResult(results).toString}"
@@ -221,7 +234,12 @@ class DefaultMasterVerifier(config: Config, override val reporter: PluginAwareRe
         val s = createInitialState(method, program).copy(parallelizeBranches = true) /* [BRANCH-PARALLELISATION] */
         _workerVerificationPoolManager.queueVerificationTask(v => {
           val startTime = System.currentTimeMillis()
-          val results = v.methodSupporter.verify(s, method)
+          // making declarations of local variable pushed and popped
+          // so that they won't be kept in the bottom of Z3
+          val results = Seq(executionFlowController.locally(s, v)((_, _) => {
+            val verificationResults = v.methodSupporter.verify(s, method)
+            verificationResults.head
+          }))
           val elapsed = System.currentTimeMillis() - startTime
           reporter report VerificationResultMessage(s"silicon", method, elapsed, condenseToViperResult(results))
           logger debug s"Silicon finished verification of method `${method.name}` in ${viper.silver.reporter.format.formatMillisReadably(elapsed)} seconds with the following result: ${condenseToViperResult(results).toString}"

@@ -183,7 +183,7 @@ class Config(args: Seq[String]) extends SilFrontendConfig(args, "Silicon") {
   val disableShortCircuitingEvaluations: ScallopOption[Boolean] = opt[Boolean]("disableShortCircuitingEvaluations",
     descr = (  "Disable short-circuiting evaluation of AND, OR. If disabled, "
              + "evaluating e.g., i > 0 && f(i), will fail if f's precondition requires i > 0."),
-    default = Some(false),
+    default = Some(true),
     noshort = true
   )
 
@@ -475,7 +475,7 @@ class Config(args: Seq[String]) extends SilFrontendConfig(args, "Silicon") {
 
   val depthThresholdForParallelism: ScallopOption[Int] = opt[Int]("depthThresholdForParallelism",
     descr = "the maximum depth of on block that allows parallel execution. If its value is bigger, then it allows more parallelism",
-    default = Some(-1),
+    default = Some(4),
     noshort = true
   )
 

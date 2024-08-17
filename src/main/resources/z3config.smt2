@@ -13,7 +13,7 @@
 ; these replies when it interacts with Z3 via stdio.
 (set-option :print-success true) ; Boogie: false
 
-(set-option :global-decls true) ; Boogie: default
+;(set-option :global-decls true) ; Boogie: default
 (set-option :auto_config false) ; Usually a good idea
 
 (set-option :smt.restart_strategy 0)

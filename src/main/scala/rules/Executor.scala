@@ -12,7 +12,6 @@ import viper.silver.verifier.{CounterexampleTransformer, PartialVerificationErro
 import viper.silver.verifier.errors._
 import viper.silver.verifier.reasons._
 import viper.silver.{ast, cfg}
-import viper.silicon.common.collections.immutable.InsertionOrderedSet
 import viper.silicon.decider.{PathConditionStack, RecordedPathConditions}
 import viper.silicon.interfaces.{VerificationResult, _}
 import viper.silicon.resources.FieldID
@@ -348,7 +347,7 @@ object executor extends ExecutionRules with Immutable {
             val edgeConditions = sortedEdges.collect{case ce: cfg.ConditionalEdge[ast.Stmt, ast.Exp] => ce.condition}
                                             .distinct
 
-            type PhaseData = (State, RecordedPathConditions, InsertionOrderedSet[FunctionDecl])
+            type PhaseData = (State, RecordedPathConditions) // assumptions and declarations are combined in RecordedPathConditions
             var phase1data: Vector[PhaseData] = Vector.empty
 
             (executionFlowController.locally(sBody, v)((s0, v0) => {
@@ -367,8 +366,7 @@ object executor extends ExecutionRules with Immutable {
                   // unset for at beginning of loop body
                   // produces into phase1data
                   phase1data = phase1data :+ (s1point5,
-                                              v1.decider.pcs.after(mark),
-                                              /*InsertionOrderedSet.empty[FunctionDecl]*/ v1.decider.freshFunctions /* [BRANCH-PARALLELISATION] */)
+                                              v1.decider.pcs.after(mark) /* [BRANCH-PARALLELISATION] */)
                   v1.decider.prover.comment("Loop head block: Check well-definedness of edge conditions")
                   edgeConditions.foldLeft(Success(): VerificationResult) {
                     case (fatalResult: FatalResult, _) => fatalResult
@@ -413,7 +411,6 @@ object executor extends ExecutionRules with Immutable {
                   for (element <- phase1data) {
                     val s1 = element._1
                     val pcs = element._2
-                    val ff1 = element._3
 
                     // define the continuation for exploring each edge
                     val branchVerificationTask = createBranchVerificationTask(s1, v1, pcsOfCurrentBranchDecider)(
@@ -421,7 +418,9 @@ object executor extends ExecutionRules with Immutable {
                           val s3 = s1Copy.copy(invariantContexts = (s0.isImprecise, sLeftover.isImprecise, sLeftover.h,
                                                                     sLeftover.optimisticHeap) +: s1Copy.invariantContexts)
 
-                          v2.decider.declareAndRecordAsFreshFunctions(ff1 -- v2.decider.freshFunctions) /* [BRANCH-PARALLELISATION] */
+                          /* [BRANCH-PARALLELISATION] */
+                          // add the declarations and assumptions to the new verifier
+                          v2.decider.fresh(pcs.declarations)
                           v2.decider.assume(pcs.assumptions)
                           v2.decider.prover.saturate(Verifier.config.z3SaturationTimeouts.afterContract)
                           if (v2.decider.checkSmoke())
