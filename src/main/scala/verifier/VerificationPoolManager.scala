@@ -15,8 +15,8 @@ import viper.silver.components.StatefulComponent
 import viper.silicon.interfaces.decider.ProverLike
 import viper.silicon.state.terms.{Decl, Term}
 
-class VerificationPoolManager(master: MasterVerifier) extends StatefulComponent {
-  private val numberOfSlaveVerifiers: Int = Verifier.config.numberOfParallelVerifiers()
+class VerificationPoolManager(master: MasterVerifier, numSlaveVerifiers: Int) extends StatefulComponent {
+  private val numberOfSlaveVerifiers: Int = numSlaveVerifiers
 
   /*private*/ var slaveVerifiers: Seq[SlaveVerifier] = _
   /*private*/ var slaveVerifierExecutor: ExecutorService = _

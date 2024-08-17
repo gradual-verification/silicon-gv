@@ -78,7 +78,7 @@ object brancher extends BranchingRules with Immutable {
 
     val parallelizeElseBranch = s.parallelizeBranches && !s.underJoin &&
                                 executeThenBranch && executeElseBranch &&
-                                !inConditionalEdge && s.depth <= Verifier.config.depthThresholdForParallelism()
+                                !inConditionalEdge
 
 //    val additionalPaths =
 //      if (executeThenBranch && exploreFalseBranch) 1

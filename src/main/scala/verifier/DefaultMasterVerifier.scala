@@ -62,8 +62,8 @@ class DefaultMasterVerifier(config: Config, override val reporter: PluginAwareRe
 
   // coworker verifiers in _coworkerVerificationPoolManager execute branches in parallel,
   // while worker verifiers in _workerVerificationPoolManager execute methods or cfg in parallel
-  private val _coworkerVerificationPoolManager: VerificationPoolManager = new VerificationPoolManager(this)
-  private val _workerVerificationPoolManager: VerificationPoolManager = new VerificationPoolManager(this)
+  private val _coworkerVerificationPoolManager: VerificationPoolManager = new VerificationPoolManager(this, Verifier.config.numberOfParallelVerifiersForBranches())
+  private val _workerVerificationPoolManager: VerificationPoolManager = new VerificationPoolManager(this, Verifier.config.numberOfParallelVerifiersForMethods())
 
   def verificationPoolManager: VerificationPoolManager = _coworkerVerificationPoolManager
 
@@ -231,7 +231,7 @@ class DefaultMasterVerifier(config: Config, override val reporter: PluginAwareRe
 
     val verificationTaskFutures: Seq[Future[Seq[VerificationResult]]] =
       program.methods.filterNot(excludeMethod).map(method => {
-        val s = createInitialState(method, program).copy(parallelizeBranches = true) /* [BRANCH-PARALLELISATION] */
+        val s = createInitialState(method, program).copy(parallelizeBranches = Verifier.config.enableParallelismForBranches()) /* [BRANCH-PARALLELISATION] */
         _workerVerificationPoolManager.queueVerificationTask(v => {
           val startTime = System.currentTimeMillis()
           // making declarations of local variable pushed and popped
@@ -294,8 +294,7 @@ class DefaultMasterVerifier(config: Config, override val reporter: PluginAwareRe
           applyHeuristics = applyHeuristics,
           predicateSnapMap = predSnapGenerator.snapMap,
           predicateFormalVarMap = predSnapGenerator.formalVarMap,
-          isMethodVerification = member.isInstanceOf[ast.Member],
-          depth = 0)
+          isMethodVerification = member.isInstanceOf[ast.Member])
   }
 
   private def createInitialState(cfg: SilverCfg, program: ast.Program): State = {
@@ -309,8 +308,7 @@ class DefaultMasterVerifier(config: Config, override val reporter: PluginAwareRe
       qpMagicWands = quantifiedMagicWands,
       applyHeuristics = applyHeuristics,
       predicateSnapMap = predSnapGenerator.snapMap,
-      predicateFormalVarMap = predSnapGenerator.formalVarMap,
-      depth = 0)
+      predicateFormalVarMap = predSnapGenerator.formalVarMap)
   }
 
   private def excludeMethod(method: ast.Method) = (

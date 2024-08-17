@@ -105,7 +105,7 @@ object executor extends ExecutionRules with Immutable {
            * as a branch condition on the pathcondition stack.
            */
 
-          val s2point5 = s2.copy(loopPosition = None, depth = s2.depth + 1)
+          val s2point5 = s2.copy(loopPosition = None)
           val positionalCondition = ce.condition match {
             case ast.Not(e) => e
             case _ => ce.condition
@@ -120,7 +120,7 @@ object executor extends ExecutionRules with Immutable {
       // TODO: Should we be tracking loop positions here, too?
       case ue: cfg.UnconditionalEdge[ast.Stmt, ast.Exp] =>
 
-        val s1point5 = s1.copy(loopPosition = None, depth = s1.depth + 1)
+        val s1point5 = s1.copy(loopPosition = None)
 
         exec(s1point5, ue.target, ue.kind, v)(Q)
     }
@@ -146,7 +146,7 @@ object executor extends ExecutionRules with Immutable {
       var futures: Vector[Future[Seq[VerificationResult]]] = Vector.empty
       var edgeToResults: Map[SilverEdge, VerificationResult] = Map.empty[SilverEdge, VerificationResult]
 
-      val parallelBranches = edges.size > 1 && s.depth <= Verifier.config.depthThresholdForParallelism()
+      val parallelBranches = edges.size > 1 && s.parallelizeBranches
       // for saving the previous context of current decider
       var pcsOfCurrentBranchDecider: PathConditionStack = null
 
@@ -395,7 +395,7 @@ object executor extends ExecutionRules with Immutable {
                   var phase1Futures: Vector[Future[Seq[VerificationResult]]] = Vector.empty
                   var phase1Results: Vector[VerificationResult] = Vector.empty
 
-                  val parallelBranches = phase1data.size > 1 && sLeftover.depth <= Verifier.config.depthThresholdForParallelism()
+                  val parallelBranches = phase1data.size > 1 && sLeftover.parallelizeBranches
                   // for saving the previous context of current decider
                   var pcsOfCurrentBranchDecider: PathConditionStack = null
 

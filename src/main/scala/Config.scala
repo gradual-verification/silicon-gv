@@ -466,16 +466,23 @@ class Config(args: Seq[String]) extends SilFrontendConfig(args, "Silicon") {
     noshort = true
   )
 
-  val numberOfParallelVerifiers: ScallopOption[Int] = opt[Int]("numberOfParallelVerifiers",
-    descr = (  "Number of verifiers run in parallel. This number plus one is the number of provers "
+  val numberOfParallelVerifiersForMethods: ScallopOption[Int] = opt[Int]("numberOfParallelVerifiersForMethods",
+    descr = (  "Number of verifiers run in parallel to verify different methods. This number plus one is the number of provers "
              + s"run in parallel (default: ${Runtime.getRuntime.availableProcessors()}"),
-    default = Some(16),
+    default = Some(Runtime.getRuntime.availableProcessors()),
     noshort = true
   )
 
-  val depthThresholdForParallelism: ScallopOption[Int] = opt[Int]("depthThresholdForParallelism",
-    descr = "the maximum depth of on block that allows parallel execution. If its value is bigger, then it allows more parallelism",
+  val numberOfParallelVerifiersForBranches: ScallopOption[Int] = opt[Int]("numberOfParallelVerifiersForBranches",
+    descr = (  "Number of verifiers run in parallel to verify different branches. This number plus one is the number of provers "
+      + s"run in parallel (default: ${Runtime.getRuntime.availableProcessors()}"),
     default = Some(4),
+    noshort = true
+  )
+
+  val enableParallelismForBranches: ScallopOption[Boolean] = opt[Boolean]("enableParallelismForBranches",
+    descr = "Enable executing branches in parallel (with numberOfParallelVerifiers coworker verifiers)",
+    default = Some(true),
     noshort = true
   )
 
@@ -533,7 +540,7 @@ class Config(args: Seq[String]) extends SilFrontendConfig(args, "Silicon") {
     case _ => Right(Unit)
   }
 
-  validateOpt(ideModeAdvanced, numberOfParallelVerifiers) {
+  validateOpt(ideModeAdvanced, numberOfParallelVerifiersForMethods) {
     case (Some(false), _) =>
       Right(Unit)
     case (Some(true), Some(n)) =>
@@ -541,7 +548,7 @@ class Config(args: Seq[String]) extends SilFrontendConfig(args, "Silicon") {
         Right(Unit)
       else
         Left(  s"Option ${ideModeAdvanced.name} requires setting "
-             + s"${numberOfParallelVerifiers.name} to 1")
+             + s"${numberOfParallelVerifiersForMethods.name} to 1")
     case other =>
       sys.error(s"Unexpected combination: $other")
   }
