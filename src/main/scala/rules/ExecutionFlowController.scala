@@ -11,12 +11,12 @@ import viper.silicon.state.State
 import viper.silicon.verifier.Verifier
 
 trait ExecutionFlowRules extends SymbolicExecutionRules {
-  def locallyWithResult[R](s: State, v: Verifier)
+  def locallyWithResult[R](s: State, v: Verifier, saveDecls: Boolean = false)
                           (block: (State, Verifier, (R => VerificationResult)) => VerificationResult)
                           (Q: R => VerificationResult)
                           : VerificationResult
 
-  def locally(s: State, v: Verifier)
+  def locally(s: State, v: Verifier, saveDecls: Boolean = false)
              (block: (State, Verifier) => VerificationResult)
              : VerificationResult
 
@@ -47,7 +47,7 @@ trait ExecutionFlowRules extends SymbolicExecutionRules {
 }
 
 object executionFlowController extends ExecutionFlowRules with Immutable {
-  def locallyWithResult[R](s: State, v: Verifier)
+  def locallyWithResult[R](s: State, v: Verifier, saveDecls: Boolean = false)
                           (block: (State, Verifier, (R => VerificationResult)) => VerificationResult)
                           (Q: R => VerificationResult)
                           : VerificationResult = {
@@ -66,7 +66,7 @@ object executionFlowController extends ExecutionFlowRules with Immutable {
 
         Success()})
 
-    v.decider.popScope()
+    v.decider.popScope(saveDecls)
 
     blockResult match {
       case _: FatalResult =>
@@ -90,11 +90,11 @@ object executionFlowController extends ExecutionFlowRules with Immutable {
     }
   }
 
-  def locally(s: State, v: Verifier)
+  def locally(s: State, v: Verifier, saveDecls: Boolean = false)
              (block: (State, Verifier) => VerificationResult)
              : VerificationResult =
 
-    locallyWithResult[VerificationResult](s, v)((s1, v1, QL) => QL(block(s1, v1)))(Predef.identity)
+    locallyWithResult[VerificationResult](s, v, saveDecls)((s1, v1, QL) => QL(block(s1, v1)))(Predef.identity)
 
 
   private def tryOrFailWithResult[R](s: State, v: Verifier)

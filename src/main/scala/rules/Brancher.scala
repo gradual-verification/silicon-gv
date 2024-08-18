@@ -107,7 +107,8 @@ object brancher extends BranchingRules with Immutable {
 
     val elseBranchVerificationTask: Verifier => VerificationResult =
       if (executeElseBranch) {
-        createBranchVerificationTask(s, v, pcsOfCurrentBranchDecider)(
+        // save the declarations if it is called after evalSeqShortCircuit
+        createBranchVerificationTask(s, v, pcsOfCurrentBranchDecider, fromShortCircuitingAnd)(
           (s1, v1) => {
             v1.decider.prover.comment(s"[else-branch: $cnt | $negatedCondition]")
             val negCond: Exp =
@@ -214,7 +215,8 @@ object brancher extends BranchingRules with Immutable {
      // }
 
     val rsThen: VerificationResult = (if (executeThenBranch) {
-      executionFlowController.locally(s, v)((s1, v1) => {
+      // save the declarations if it is called after evalSeqShortCircuit
+      executionFlowController.locally(s, v, fromShortCircuitingAnd)((s1, v1) => {
         v1.decider.prover.comment(s"[then-branch: $cnt | $condition]")
         val cond: Exp =
           (new Translator(s1.copy(g = g, h = h, optimisticHeap = oh), v1.decider.pcs).translate(condition) match {

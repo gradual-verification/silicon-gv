@@ -183,7 +183,7 @@ class Config(args: Seq[String]) extends SilFrontendConfig(args, "Silicon") {
   val disableShortCircuitingEvaluations: ScallopOption[Boolean] = opt[Boolean]("disableShortCircuitingEvaluations",
     descr = (  "Disable short-circuiting evaluation of AND, OR. If disabled, "
              + "evaluating e.g., i > 0 && f(i), will fail if f's precondition requires i > 0."),
-    default = Some(true),
+    default = Some(false),
     noshort = true
   )
 
@@ -476,7 +476,7 @@ class Config(args: Seq[String]) extends SilFrontendConfig(args, "Silicon") {
   val numberOfParallelVerifiersForBranches: ScallopOption[Int] = opt[Int]("numberOfParallelVerifiersForBranches",
     descr = (  "Number of verifiers run in parallel to verify different branches. This number plus one is the number of provers "
       + s"run in parallel (default: ${Runtime.getRuntime.availableProcessors()}"),
-    default = Some(4),
+    default = Some(Runtime.getRuntime.availableProcessors()),
     noshort = true
   )
 

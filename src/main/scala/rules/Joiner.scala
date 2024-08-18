@@ -30,7 +30,7 @@ object joiner extends JoiningRules with Immutable {
 
     var entries: Seq[JoinDataEntry[D]] = Vector.empty
 
-    executionFlowController.locally(s, v)((s1, v1) => {
+    executionFlowController.locally(s, v, saveDecls = true)((s1, v1) => {
       val preMark = v1.decider.setPathConditionMark()
       val s2 = s1.copy(underJoin = true)
 

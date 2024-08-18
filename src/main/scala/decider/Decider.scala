@@ -30,7 +30,8 @@ trait Decider {
   def pcs: PathConditionStack
 
   def pushScope(): Unit
-  def popScope(): Unit
+  // saveDecls shows whether to save the declarations in the popped layers to the top (after popping)
+  def popScope(saveDecls: Boolean = false): Unit
 
   def checkSmoke(): Boolean
 
@@ -161,9 +162,20 @@ trait DefaultDeciderProvider extends VerifierComponent { this: Verifier =>
       z3.push()
     }
 
-    def popScope() {
-      z3.pop()
-      pathConditions.popScope()
+    def popScope(saveDecls: Boolean = false) {
+
+      if (!saveDecls) {
+        z3.pop()
+        pathConditions.popScope()
+      } else {
+        val layeredStack = pathConditions.asInstanceOf[LayeredPathConditionStack]
+        val decls = layeredStack.layers.head.declarations
+
+        z3.pop()
+        pathConditions.popScope()
+
+        fresh(decls)
+      }
     }
 
     def setCurrentBranchCondition(t: Term,

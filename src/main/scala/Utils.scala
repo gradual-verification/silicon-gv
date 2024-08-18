@@ -333,7 +333,8 @@ package object utils {
     // for enabling parallelism on a branch,
     // first define how to copy the context of verifier and execute on the new verifier
     def createBranchVerificationTask(s: State, v: Verifier,
-                                     pcsOfCurrentBranchDecider: PathConditionStack)
+                                     pcsOfCurrentBranchDecider: PathConditionStack,
+                                     saveDecls: Boolean = false)
                                     (Q: (State, Verifier) => VerificationResult)
                                     : Verifier => VerificationResult = {
       (vNew: Verifier) => {
@@ -342,7 +343,8 @@ package object utils {
           vNew.decider.setPcs(pcsOfCurrentBranchDecider.duplicate())
         }
 
-        executionFlowController.locally(s, vNew)((s1, v1) => Q(s1, v1))
+        // may save the non-global declarations after popping
+        executionFlowController.locally(s, vNew, saveDecls)((s1, v1) => Q(s1, v1))
       }
     }
 
