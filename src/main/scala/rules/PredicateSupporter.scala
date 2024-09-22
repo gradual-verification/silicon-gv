@@ -173,13 +173,13 @@ object predicateSupporter extends PredicateSupportRules with Immutable {
       val s3 = s1.copy(foldOrUnfoldAstNode = origin)
 
       // we attempt to consume the predicate from the heap
-      chunkSupporter.consume(s3, s3.h, true, predicate, tArgs, s3.permissionScalingFactor, ve, v, description)((s4, h1, snap1, v1, chunkExisted) => {
+      chunkSupporter.consume(s3, s3.h, true, predicate, tArgs, s3.permissionScalingFactor, ve, v, description, true)((s4, h1, snap1, v1, chunkExisted) => {
           
           profilingInfo.incrementTotalConjuncts
 
           if (s4.isImprecise) {
             // and then we attempt to consume it from the optimistic heap
-            chunkSupporter.consume(s4, s4.optimisticHeap, false, predicate, tArgs, s4.permissionScalingFactor, ve, v1, description)((s5, oh1, snap2, v2, chunkExisted1) => {
+            chunkSupporter.consume(s4, s4.optimisticHeap, false, predicate, tArgs, s4.permissionScalingFactor, ve, v1, description, false)((s5, oh1, snap2, v2, chunkExisted1) => {
               if (!chunkExisted && !chunkExisted1) {
 
                 val runtimeCheckAstNode =
