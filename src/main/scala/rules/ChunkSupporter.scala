@@ -15,7 +15,7 @@ import viper.silicon.interfaces.{Failure, Success, VerificationResult}
 import viper.silicon.resources.{NonQuantifiedPropertyInterpreter, Resources, FieldID, PredicateID}
 import viper.silicon.state._
 import viper.silicon.state.terms._
-import viper.silicon.state.terms.perms.IsPositive
+import viper.silicon.state.terms.perms.{IsPositive, IsNonPositive}
 import viper.silicon.supporters.Translator
 import viper.silicon.utils
 import viper.silicon.verifier.Verifier
@@ -29,7 +29,8 @@ trait ChunkSupportRules extends SymbolicExecutionRules {
               perms: Term,
               ve: VerificationError,
               v: Verifier,
-              description: String)
+              description: String,
+              isOpt: Boolean)
              (Q: (State, Heap, Term, Verifier, Boolean) => VerificationResult)
              : VerificationResult
 
@@ -88,11 +89,12 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
               perms: Term,
               ve: VerificationError,
               v: Verifier,
-              description: String)
+              description: String,
+              isPre: Boolean) // Additional parameter is flag signaling whether we are consuming from precise heap or optimistic heap, maybe make field in Heap trait?
              (Q: (State, Heap, Term, Verifier, Boolean) => VerificationResult)
              : VerificationResult = {
 
-      consume(s, h, consolidate, resource, args, perms, ve, v)((s1, h1, optSnap, v1) =>
+      consume(s, h, consolidate, resource, args, perms, ve, v, isPre)((s1, h1, optSnap, v1) =>
         optSnap match {
           case Some(snap) =>
             Q(s1, h1, snap.convert(sorts.Snap), v1, true)
@@ -116,14 +118,15 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
                       args: Seq[Term],
                       perms: Term,
                       ve: VerificationError,
-                      v: Verifier)
+                      v: Verifier,
+                      isPre: Boolean) 
                      (Q: (State, Heap, Option[Term], Verifier) => VerificationResult)
                      : VerificationResult = {
     var s1 = s.copy(h = h)
     if (consolidate) {
       s1 = stateConsolidator.consolidate(s.copy(h = h), v)
     }
-    consumeGreedy(s1, s1.h, resource, args, perms, v) match {
+    consumeGreedy(s1, s1.h, resource, args, perms, v, isPre) match {
       case (Complete(), s2, h2, optCh2) =>
         Q(s2.copy(h = s.h), h2, optCh2.map(_.snap), v)
 
@@ -142,52 +145,80 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
                             resource: ast.Resource,
                             args: Seq[Term],
                             perms: Term,
-                            v: Verifier) = {
+                            v: Verifier,
+                            isPre: Boolean) = {
 
     val id = ChunkIdentifier(resource, Verifier.program)
 
     resource match {
       case f: ast.Field => {
+      
         /* heap-rem-acc */
-        /* the foldl portion of heap-rem-acc
-         * builds a new heap of chunks that definitely do not
-         * contain the acc pred to remove
+        /*  This combines heap-rem-precise + remove-overlap and old heap-rem-acc 
+        *  for fractional permissions.
         */
-        var newH: Heap = h.values.foldLeft(Heap()) { (currHeap, chunk) =>
-          chunk match {
-            case c: NonQuantifiedChunk =>
+        val (newHeap, takenChunk, permDiff) = findChunk[NonQuantifiedChunk](h.values, id, args, v) match {
+          case Some(ch) if isPre => { // isPre is added here because there is no custom epsilon perm term yet
+            val toTake = PermMin(ch.perm, perms) // I don't know why Viper uses such a convoluted way to determine the necessary chunk.
+            val newChunk = ch.withPerm(PermMinus(ch.perm, toTake))
+            val takenChunk = Some(ch.withPerm(toTake))
+            var newHeap = h - ch
+            if (!v.decider.check(newChunk.perm === NoPerm(), Verifier.config.checkTimeout())) { 
+              newHeap = newHeap + newChunk
+            }
+            
+            if (v.decider.check(IsNonPositive(PermMinus(perms, toTake)), 0)) { // essentially what ConsumptionResult does
+              (newHeap, takenChunk, NoPerm())
+            }
+            else {
+              (h, None, PermMinus(perms, ch.perm))
+            }
+          }
+          case _ => {
+            (h, None, perms)
+          }
+        }
 
-              // The term in checkgv uses infix notation I got from a different check to see if the args are equal
+        var newH: Heap = newHeap.values.foldLeft(Heap()) { (currHeap, chunk) =>
+          chunk match {
+            case c: NonQuantifiedChunk => 
+
+              // The term in checkgv uses infix notation I got from a different check to see if the args are equal - not CL
               var statusCheckgv = true
 
               if (id == c.id) {
-                // TODO;staticprofiling: this is responsible for the static profiling issue, maybe
+                // TODO;staticprofiling: this is responsible for the static profiling issue, maybe - not CL
                 statusCheckgv = v.decider.checkgv(s.isImprecise, And(c.args zip args map (x => x._1 === x._2)), Some(Verifier.config.checkTimeout())) match {
                   case (status, runtimeCheck) => status
                 }
               }
 
-              if ((id != c.id) || (!statusCheckgv)){
+              if ((id != c.id) || (!statusCheckgv)){ // ok if PROVEN not equal, then continue to add to heap 
                 currHeap + c
               }
-              else {
+              else if (isPre && v.decider.check(PermLess(permDiff, c.perm), Verifier.config.checkTimeout())) { // if perm < c.perm, then add to heap with subtracted
+                /*
+                The isPre boolean flag is needed since when consuming from the optimistic heap, even if diff < ch.perm, we still want to remove full chunk
+                from the optimistic heap as it doesn't preserve perm <= 1 invariant.
+                The isPre is unnecessary as long as there is only chunks with permission epsilon inside the heap 
+                */
+                currHeap + c.withPerm(PermMinus(c.perm, permDiff)) 
+              } else { // If perm >= c.perm, then remove it from the heap!
                 currHeap
               }
-            case _ =>
+            case _ => 
               currHeap
           }
         }
 
-        // tries to find the chunk in h
-        findChunk[NonQuantifiedChunk](h.values, id, args, v) match {
-          // I'm not sure if I need these checks but I included them to be safe - J
-          case Some(ch) if v.decider.check(ch.perm === perms, Verifier.config.checkTimeout()) && v.decider.check(perms === FullPerm(), Verifier.config.checkTimeout()) =>
-            (Complete(), s, newH, Some(ch))
 
-          case _ => {
+        takenChunk match {
+          case Some(_) => (Complete(), s, newH, takenChunk)
+
+          case None => {
             var newH2: Heap = newH.values.foldLeft(Heap()) { (currHeap, chunk) =>
               chunk match {
-                case c: NonQuantifiedChunk =>
+                case c: NonQuantifiedChunk => // Potential small refactor? Change case to c: NonQuantifiedChunk if c.resourceID != FieldID
                   c.resourceID match {
                     case FieldID =>
                       currHeap + c
@@ -202,10 +233,26 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
           }
         }
       }
-
+    
       case p: ast.Predicate => {
         /* heap-rem-pred */
+        v.logger.debug(s"\nCONSUME GREED ${viper.silicon.utils.ast.sourceLineColumn(resource)}: $resource")
+        v.logger.debug(v.stateFormatter.format(s, v.decider.pcs))
         findChunk[NonQuantifiedChunk](h.values, id, args, v) match {
+          // case Some(ch) if v.decider.check(perms === FullPerm(), Verifier.config.checkTimeout()) && v.decider.check(ch.perm !== NoPerm(), Verifier.config.checkTimeout()) =>
+          //     if (v.decider.check(PermLess(perms, ch.perm), Verifier.config.checkTimeout()) || v.decider.check(ch.perm === perms, Verifier.config.checkTimeout())) {
+          //         if (v.decider.check(PermMinus(ch.perm, perms) === NoPerm(), Verifier.config.checkTimeout())) {
+          //           var newH = h - ch
+          //           ((Complete(), s, newH, Some(ch)))
+          //         } else {
+          //           val newChunk = ch.withPerm(PermMinus(ch.perm, perms))
+          //           val takenChunk = ch.withPerm(perms)
+          //           val newHeap = h - ch + newChunk
+          //           ((Complete(), s, newHeap, Some(takenChunk)))
+          //         }
+          //     } else {
+          //       (Incomplete(perms), s, Heap(), None)
+          //     }
           case Some(ch) if v.decider.check(ch.perm === perms, Verifier.config.checkTimeout()) && v.decider.check(perms === FullPerm(), Verifier.config.checkTimeout()) =>
             var newH = h - ch
             (Complete(), s, newH, Some(ch))
@@ -220,7 +267,7 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
              (Q: (State, Heap, Verifier) => VerificationResult) = {
     // Try to merge the chunk into the heap by finding an alias.
     // In any case, property assumptions are added after the merge step.
-    val (fr1, h1) = stateConsolidator.merge(s.functionRecorder, h, ch, v)
+    val (fr1, h1) = stateConsolidator.merge(s.functionRecorder, h, ch, v) 
     Q(s.copy(functionRecorder = fr1), h1, v)
   }
 
@@ -312,6 +359,12 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
                   case true =>
                     val snap = v.decider.fresh(s"${args.head}.$id", v.symbolConverter.toSort(f.typ))
                     val ch = BasicChunk(FieldID, BasicChunkIdentifier(f.name), args, snap, FullPerm())
+                    /*
+                    Hacky way of doing "epsilon" perm, since it's not supported  in Viper.
+                    We add to optimistic heap with full permission. In this way, future eval's will succeed.
+                    When consuming from opt heap (isPre flag), we just remove everything not statically proven disjoint and we don't even check
+                    for permission in optimistic heap, since everything in there will have permission epsilon. 
+                    */ 
                     val s2 = s.copy(optimisticHeap = oh)
 
                     val runtimeCheckAstNode: CheckPosition =
@@ -336,13 +389,13 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
 
                     if (s2.generateChecks) {
                       runtimeChecks.addChecks(runtimeCheckAstNode,
-                        ast.FieldAccessPredicate(ast.FieldAccess(translatedArgs.head, f)(), ast.FullPerm()())(),
+                        ast.FieldAccessPredicate(ast.FieldAccess(translatedArgs.head, f)(), ast.EpsilonPerm()())(), // change this to check for epsilon perm ?
                         viper.silicon.utils.zip3(v.decider.pcs.branchConditionsSemanticAstNodes,
                           v.decider.pcs.branchConditionsAstNodes,
                           v.decider.pcs.branchConditionsOrigins).map(bc => BranchCond(bc._1, bc._2, bc._3)),
                         runtimeCheckFieldTarget,
                         s2.forFraming)
-                      runtimeCheckFieldTarget.addCheck(ast.FieldAccessPredicate(ast.FieldAccess(translatedArgs.head, f)(), ast.FullPerm()())())
+                      runtimeCheckFieldTarget.addCheck(ast.FieldAccessPredicate(ast.FieldAccess(translatedArgs.head, f)(), ast.EpsilonPerm()())())
                     }
 
                     v.decider.assume(args.head !== Null())

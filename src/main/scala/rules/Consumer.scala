@@ -545,12 +545,12 @@ object consumer extends ConsumptionRules with Immutable {
                 val description = s"consume ${a.pos}: $a"
                 var s3 = s2.copy(isImprecise = s.isImprecise)
 
-                chunkSupporter.consume(s3, h, true, resource, tArgs, loss, ve, v2, description)((s4, h1, snap1, v3, chunkExisted) => {
+                chunkSupporter.consume(s3, h, true, resource, tArgs, loss, ve, v2, description, false)((s4, h1, snap1, v3, chunkExisted) => {
 
                   profilingInfo.incrementTotalConjuncts
 
                   if (s4.isImprecise) {
-                    chunkSupporter.consume(s4, oh, false, resource, tArgs, loss, ve, v3, description)((s5, oh1, snap2, v4, chunkExisted1) => {
+                    chunkSupporter.consume(s4, oh, false, resource, tArgs, loss, ve, v3, description, true)((s5, oh1, snap2, v4, chunkExisted1) => {
                       
                       if (!chunkExisted && !chunkExisted1) {
                         
@@ -635,13 +635,13 @@ object consumer extends ConsumptionRules with Immutable {
                 val description = s"consume ${a.pos}: $a"
                 var s3 = s2.copy(isImprecise = s.isImprecise)
 
-                chunkSupporter.consume(s3, h, true, resource, tArgs, loss, ve, v2, description)((s4, h1, snap1, v3, chunkExisted) => {
+                chunkSupporter.consume(s3, h, true, resource, tArgs, loss, ve, v2, description, true)((s4, h1, snap1, v3, chunkExisted) => {
 
                   profilingInfo.incrementTotalConjuncts
 
                   // don't know if this should be s3 or s4 - J
                   if (s4.isImprecise) {
-                    chunkSupporter.consume(s4, oh, false, resource, tArgs, loss, ve, v3, description)((s5, oh1, snap2, v4, chunkExisted1) => {
+                    chunkSupporter.consume(s4, oh, false, resource, tArgs, loss, ve, v3, description, false)((s5, oh1, snap2, v4, chunkExisted1) => {
                       
                       if (!chunkExisted && !chunkExisted1) {
 
