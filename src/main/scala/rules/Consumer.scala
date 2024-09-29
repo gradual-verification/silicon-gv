@@ -627,7 +627,7 @@ object consumer extends ConsumptionRules with Immutable {
             // is this why we produce a runtime check for != Null? does the
             // path condition not imply this (no, apparently it does not, at least for the
             // extra_check_issue.vpr example)
-            v2.decider.assertgv(s.isImprecise, And(perms.IsPositive(tPerm), tArgs.head !== Null())){
+            v2.decider.assertgv(s.isImprecise, And(perms.IsNonNegative(tPerm), tArgs.head !== Null())){
               case true =>
                 val resource = locacc.res(Verifier.program)
                 val loss = PermTimes(tPerm, s2.permissionScalingFactor)
@@ -698,7 +698,8 @@ object consumer extends ConsumptionRules with Immutable {
                     createFailure(pve dueTo InsufficientPermission(locacc), v3, s4)}})
 
               case false =>
-                createFailure(pve dueTo InsufficientPermission(locacc), v2, s2)
+                createFailure(pve dueTo InsufficientPermission(locacc), v2, s2) 
+                // it would be best if it was insufficient permission error if field == null, and negative permission error if field perm < 0, but very annoying to change
 
             // this is the assertgv case for field access
             } match {
