@@ -138,20 +138,20 @@ object evaluator extends EvaluationRules with Immutable {
       SymbExLogger.currentLog().closeScope(sepIdentifier)
       Q(s1, t, v1)})
   }
-
+  
   def eval3(s: State, e: ast.Exp, pve: PartialVerificationError, v: Verifier)
            (Q: (State, Term, Verifier) => VerificationResult)
            : VerificationResult = {
 
 
     /* For debugging only */
-    e match {
+    e match { 
       case  _: ast.TrueLit | _: ast.FalseLit | _: ast.NullLit | _: ast.IntLit | _: ast.FullPerm | _: ast.NoPerm
             | _: ast.AbstractLocalVar | _: ast.WildcardPerm | _: ast.FractionalPerm | _: ast.Result
-            | _: ast.WildcardPerm | _: ast.FieldAccess =>
-
+            | _: ast.WildcardPerm | _: ast.FieldAccess => // println(s"${e} is ${e.getClass}")
+        // why not add logger information when evaluating the above ast nodes?
       case _ =>
-        v.logger.debug(s"\nEVAL ${viper.silicon.utils.ast.sourceLineColumn(e)}: $e")
+        v.logger.debug(s"\nEVAL3 ${viper.silicon.utils.ast.sourceLineColumn(e)}: $e")
         v.logger.debug(v.stateFormatter.format(s, v.decider.pcs))
         if (s.partiallyConsumedHeap.nonEmpty)
           v.logger.debug("pcH = " + s.partiallyConsumedHeap.map(v.stateFormatter.format).mkString("", ",\n     ", ""))
@@ -203,7 +203,7 @@ object evaluator extends EvaluationRules with Immutable {
             | _: ast.WildcardPerm | _: ast.FieldAccess =>
 
       case _ =>
-        v.logger.debug(s"\nEVAL ${viper.silicon.utils.ast.sourceLineColumn(e)}: $e")
+        v.logger.debug(s"\nEVAL3PC ${viper.silicon.utils.ast.sourceLineColumn(e)}: $e")
         v.logger.debug(v.stateFormatter.format(s, v.decider.pcs))
         if (s.partiallyConsumedHeap.nonEmpty)
           v.logger.debug("pcH = " + s.partiallyConsumedHeap.map(v.stateFormatter.format).mkString("", ",\n     ", ""))
@@ -356,7 +356,7 @@ object evaluator extends EvaluationRules with Immutable {
                 }
           //})
         } else {
-          evalLocationAccess(s, fa, pve, v)((s1, _, tArgs, v1) => {
+          evalLocationAccess(s, fa, pve, v)((s1, _, tArgs, v1) => { // IMPORTANT CASE HERE!!
             val ve = pve dueTo InsufficientPermission(fa)
             val resource = fa.res(Verifier.program)
             val addToOh = true /* so lookup knows whether or not to add optimistically assumed permissions to the optimistic heap */
@@ -1113,13 +1113,13 @@ object evaluator extends EvaluationRules with Immutable {
                 }
           //})
         } else {
-          evalLocationAccesspc(s, fa, pve, v, generateChecks)((s1, _, tArgs, v1) => {
+          evalLocationAccesspc(s, fa, pve, v, generateChecks)((s1, _, tArgs, v1) => { // EVALPC FIELD CASE 
             val ve = pve dueTo InsufficientPermission(fa)
             val resource = fa.res(Verifier.program)
             val addToOh = false /* so lookup knows whether or not to add optimistically assumed permissions to the optimistic heap */
             
             val s1_0 = s1.copy(madeOptimisticAssumptions = false)
-
+            
             chunkSupporter.lookup(s1, s1.h, s1.optimisticHeap, addToOh, resource, fa, tArgs, pve, ve, v1, generateChecks)((s2, h2, oh2, tSnap, v2) => {
 
               if (s2.madeOptimisticAssumptions &&

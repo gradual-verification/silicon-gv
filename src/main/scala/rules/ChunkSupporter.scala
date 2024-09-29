@@ -60,6 +60,13 @@ trait ChunkSupportRules extends SymbolicExecutionRules {
              v: Verifier)
             : Boolean
 
+  def duplicateAcc[CH <: NonQuantifiedChunk: ClassTag]
+            (h: Heap,
+             resource: ast.Resource,
+             args: Seq[Term],
+             v: Verifier)
+            : Boolean
+
 
   def findChunk[CH <: NonQuantifiedChunk: ClassTag]
                (chunks: Iterable[Chunk],
@@ -200,7 +207,7 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
                 /*
                 The isPre boolean flag is needed since when consuming from the optimistic heap, even if diff < ch.perm, we still want to remove full chunk
                 from the optimistic heap as it doesn't preserve perm <= 1 invariant.
-                The isPre is unnecessary as long as there is only chunks with permission epsilon inside the heap 
+                The isPre is unnecessary as long as there are only chunks with permission epsilon inside the heap 
                 */
                 currHeap + c.withPerm(PermMinus(c.perm, permDiff)) 
               } else { // If perm >= c.perm, then remove it from the heap!
@@ -360,7 +367,7 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
                     val snap = v.decider.fresh(s"${args.head}.$id", v.symbolConverter.toSort(f.typ))
                     val ch = BasicChunk(FieldID, BasicChunkIdentifier(f.name), args, snap, FullPerm())
                     /*
-                    Hacky way of doing "epsilon" perm, since it's not supported  in Viper.
+                    Hacky way of doing "epsilon" perm, since it's not supported in Viper.
                     We add to optimistic heap with full permission. In this way, future eval's will succeed.
                     When consuming from opt heap (isPre flag), we just remove everything not statically proven disjoint and we don't even check
                     for permission in optimistic heap, since everything in there will have permission epsilon. 
@@ -461,13 +468,13 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
                       })
 
                     runtimeChecks.addChecks(runtimeCheckAstNode,
-                      ast.FieldAccessPredicate(ast.FieldAccess(translatedArgs.head, f)(), ast.FullPerm()())(),
+                      ast.FieldAccessPredicate(ast.FieldAccess(translatedArgs.head, f)(), ast.EpsilonPerm()())(),
                       viper.silicon.utils.zip3(v.decider.pcs.branchConditionsSemanticAstNodes,
                         v.decider.pcs.branchConditionsAstNodes,
                         v.decider.pcs.branchConditionsOrigins).map(bc => BranchCond(bc._1, bc._2, bc._3)),
                       runtimeCheckFieldTarget,
                       s.forFraming)
-                    runtimeCheckFieldTarget.addCheck(ast.FieldAccessPredicate(ast.FieldAccess(translatedArgs.head, f)(), ast.FullPerm()())())
+                    runtimeCheckFieldTarget.addCheck(ast.FieldAccessPredicate(ast.FieldAccess(translatedArgs.head, f)(), ast.EpsilonPerm()())())
 
                     Q(s.copy(madeOptimisticAssumptions = true), snap, v)
                   }
@@ -548,6 +555,27 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
     }
   }
 
+  def duplicateAcc[CH <: NonQuantifiedChunk: ClassTag]
+            (h: Heap,
+             resource: ast.Resource,
+             args: Seq[Term],
+             v: Verifier)
+            : Boolean = {
+    val id = ChunkIdentifier(resource, Verifier.program)
+
+    findChunk[NonQuantifiedChunk](h.values, id, args, v) match {
+      case Some(ch) =>
+        val doublePerm = PermPlus(FullPerm(), FullPerm())
+        if (v.decider.check(PermLess(doublePerm, ch.perm), Verifier.config.checkTimeout())) { 
+          true
+        }
+        else {
+          false
+        }
+      case None =>
+        false // this case should NEVER happen as this method should only be called when after the chunk is added to the heap in Produce
+    }
+  }
 
   def findChunk[CH <: NonQuantifiedChunk: ClassTag]
                (chunks: Iterable[Chunk],
