@@ -141,7 +141,7 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
       case _ if v.decider.checkSmoke() =>
         Success()
 
-      case (Incomplete(p), s2, h2, None) =>
+      case (Incomplete(p), s2, h2, _) =>
         Q(s2.copy(h = s.h), h2, None, v)
 
     }
@@ -243,27 +243,17 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
     
       case p: ast.Predicate => {
         /* heap-rem-pred */
-        v.logger.debug(s"\nCONSUME GREED ${viper.silicon.utils.ast.sourceLineColumn(resource)}: $resource")
-        v.logger.debug(v.stateFormatter.format(s, v.decider.pcs))
         findChunk[NonQuantifiedChunk](h.values, id, args, v) match {
-          // case Some(ch) if v.decider.check(perms === FullPerm(), Verifier.config.checkTimeout()) && v.decider.check(ch.perm !== NoPerm(), Verifier.config.checkTimeout()) =>
-          //     if (v.decider.check(PermLess(perms, ch.perm), Verifier.config.checkTimeout()) || v.decider.check(ch.perm === perms, Verifier.config.checkTimeout())) {
-          //         if (v.decider.check(PermMinus(ch.perm, perms) === NoPerm(), Verifier.config.checkTimeout())) {
-          //           var newH = h - ch
-          //           ((Complete(), s, newH, Some(ch)))
-          //         } else {
-          //           val newChunk = ch.withPerm(PermMinus(ch.perm, perms))
-          //           val takenChunk = ch.withPerm(perms)
-          //           val newHeap = h - ch + newChunk
-          //           ((Complete(), s, newHeap, Some(takenChunk)))
-          //         }
-          //     } else {
-          //       (Incomplete(perms), s, Heap(), None)
-          //     }
-          case Some(ch) if v.decider.check(ch.perm === perms, Verifier.config.checkTimeout()) && v.decider.check(perms === FullPerm(), Verifier.config.checkTimeout()) =>
-            var newH = h - ch
-            (Complete(), s, newH, Some(ch))
-          case _ =>
+          case Some(ch) =>
+            val toTake = PermMin(ch.perm, perms)
+            val newChunk = ch.withPerm(PermMinus(ch.perm, toTake))
+            val takenChunk = Some(ch.withPerm(toTake))
+            var newHeap = h - ch
+            if (!v.decider.check(newChunk.perm === NoPerm(), Verifier.config.checkTimeout())) {
+              newHeap = newHeap + newChunk
+            }
+            (ConsumptionResult(PermMinus(perms, toTake), v, 0), s, newHeap, takenChunk)
+          case None =>
             (Incomplete(perms), s, Heap(), None)
         }
       }
