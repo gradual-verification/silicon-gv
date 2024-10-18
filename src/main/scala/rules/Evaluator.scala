@@ -14,6 +14,7 @@ import viper.silver.verifier.errors.{ErrorWrapperWithExampleTransformer, Precond
 import viper.silver.verifier.reasons._
 import viper.silicon.common.collections.immutable.InsertionOrderedSet
 import viper.silicon.interfaces._
+import viper.silicon.resources.PredicateID // added by Priyam 2024
 import viper.silicon.state.{terms, _}
 import viper.silicon.state.terms._
 import viper.silicon.state.terms.implicits._
@@ -504,6 +505,164 @@ object evaluator extends EvaluationRules with Immutable {
 
       case ast.PermGtCmp(e0, e1) =>
         evalBinOp(s, e0, e1, Greater, pve, v)(Q)
+
+//       case ast.Unfolding(
+//               acc @ ast.PredicateAccessPredicate(pa @ ast.PredicateAccess(eArgs, predicateName), ePerm),
+//               eIn) =>
+
+//         val predicate = Verifier.program.findPredicate(predicateName)
+//         if (s.cycles(predicate) < Verifier.config.recursivePredicateUnfoldings()) {
+//           evals(s, eArgs, _ => pve, v)((s1, tArgs, v1) =>
+//             eval(s1, ePerm, pve, v1)((s2, tPerm, v2) =>
+//               v2.decider.assert(IsNonNegative(tPerm)) {
+//                 case true =>
+//                   joiner.join[Term, Term](s2, v2)((s3, v3, QB) => {
+//                     val s4 = s3.incCycleCounter(predicate)
+//                                .copy(recordVisited = true,
+//                                  forFraming = true)
+//                       /* [2014-12-10 Malte] The commented code should replace the code following
+//                        * it, but using it slows down RingBufferRd.sil significantly. The generated
+//                        * Z3 output looks nearly identical, so my guess is that it is some kind
+//                        * of triggering problem, probably related to sequences.
+//                        */
+// //                      predicateSupporter.unfold(σ, predicate, tArgs, tPerm, pve, c2, pa)((σ1, c3) => {
+// //                        val c4 = c3.decCycleCounter(predicate)
+// //                        eval(σ1, eIn, pve, c4)((tIn, c5) =>
+// //                          QB(tIn, c5))})
+//                     consume(s4, acc, pve, v3)((s5, snap, v4) => {
+
+//                       val s5_1 = s5.copy(forFraming = false)
+
+//                       val fr6 =
+//                         s5_1.functionRecorder.recordSnapshot(pa, v4.decider.pcs.branchConditions, snap)
+//                                            .changeDepthBy(+1)
+//                       val s6 = s5_1.copy(functionRecorder = fr6,
+//                                        constrainableARPs = s1.constrainableARPs)
+//                         /* Recording the unfolded predicate's snapshot is necessary in order to create the
+//                          * additional predicate-based trigger function applications because these are applied
+//                          * to the function arguments and the predicate snapshot
+//                          * (see 'predicateTriggers' in FunctionData.scala).
+//                          */
+//                       v4.decider.assume(App(Verifier.predicateData(predicate).triggerFunction, snap.convert(terms.sorts.Snap) +: tArgs))
+//                       val body = predicate.body.get /* Only non-abstract predicates can be unfolded */
+//                       val s7 = s6.scalePermissionFactor(tPerm)
+//                       val insg = s7.g + Store(predicate.formalArgs map (_.localVar) zip tArgs)
+//                       val s7a = s7.copy(g = insg)
+//                       produce(s7a, toSf(snap), body, pve, v4)((s8, v5) => {
+//                         val s9 = s8.copy(g = s7.g,
+//                                          functionRecorder = s8.functionRecorder.changeDepthBy(-1),
+//                                          recordVisited = s3.recordVisited,
+//                                          permissionScalingFactor = s6.permissionScalingFactor)
+//                                    .decCycleCounter(predicate)
+//                         val s10 = stateConsolidator.consolidateIfRetrying(s9, v5)
+//                         eval(s10, eIn, pve, v5)(QB)})})
+//                   })(join(v2.symbolConverter.toSort(eIn.typ), "joined_unfolding", s2.relevantQuantifiedVariables, v2))(Q)
+//                 case false =>
+//                   createFailure(pve dueTo NegativePermission(ePerm), v2, s2)}))
+//         } else {
+//           val unknownValue = v.decider.appliedFresh("recunf", v.symbolConverter.toSort(eIn.typ), s.relevantQuantifiedVariables)
+//           Q(s, unknownValue, v)
+//         }
+      
+
+      // Evaluation rule for unfolding expressions: work in progress...
+      case unfolding @ ast.Unfolding(
+              acc @ ast.PredicateAccessPredicate(pa @ ast.PredicateAccess(eArgs, predicateName), ePerm),
+              eIn) =>
+
+
+        val predicate = Verifier.program.findPredicate(predicateName)
+        if (s.cycles(predicate) < Verifier.config.recursivePredicateUnfoldings()) {
+          evals(s, eArgs, _ => pve, v)((s1, tArgs, v1) =>
+            eval(s1, ePerm, pve, v1)((s2, tPerm, v2) =>
+              v2.decider.assert(IsNonNegative(tPerm)) { // Negative permission ?? - Priyam
+                case true =>
+                  //joiner.join[Term, Term](s2, v2)((s3, v3, QB) => { // removed join functionality for now (Priyam, Sept 24)
+                    val s4 = s2.incCycleCounter(predicate)
+                               .copy(recordVisited = true,
+                                 forFraming = true)
+                      /* [2014-12-10 Malte] The commented code should replace the code following
+                       * it, but using it slows down RingBufferRd.sil significantly. The generated
+                       * Z3 output looks nearly identical, so my guess is that it is some kind
+                       * of triggering problem, probably related to sequences.
+                       */
+//                      predicateSupporter.unfold(σ, predicate, tArgs, tPerm, pve, c2, pa)((σ1, c3) => {
+//                        val c4 = c3.decCycleCounter(predicate)
+//                        eval(σ1, eIn, pve, c4)((tIn, c5) =>
+//                          QB(tIn, c5))})
+                    // check here using findChunk if predicate is present in heap- Priyam
+                    // var addpred = true
+                    // ChunkSupporter.findChunk[NonQuantifiedChunk](h.values, id, args, v) match {
+                    //   case Some(ch) if v.decider.check(ch.perm === perms, Verifier.config.checkTimeout()) && v.decider.check(perms === FullPerm(), Verifier.config.checkTimeout()) =>
+                        
+                    consume(s4, acc, pve, v2)((s5, snap, v4) => {
+
+                      val s5_1 = s5.copy(forFraming = false)
+
+                      val fr6 =
+                        s5_1.functionRecorder.recordSnapshot(pa, v4.decider.pcs.branchConditions, snap)
+                                           .changeDepthBy(+1)
+                      val s6 = s5_1.copy(functionRecorder = fr6,
+                                       constrainableARPs = s1.constrainableARPs)
+                        /* Recording the unfolded predicate's snapshot is necessary in order to create the
+                         * additional predicate-based trigger function applications because these are applied
+                         * to the function arguments and the predicate snapshot
+                         * (see 'predicateTriggers' in FunctionData.scala).
+                         */
+                      v4.decider.assume(App(Verifier.predicateData(predicate).triggerFunction, snap.convert(terms.sorts.Snap) +: tArgs))
+                      // below are unfold's (PredicateSupporter) starting lines - Priyam
+                      val body = predicate.body.get /* Only non-abstract predicates can be unfolded */
+                      val s7 = s6.scalePermissionFactor(tPerm)
+                      val insg = s7.g + Store(predicate.formalArgs map (_.localVar) zip tArgs)
+                      
+                      // if else casing required for setting origin while handling nested origins (outermost unfolding should be origin)
+                      val s7a = s7.copy(g = insg, unfoldingAstNode = if (s7.unfoldingAstNode == None) Some(unfolding) else None)
+                  
+                      produce(s7a, toSf(snap), body, pve, v4)((s8, v5) => {
+                        val s9 = s8.copy(g = s7.g,
+                                         functionRecorder = s8.functionRecorder.changeDepthBy(-1),
+                                         recordVisited = s2.recordVisited,
+                                         permissionScalingFactor = s6.permissionScalingFactor,
+                                         unfoldingAstNode = None)
+                                   .decCycleCounter(predicate)
+                        val s10 = stateConsolidator.consolidateIfRetrying(s9, v5)
+                        eval(s10, eIn, pve, v5)((s11, eIn1, v6) => {
+                          //val snap = v.decider.fresh(s"$id(${eArgs.mkString(",")})", sorts.Snap)
+                          val ch = BasicChunk(PredicateID, BasicChunkIdentifier(predicateName), tArgs, snap.convert(sorts.Snap), tPerm)
+
+                          body match {
+                            case impr @ ast.ImpreciseExp(e) =>
+                              val s12 = s11.copy(h = s2.h, optimisticHeap = s2.optimisticHeap + ch) // adding consumed predicate to OH
+                               Q(s12, eIn1, v6)
+                            case _ =>
+                              val s12 = s11.copy(h = s2.h, optimisticHeap = s2.optimisticHeap + s11.optimisticHeap + ch) // keep OH chunks from eval
+                               Q(s12, eIn1, v6)
+                          }
+                         
+                          
+                          // instead of calling the continuation directly, add the consumed predicate to OH first using lookup - Priyam
+                          
+                          // evalLocationAccess(s12, pa, pve, v6)((s13, _, pArgs, v7) => {
+                          //   val ve = pve dueTo InsufficientPermission(pa)
+                          //   val resource = acc.res(Verifier.program)
+                          //   val addToOh = true /* so lookup knows whether or not to add optimistically assumed permissions to the OH */
+                          //   /* lookup shouldn't create another run-time check for predicate as that would have already happened on consumption */
+                          //   chunkSupporter.lookup(s13, s13.h, s13.optimisticHeap, addToOh, resource, pa, pArgs, pve, ve, v7)((s14, h14, oh14, tSnap, v8) => {
+                          //     val fr = s14.functionRecorder.recordSnapshot(acc, v8.decider.pcs.branchConditions, tSnap)
+                          //     val s15 = s14.copy(h = h14, optimisticHeap = oh14, functionRecorder = fr)
+                          //     Q(s15, eIn1, v8)
+
+                          //   })
+                          // })
+                          
+                        })})}) // eval's continuation calls continuation Q with s11, evaluated expression eIn1 and v6 - Priyam
+                  //})(join(v2.symbolConverter.toSort(eIn.typ), "joined_unfolding", s2.relevantQuantifiedVariables, v2))(Q)
+                case false =>
+                  createFailure(pve dueTo NegativePermission(ePerm), v2, s2)}))
+        } else {
+          val unknownValue = v.decider.appliedFresh("recunf", v.symbolConverter.toSort(eIn.typ), s.relevantQuantifiedVariables)
+          Q(s, unknownValue, v)
+        }
 
       /* Others */
 
@@ -1128,7 +1287,7 @@ object evaluator extends EvaluationRules with Immutable {
 
                   // do the framing check
                   
-                  // println("We are (should be) making a runtime check")
+                  v.logger.debug("We are (should be) making a runtime check")
 
                   val runtimeCheckAstNode: CheckPosition =
                     (s2.methodCallAstNode, s2.foldOrUnfoldAstNode, s2.loopPosition) match {

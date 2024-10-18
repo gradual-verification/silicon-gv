@@ -74,6 +74,7 @@ final case class State(g: Store = Store(),
                        methodCallAstNode: Option[ast.MethodCall] = None,
                        foldOrUnfoldAstNode: Option[ast.Node] = None,
                        loopPosition: Option[CheckPosition.Loop] = None,
+                       unfoldingAstNode: Option[ast.Node] = None,
                        forFraming: Boolean = false,
                        generateChecks: Boolean = true,
                        needConditionFramingUnfold: Boolean = false,
@@ -164,7 +165,7 @@ object State {
                  ssCache1, hackIssue387DisablePermissionConsumption1,
                  qpFields1, qpPredicates1, qpMagicWands1, smCache1, pmCache1, smDomainNeeded1,
                  predicateSnapMap1, predicateFormalVarMap1, hack,
-                 methodCallAstNode1, foldOrUnfoldAstNode1, loopPosition1, forFraming, generateChecks,
+                 methodCallAstNode1, foldOrUnfoldAstNode1, loopPosition1, unfoldingAstNode1, forFraming, generateChecks,
                  needConditionFramingUnfold, needConditionFramingProduce,
                  madeOptimisticAssumptions) =>
 
@@ -193,7 +194,7 @@ object State {
                      ssCache2, `hackIssue387DisablePermissionConsumption1`,
                      `qpFields1`, `qpPredicates1`, `qpMagicWands1`, smCache2, pmCache2, `smDomainNeeded1`,
                      `predicateSnapMap1`, `predicateFormalVarMap1`, `hack`,
-                     `methodCallAstNode1`, `foldOrUnfoldAstNode1`, `loopPosition1`, `forFraming`,
+                     `methodCallAstNode1`, `foldOrUnfoldAstNode1`, `loopPosition1`, `unfoldingAstNode1`,`forFraming`,
                      `generateChecks`, `needConditionFramingUnfold`,
                      `needConditionFramingProduce`, `madeOptimisticAssumptions`) =>
 

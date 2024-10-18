@@ -596,7 +596,8 @@ object consumer extends ConsumptionRules with Immutable {
                           profilingInfo.incrementEliminatedConjuncts
                         }
 
-                        Q(s5, oh1, h1, snap2, v4)}})}
+                        Q(s5, Heap(), Heap(), snap2, v4)}})} // replace oh1 and h1 with Heap() since OH and H should be emptied since predicate was in OH - Priyam
+
 
                   else if (chunkExisted) {
 
@@ -678,6 +679,7 @@ object consumer extends ConsumptionRules with Immutable {
                       }
 
                       if (chunkExisted) {
+                        // v.logger.debug(s"consumeGreedy call with Heap: ${v.stateFormatter.format(h)}\n")
 
                         profilingInfo.incrementEliminatedConjuncts
                         Q(s5, oh1, h1, snap1, v4)}
@@ -687,6 +689,8 @@ object consumer extends ConsumptionRules with Immutable {
                         // we don't want to count it if the runtime check
                         // path happened, i think
                         if (chunkExisted1) {
+                          // v.logger.debug(s"new heap after chunk supporter consume: ${v.stateFormatter.format(h1)}\n")
+                          // v.logger.debug(s"new optimistic heap after chunk supporter consume: ${v.stateFormatter.format(oh1)}\n")
                           profilingInfo.incrementEliminatedConjuncts
                         }
 

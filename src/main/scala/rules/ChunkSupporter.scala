@@ -111,7 +111,7 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
 
   private def consume(s: State,
                       h: Heap,
-                      consolidate: Boolean,
+                      consolidate: Boolean, // True when regular heap
                       resource: ast.Resource,
                       args: Seq[Term],
                       perms: Term,
@@ -123,8 +123,9 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
     if (consolidate) {
       s1 = stateConsolidator.consolidate(s.copy(h = h), v)
     }
-    consumeGreedy(s1, s1.h, resource, args, perms, v) match {
+    consumeGreedy(s1, s1.h, consolidate, resource, args, perms, v) match {
       case (Complete(), s2, h2, optCh2) =>
+        // v.logger.debug(s"heap returned from consume greedy: ${v.stateFormatter.format(h2)}\n")
         Q(s2.copy(h = s.h), h2, optCh2.map(_.snap), v)
 
       // should never reach this case
@@ -132,6 +133,7 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
         Success()
 
       case (Incomplete(p), s2, h2, None) =>
+        // v.logger.debug(s"incomplete case: heap returned from consume greedy: ${v.stateFormatter.format(h2)}\n")
         Q(s2.copy(h = s.h), h2, None, v)
 
     }
@@ -139,12 +141,14 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
 
   private def consumeGreedy(s: State,
                             h: Heap,
+                            isRegularHeap: Boolean,
                             resource: ast.Resource,
                             args: Seq[Term],
                             perms: Term,
                             v: Verifier) = {
 
     val id = ChunkIdentifier(resource, Verifier.program)
+    // v.logger.debug(s"consumeGreedy call with Heap: ${v.stateFormatter.format(h)}\n")
 
     resource match {
       case f: ast.Field => {
@@ -168,6 +172,7 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
               }
 
               if ((id != c.id) || (!statusCheckgv)){
+                v.logger.debug(s"chunk not overlapping with ${id}: ${c} with id ${c.id}\n")
                 currHeap + c
               }
               else {
@@ -182,7 +187,27 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
         findChunk[NonQuantifiedChunk](h.values, id, args, v) match {
           // I'm not sure if I need these checks but I included them to be safe - J
           case Some(ch) if v.decider.check(ch.perm === perms, Verifier.config.checkTimeout()) && v.decider.check(perms === FullPerm(), Verifier.config.checkTimeout()) =>
-            (Complete(), s, newH, Some(ch))
+            // handles removing all predicates from OH when field chunk is in optimistic heap (Note: case when field chunk in regular heap handled by next case) - Priyam
+            if (!isRegularHeap){
+              var newH2: Heap = newH.values.foldLeft(Heap()) { (currHeap, chunk) =>
+                chunk match {
+                  case c: NonQuantifiedChunk =>
+                    c.resourceID match {
+                      case FieldID =>
+                        currHeap + c
+                      case _ =>
+                        currHeap
+                    }
+                  case _ =>
+                    currHeap
+                }
+              }
+              (Complete(), s, newH2, Some(ch))
+            }
+            else {
+              (Complete(), s, newH, Some(ch))
+            }
+
 
           case _ => {
             var newH2: Heap = newH.values.foldLeft(Heap()) { (currHeap, chunk) =>
