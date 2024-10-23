@@ -103,8 +103,8 @@ trait DefaultMethodVerificationUnitProvider extends VerifierComponent { v: Verif
                       SymbExLogger.currentLog().closeScope(sepIdentifier)
                       // print final state here
                       // put logger debug here
-                      finalVerifier.logger.debug(s"\nFINAL STATE OF METHOD ${method.name}")
-                      finalVerifier.logger.debug(finalVerifier.stateFormatter.format(finalState, finalVerifier.decider.pcs))
+                      v5.logger.debug(s"\nFINAL STATE OF METHOD ${method.name}")
+                      v5.logger.debug(v5.stateFormatter.format(s5, v5.decider.pcs))
                       Success()
                     } ))}) }  )})})
 
