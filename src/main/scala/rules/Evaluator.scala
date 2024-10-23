@@ -14,7 +14,7 @@ import viper.silver.verifier.errors.{ErrorWrapperWithExampleTransformer, Precond
 import viper.silver.verifier.reasons._
 import viper.silicon.common.collections.immutable.InsertionOrderedSet
 import viper.silicon.interfaces._
-import viper.silicon.resources.PredicateID // added by Priyam 2024
+import viper.silicon.resources.PredicateID
 import viper.silicon.state.{terms, _}
 import viper.silicon.state.terms._
 import viper.silicon.state.terms.implicits._
@@ -513,7 +513,7 @@ object evaluator extends EvaluationRules with Immutable {
         if (s.cycles(predicate) < Verifier.config.recursivePredicateUnfoldings()) {
           evals(s, eArgs, _ => pve, v)((s1, tArgs, v1) =>
             eval(s1, ePerm, pve, v1)((s2, tPerm, v2) =>
-              v2.decider.assert(IsNonNegative(tPerm)) { // Negative permission ?? - Priyam
+              v2.decider.assert(IsNonNegative(tPerm)) {
                 case true =>
                   //joiner.join[Term, Term](s2, v2)((s3, v3, QB) => { // removed join functionality for now (Priyam, Sept 2024)
                     val s4 = s2.incCycleCounter(predicate)
@@ -567,7 +567,6 @@ object evaluator extends EvaluationRules with Immutable {
                                    .decCycleCounter(predicate)
                         val s10 = stateConsolidator.consolidateIfRetrying(s9, v5)
                         eval(s10, eIn, pve, v5)((s11, eIn1, v6) => {
-                          //val snap = v.decider.fresh(s"$id(${eArgs.mkString(",")})", sorts.Snap)
                           val ch = BasicChunk(PredicateID, BasicChunkIdentifier(predicateName), tArgs, snap.convert(sorts.Snap), tPerm)
 
                           body match {
@@ -575,7 +574,7 @@ object evaluator extends EvaluationRules with Immutable {
                               val s12 = if (predFramed) s11.copy(h = s2.h, optimisticHeap = s2.optimisticHeap) else s11.copy(h = s2.h, optimisticHeap = s2.optimisticHeap + ch) // adding consumed predicate to OH when it wasn't statically framed before consume
                                Q(s12, eIn1, v6)
                             case _ =>
-                              // keep OH chunks assumed during eval of b
+                              // keep OH chunks assumed during evaluation of eIn
                               val s12 = if (predFramed) s11.copy(h = s2.h, optimisticHeap = s2.optimisticHeap + s11.optimisticHeap + ch) else s11.copy(h = s2.h, optimisticHeap = s2.optimisticHeap + s11.optimisticHeap + ch)// adding consumed predicate to OH when it wasn't statically framed before consume
                                Q(s12, eIn1, v6)
                           }
