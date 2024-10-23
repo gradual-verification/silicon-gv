@@ -591,10 +591,14 @@ object evaluator extends EvaluationRules with Immutable {
 //                        eval(σ1, eIn, pve, c4)((tIn, c5) =>
 //                          QB(tIn, c5))})
                     // check here using findChunk if predicate is present in heap- Priyam
-                    // var addpred = true
-                    // ChunkSupporter.findChunk[NonQuantifiedChunk](h.values, id, args, v) match {
-                    //   case Some(ch) if v.decider.check(ch.perm === perms, Verifier.config.checkTimeout()) && v.decider.check(perms === FullPerm(), Verifier.config.checkTimeout()) =>
-                        
+                    var predFramed = true
+                    val hTotal = s.h + s.optimisticHeap
+                    chunkSupporter.findChunk[NonQuantifiedChunk](hTotal.values, BasicChunkIdentifier(predicateName), tArgs, v2) match {
+                      case Some(ch) =>//if v.decider.check(ch.perm === perms, Verifier.config.checkTimeout()) && v.decider.check(perms === FullPerm(), Verifier.config.checkTimeout()) =>
+                        predFramed = true
+                      case _ =>
+                        predFramed = false
+                    }
                     consume(s4, acc, pve, v2)((s5, snap, v4) => {
 
                       val s5_1 = s5.copy(forFraming = false)
@@ -632,10 +636,11 @@ object evaluator extends EvaluationRules with Immutable {
 
                           body match {
                             case impr @ ast.ImpreciseExp(e) =>
-                              val s12 = s11.copy(h = s2.h, optimisticHeap = s2.optimisticHeap + ch) // adding consumed predicate to OH
+                              val s12 = if (predFramed) s11.copy(h = s2.h, optimisticHeap = s2.optimisticHeap) else s11.copy(h = s2.h, optimisticHeap = s2.optimisticHeap + ch) // adding consumed predicate to OH when it wasn't statically framed before consume
                                Q(s12, eIn1, v6)
                             case _ =>
-                              val s12 = s11.copy(h = s2.h, optimisticHeap = s2.optimisticHeap + s11.optimisticHeap + ch) // keep OH chunks from eval
+                              // keep OH chunks assumed during eval of b
+                              val s12 = if (predFramed) s11.copy(h = s2.h, optimisticHeap = s2.optimisticHeap + s11.optimisticHeap + ch) else s11.copy(h = s2.h, optimisticHeap = s2.optimisticHeap + s11.optimisticHeap + ch)// adding consumed predicate to OH when it wasn't statically framed before consume
                                Q(s12, eIn1, v6)
                           }
                          
