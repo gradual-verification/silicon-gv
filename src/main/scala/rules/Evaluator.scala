@@ -620,14 +620,14 @@ object evaluator extends EvaluationRules with Immutable {
                       val insg = s7.g + Store(predicate.formalArgs map (_.localVar) zip tArgs)
                       
                       // if else casing required for setting origin while handling nested origins (outermost unfolding should be origin)
-                      val s7a = s7.copy(g = insg, unfoldingAstNode = if (s7.unfoldingAstNode == None) Some(unfolding) else None)
+                      val s7a = s7.copy(g = insg, unfoldingAstNode = if (s7.unfoldingAstNode == None) Some(unfolding) else None, needConditionFramingUnfold = true)
                   
                       produce(s7a, toSf(snap), body, pve, v4)((s8, v5) => {
                         val s9 = s8.copy(g = s7.g,
                                          functionRecorder = s8.functionRecorder.changeDepthBy(-1),
                                          recordVisited = s2.recordVisited,
                                          permissionScalingFactor = s6.permissionScalingFactor,
-                                         unfoldingAstNode = None)
+                                         unfoldingAstNode = None, needConditionFramingUnfold = false)
                                    .decCycleCounter(predicate)
                         val s10 = stateConsolidator.consolidateIfRetrying(s9, v5)
                         eval(s10, eIn, pve, v5)((s11, eIn1, v6) => {
@@ -1295,11 +1295,12 @@ object evaluator extends EvaluationRules with Immutable {
                   v.logger.debug("We are (should be) making a runtime check")
 
                   val runtimeCheckAstNode: CheckPosition =
-                    (s2.methodCallAstNode, s2.foldOrUnfoldAstNode, s2.loopPosition) match {
-                      case (None, None, None) => CheckPosition.GenericNode(fa)
-                      case (Some(methodCallAstNode), None, None) => CheckPosition.GenericNode(methodCallAstNode)
-                      case (None, Some(foldOrUnfoldAstNode), None) => CheckPosition.GenericNode(foldOrUnfoldAstNode)
-                      case (None, None, Some(loopPosition)) => loopPosition
+                    (s2.methodCallAstNode, s2.foldOrUnfoldAstNode, s2.loopPosition, s2.unfoldingAstNode) match {
+                      case (None, None, None, None) => CheckPosition.GenericNode(fa)
+                      case (Some(methodCallAstNode), None, None, None) => CheckPosition.GenericNode(methodCallAstNode)
+                      case (None, Some(foldOrUnfoldAstNode), None, None) => CheckPosition.GenericNode(foldOrUnfoldAstNode)
+                      case (None, None, Some(loopPosition), None) => loopPosition
+                      case (None, None, None, Some(unfoldingAstNode)) => CheckPosition.GenericNode(unfoldingAstNode)
                       case _ => sys.error("Conflicting positions found while adding runtime check!")
                     }
 
