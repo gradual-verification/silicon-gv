@@ -170,6 +170,12 @@ object brancher extends BranchingRules with Immutable {
       SymbExLogger.currentLog().markReachable(uidBranchPoint)
       executionFlowController.locally(s, v)((s1, v1) => {
         v1.decider.prover.comment(s"[then-branch: $cnt | $condition]")
+        // v1.logger.debug(v1.stateFormatter.format(s1, v1.decider.pcs))
+        v1.logger.debug("h and oh below are needed to translate the condition since g is not sufficient")
+        v1.logger.debug("h = " + v1.stateFormatter.format(h))
+        v1.logger.debug("oh = " + v1.stateFormatter.format(oh))
+        v1.logger.debug("g = " + v1.stateFormatter.format(g))
+        v1.logger.debug(s"condition: ${condition}")
         val cond: Exp =
           (new Translator(s1.copy(g = g, h = h, optimisticHeap = oh), v1.decider.pcs).translate(condition) match {
             case None => sys.error("Error translating! Exiting safely.")

@@ -572,11 +572,11 @@ object evaluator extends EvaluationRules with Immutable {
                           body match {
                             case impr @ ast.ImpreciseExp(e) =>
                               val s12 = if (predFramed) s11.copy(h = s2.h, optimisticHeap = s2.optimisticHeap) else s11.copy(h = s2.h, optimisticHeap = s2.optimisticHeap + ch) // adding consumed predicate to OH when it wasn't statically framed before consume
-                               Q(s12, eIn1, v6)
+                              Q(s12, eIn1, v6)
                             case _ =>
                               // keep OH chunks assumed during evaluation of eIn
-                              val s12 = if (predFramed) s11.copy(h = s2.h, optimisticHeap = s2.optimisticHeap + s11.optimisticHeap + ch) else s11.copy(h = s2.h, optimisticHeap = s2.optimisticHeap + s11.optimisticHeap + ch)// adding consumed predicate to OH when it wasn't statically framed before consume
-                               Q(s12, eIn1, v6)
+                              val s12 = if (predFramed) s11.copy(h = s2.h, optimisticHeap = s2.optimisticHeap + s11.optimisticHeap) else s11.copy(h = s2.h, optimisticHeap = s2.optimisticHeap + s11.optimisticHeap + ch)// adding consumed predicate to OH when it wasn't statically framed before consume
+                              Q(s12, eIn1, v6)
                           }
                         })})})
                   //})(join(v2.symbolConverter.toSort(eIn.typ), "joined_unfolding", s2.relevantQuantifiedVariables, v2))(Q)
@@ -1407,6 +1407,89 @@ object evaluator extends EvaluationRules with Immutable {
 
       case ast.PermGtCmp(e0, e1) =>
         evalBinOpPc(s, e0, e1, Greater, pve, v, generateChecks)(Q)
+
+      case unfolding @ ast.Unfolding(
+              acc @ ast.PredicateAccessPredicate(pa @ ast.PredicateAccess(eArgs, predicateName), ePerm),
+              eIn) =>
+        // val gIns = s.g + Store(predicate.formalArgs map (_.localVar) zip eArgs) // copied from unfold in PredicateSupporter, not sure if needed - Priyam
+        val predicate = Verifier.program.findPredicate(predicateName)
+        if (s.cycles(predicate) < Verifier.config.recursivePredicateUnfoldings()) {
+          evalspc(s, eArgs, _ => pve, v)((s1, tArgs, v1) =>
+            evalpc(s1, ePerm, pve, v1)((s2, tPerm, v2) =>
+              v2.decider.assert(IsNonNegative(tPerm)) {
+                case true =>
+                  //joiner.join[Term, Term](s2, v2)((s3, v3, QB) => { // removed join functionality for now (Priyam, Sept 2024)
+                    val s4 = s2.incCycleCounter(predicate)
+                               .copy(recordVisited = true,
+                                 forFraming = true)
+                      /* [2014-12-10 Malte] The commented code should replace the code following
+                       * it, but using it slows down RingBufferRd.sil significantly. The generated
+                       * Z3 output looks nearly identical, so my guess is that it is some kind
+                       * of triggering problem, probably related to sequences.
+                       */
+//                      predicateSupporter.unfold(σ, predicate, tArgs, tPerm, pve, c2, pa)((σ1, c3) => {
+//                        val c4 = c3.decCycleCounter(predicate)
+//                        eval(σ1, eIn, pve, c4)((tIn, c5) =>
+//                          QB(tIn, c5))})
+
+                    // check here using findChunk if predicate is present in heap- Priyam
+                    var predFramed = true
+                    val hTotal = s.h + s.optimisticHeap
+                    chunkSupporter.findChunk[NonQuantifiedChunk](hTotal.values, BasicChunkIdentifier(predicateName), tArgs, v2) match {
+                      case Some(ch) =>//if v.decider.check(ch.perm === perms, Verifier.config.checkTimeout()) && v.decider.check(perms === FullPerm(), Verifier.config.checkTimeout()) =>
+                        predFramed = true
+                      case _ =>
+                        predFramed = false
+                    }
+                    consume(s4, acc, pve, v2)((s5, snap, v4) => {
+                      val s5_1 = s5.copy(forFraming = false)
+                      val fr6 =
+                        s5_1.functionRecorder.recordSnapshot(pa, v4.decider.pcs.branchConditions, snap)
+                                           .changeDepthBy(+1)
+                      val s6 = s5_1.copy(functionRecorder = fr6,
+                                       constrainableARPs = s1.constrainableARPs)
+                        /* Recording the unfolded predicate's snapshot is necessary in order to create the
+                         * additional predicate-based trigger function applications because these are applied
+                         * to the function arguments and the predicate snapshot
+                         * (see 'predicateTriggers' in FunctionData.scala).
+                         */
+                      v4.decider.assume(App(Verifier.predicateData(predicate).triggerFunction, snap.convert(terms.sorts.Snap) +: tArgs))
+                      val body = predicate.body.get /* Only non-abstract predicates can be unfolded */
+                      val s7 = s6.scalePermissionFactor(tPerm)
+                      val insg = s7.g + Store(predicate.formalArgs map (_.localVar) zip tArgs)
+                      
+                      // if-else casing required for setting origin while handling nested origins (outermost unfolding should be origin) - Priyam
+                      val s7a = s7.copy(g = insg, unfoldingAstNode = if (s7.unfoldingAstNode == None) Some(unfolding) else s7.unfoldingAstNode, needConditionFramingUnfold = true)
+                  
+                      produce(s7a, toSf(snap), body, pve, v4)((s8, v5) => {
+                        val s9 = s8.copy(g = s7.g,
+                                         functionRecorder = s8.functionRecorder.changeDepthBy(-1),
+                                         recordVisited = s2.recordVisited,
+                                         permissionScalingFactor = s6.permissionScalingFactor,
+                                         unfoldingAstNode = s7.unfoldingAstNode, needConditionFramingUnfold = false)
+                                   .decCycleCounter(predicate)
+                        val s10 = stateConsolidator.consolidateIfRetrying(s9, v5)
+                        evalpc(s10, eIn, pve, v5)((s11, eIn1, v6) => {
+                          val s11a = s11.copy(oldStore = Some(s11.g), oldHeaps = s11.oldHeaps + (Verifier.PRE_HEAP_LABEL -> s11.h) + (Verifier.PRE_OPTHEAP_LABEL -> s11.optimisticHeap))
+                          val ch = BasicChunk(PredicateID, BasicChunkIdentifier(predicateName), tArgs, snap.convert(sorts.Snap), tPerm)
+      
+                          body match {
+                            case impr @ ast.ImpreciseExp(e) =>
+                              val s12 = if (predFramed) s11a.copy(h = s2.h, optimisticHeap = s2.optimisticHeap) else s11a.copy(h = s2.h, optimisticHeap = s2.optimisticHeap + ch) // adding consumed predicate to OH when it wasn't statically framed before consume
+                              Q(s12, eIn1, v6)
+                            case _ =>
+                              // keep OH chunks assumed during evaluation of eIn
+                              val s12 = if (predFramed) s11a.copy(h = s2.h, optimisticHeap = s2.optimisticHeap + s11.optimisticHeap) else s11a.copy(h = s2.h, optimisticHeap = s2.optimisticHeap + s11.optimisticHeap + ch)// adding consumed predicate to OH when it wasn't statically framed before consume
+                              Q(s12, eIn1, v6)
+                          }
+                        })})})
+                  //})(join(v2.symbolConverter.toSort(eIn.typ), "joined_unfolding", s2.relevantQuantifiedVariables, v2))(Q)
+                case false =>
+                  createFailure(pve dueTo NegativePermission(ePerm), v2, s2)}))
+        } else {
+          val unknownValue = v.decider.appliedFresh("recunf", v.symbolConverter.toSort(eIn.typ), s.relevantQuantifiedVariables)
+          Q(s, unknownValue, v)
+        }
 
       /* Others */
 
