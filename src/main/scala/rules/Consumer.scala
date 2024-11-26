@@ -283,7 +283,7 @@ object consumer extends ConsumptionRules with Immutable {
       case ite @ ast.CondExp(e0, a1, a2) =>
         val condExpRecord = new CondExpRecord(ite, s, v.decider.pcs, "consume")
         val uidCondExp = SymbExLogger.currentLog().openScope(condExpRecord)
-
+        //val s_1 = s.copy(evaluatingIte = true)
         evalpc(s.copy(isImprecise = impr), e0, pve, v)((s1, t0, v1) => {
           val s2 = s1.copy(isImprecise = s.isImprecise)
       

@@ -531,7 +531,7 @@ object evaluator extends EvaluationRules with Immutable {
 
                     // check here using findChunk if predicate is present in heap- Priyam
                     var predFramed = true
-                    val hTotal = s.h + s.optimisticHeap
+                    val hTotal = s4.h + s4.optimisticHeap
                     chunkSupporter.findChunk[NonQuantifiedChunk](hTotal.values, BasicChunkIdentifier(predicateName), tArgs, v2) match {
                       case Some(ch) =>//if v.decider.check(ch.perm === perms, Verifier.config.checkTimeout()) && v.decider.check(perms === FullPerm(), Verifier.config.checkTimeout()) =>
                         predFramed = true
@@ -1441,6 +1441,11 @@ object evaluator extends EvaluationRules with Immutable {
                       case _ =>
                         predFramed = false
                     }
+                    // if (!predFramed && s4.evaluatingIte) { // short circuiting evaluation for ite condition expression
+                    //   eval(s4, eIn, pve, v2)((s4a, eIna, v2a) => {
+                    //     Q(s4a, eIna, v2a)
+                    //     })}
+                    // else {
                     consume(s4, acc, pve, v2)((s5, snap, v4) => {
                       val s5_1 = s5.copy(forFraming = false)
                       val fr6 =
@@ -1483,6 +1488,7 @@ object evaluator extends EvaluationRules with Immutable {
                               Q(s12, eIn1, v6)
                           }
                         })})})
+                    // }
                   //})(join(v2.symbolConverter.toSort(eIn.typ), "joined_unfolding", s2.relevantQuantifiedVariables, v2))(Q)
                 case false =>
                   createFailure(pve dueTo NegativePermission(ePerm), v2, s2)}))

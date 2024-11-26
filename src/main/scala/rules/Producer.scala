@@ -11,6 +11,7 @@ import viper.silver.ast
 import viper.silver.ast.utility.QuantifiedPermissions.QuantifiedPermissionAssertion
 import viper.silver.verifier.PartialVerificationError
 import viper.silicon.interfaces.{Failure, VerificationResult}
+import viper.silicon.interfaces.state.{ChunkIdentifer, NonQuantifiedChunk}
 import viper.silicon.logger.SymbExLogger
 import viper.silicon.logger.records.data.{CondExpRecord, ProduceRecord}
 import viper.silicon.resources.{FieldID, PredicateID}
@@ -256,6 +257,21 @@ object producer extends ProductionRules with Immutable {
         val uidCondExp = SymbExLogger.currentLog().openScope(condExpRecord)
 
         val s_1 = s.copy(generateChecks = false, needConditionFramingProduce = true)
+        
+        // // case: e0 is an unfolding expression
+        // val e1 = e0 match {
+        //   case unfolding @ ast.Unfolding(
+        //       acc @ ast.PredicateAccessPredicate(pa @ ast.PredicateAccess(eArgs, predicateName), ePerm),
+        //       eIn) =>
+        //             val hTotal = s.h + s.optimisticHeap
+        //             chunkSupporter.findChunk[NonQuantifiedChunk](hTotal.values, BasicChunkIdentifier(predicateName), eArgs, v) match {
+        //               case Some(ch) =>//if v.decider.check(ch.perm === perms, Verifier.config.checkTimeout()) && v.decider.check(perms === FullPerm(), Verifier.config.checkTimeout()) =>
+        //                 e0
+        //               case _ =>
+        //                 eIn
+        //             }
+        // }
+
         evalpc(s_1, e0, pve, v, false)((s1, t0, v1) => {
           val s1_1 = s.copy(generateChecks = true, needConditionFramingProduce = false, oldStore = s1.oldStore, oldHeaps = s1.oldHeaps) // updating oldStore and oldHeaps for getting heap information in unfolding case
 
