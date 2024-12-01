@@ -36,6 +36,7 @@ trait PredicateSupportRules extends SymbolicExecutionRules {
              origin: Option[ast.Unfold],
              tArgs: List[Term],
              tPerm: Term,
+             ePerm: ast.Exp,
              constrainableWildcards: InsertionOrderedSet[Var],
              pve: PartialVerificationError,
              v: Verifier,
@@ -129,6 +130,7 @@ object predicateSupporter extends PredicateSupportRules with Immutable {
              origin: Option[ast.Unfold],
              tArgs: List[Term],
              tPerm: Term,
+             ePerm: ast.Exp, // necessary for adding a run-time check
              constrainableWildcards: InsertionOrderedSet[Var],
              pve: PartialVerificationError,
              v: Verifier,
@@ -194,24 +196,15 @@ object predicateSupporter extends PredicateSupportRules with Immutable {
                       sys.error("Conflicting positions while looking for position!")
                   }
 
-                val astPerm = origin match {
-                  case Some(ast.Unfold(ast.PredicateAccessPredicate(_, ePerm))) => ePerm
-                  case None => ast.FullPerm()() 
-                  /* currently predicateSupporter.unfold is only being called from unfold in Executor.scala, and it is always Some, so
-                  the above None case should never happen. This will probably change when unfolding in is added, so this is only a temporary solution.
-                  TODO: add extra parameter to PredicateSupporter unfold that is ePerm, which can then be used in run-time check?
-                  */
-                }
-
                 if (s5.generateChecks) {
                   runtimeChecks.addChecks(runtimeCheckAstNode,
-                    ast.PredicateAccessPredicate(pa, astPerm)(),
+                    ast.PredicateAccessPredicate(pa, ePerm)(),
                     viper.silicon.utils.zip3(v2.decider.pcs.branchConditionsSemanticAstNodes,
                       v2.decider.pcs.branchConditionsAstNodes,
                       v.decider.pcs.branchConditionsOrigins).map(bc => BranchCond(bc._1, bc._2, bc._3)),
                     pa,
                     s5.forFraming)
-                  pa.addCheck(ast.PredicateAccessPredicate(pa, astPerm)())
+                  pa.addCheck(ast.PredicateAccessPredicate(pa, ePerm)())
                 }
               }
               if (chunkExisted) {

@@ -699,7 +699,8 @@ object consumer extends ConsumptionRules with Immutable {
 
               case false =>
                 createFailure(pve dueTo InsufficientPermission(locacc), v2, s2) 
-                // it would be best if it was insufficient permission error if field == null, and negative permission error if field perm < 0, but very annoying to change
+                // it would be best if it was insufficient permission error if field == null, 
+                // and negative permission error if field perm < 0, but very annoying to change
 
             // this is the assertgv case for field access
             } match {

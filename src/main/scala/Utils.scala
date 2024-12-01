@@ -259,8 +259,8 @@ package object utils {
          checkPermissions(program)
       ++ checkInhaleExhaleAssertions(program))
 
-    def createUnsupportedPermissionExpressionError(offendingNode: errors.ErrorNode) = {
-      val message = s"Silicon doesn't support the permission expression $offendingNode."
+    def createUnsupportedPermissionExpressionError(offendingNode: errors.ErrorNode) = { // may need to change this for epsilon at some point?
+      val message = s"Silicon doesn't support the permission expression $offendingNode." 
 
       Internal(offendingNode, FeatureUnsupported(offendingNode, message))
     }
