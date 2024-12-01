@@ -804,7 +804,7 @@ object executor extends ExecutionRules with Immutable {
             v2.decider.assertgv(s2.isImprecise, IsPositive(tPerm)) { //The IsPositive check is redundant
               case true =>
                 val wildcards = s2.constrainableARPs -- s1.constrainableARPs
-                predicateSupporter.unfold(s2.copy(smCache = smCache1), predicate, Some(unfold), tArgs, tPerm, wildcards, pve, v2, pa)(Q)
+                predicateSupporter.unfold(s2.copy(smCache = smCache1), predicate, Some(unfold), tArgs, tPerm, ePerm, wildcards, pve, v2, pa)(Q)
               case false =>
                 createFailure(pve dueTo NegativePermission(ePerm), v2, s2)
             } match {

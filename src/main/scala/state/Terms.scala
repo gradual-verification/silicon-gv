@@ -842,6 +842,9 @@ class BuiltinEquals private[terms] (val p0: Term, val p1: Term) extends Equals
 object BuiltinEquals extends ((Term, Term) => BooleanTerm) {
   def apply(t1: Term, t2: Term) = (t1, t2) match {
     case (p0: PermLiteral, p1: PermLiteral) => if (p0.literal == p1.literal) True() else False()
+    case (_: EpsilonPerm, _: EpsilonPerm) => True()
+    case (p: Permissions, _: EpsilonPerm) => False()
+    case (_: EpsilonPerm, p: Permissions) => False()
     case _ => new BuiltinEquals(t1, t2)
   }
 
@@ -980,6 +983,19 @@ sealed trait Permissions extends Term {
 
 sealed abstract class PermLiteral(val literal: Rational) extends Permissions
 
+sealed abstract class SymbolicPerm() extends Permissions // maybe more symbolic permissions in future
+// symbolic means that its a permission that doesn't actually have a fraction associated with it
+
+case class EpsilonPerm() extends SymbolicPerm() { override lazy val toString = "E" } 
+/* 
+ * Constraints:
+ * 1. For all permissions p > 0, p > epsilon
+ * 2. epsilon > 0 
+ * 3. For all p, p != epsilon. This follows since there is no such fraction p that can be epsilon.
+ * 4. epsilon should never occur in real code - only used in optimistic heap!
+ * 5. For convenience in consume, we define PermMin and PermMinus on epsilon to substitute 0 for epsilon. 
+ */
+
 case class NoPerm() extends PermLiteral(Rational.zero) { override lazy val toString = "Z" }
 case class FullPerm() extends PermLiteral(Rational.one) { override lazy val toString = "W" }
 
@@ -1052,7 +1068,7 @@ class IntPermTimes(val p0: Term, val p1: Term)
        with StructuralEqualityBinaryOp[Term] {
 
   override val op = "*"
-}
+} 
 
 object IntPermTimes extends ((Term, Term) => Term) {
   import predef.{Zero, One}
@@ -1161,7 +1177,8 @@ object PermLess extends ((Term, Term) => Term) {
     (t0, t1) match {
       case _ if t0 == t1 => False()
       case (p0: PermLiteral, p1: PermLiteral) => if (p0.literal < p1.literal) True() else False()
-
+      case (p, _: EpsilonPerm) => PermAtMost(p, NoPerm()) // p cannot be epsilon
+      case (_: EpsilonPerm, p) => PermLess(NoPerm(), p)
       case (`t0`, Ite(tCond, tIf, tElse)) =>
         /* The pattern p0 < b ? p1 : p2 arises very often in the context of quantified permissions.
          * Pushing the comparisons into the ite allows further simplifications.
@@ -1185,6 +1202,8 @@ object PermAtMost extends ((Term, Term) => Term) {
   def apply(e0: Term, e1: Term) = (e0, e1) match {
     case (p0: PermLiteral, p1: PermLiteral) => if (p0.literal <= p1.literal) True() else False()
     case (t0, t1) if t0 == t1 => True()
+    case (p, _: EpsilonPerm) => PermAtMost(p, NoPerm()) 
+    case (_: EpsilonPerm, p) => PermLess(NoPerm(), p) 
     case _ => new PermAtMost(e0, e1)
   }
 
@@ -1983,12 +2002,19 @@ object perms {
 
   def IsPositive(p: Term): Term = p match {
     case p: PermLiteral => if (p.literal > Rational.zero) True() else False()
+    case e: EpsilonPerm => True()
     case _ => PermLess(NoPerm(), p)
   }
 
   def IsNonPositive(p: Term): Term = p match {
     case p: PermLiteral => if (p.literal <= Rational.zero) True() else False()
-    case _ => Or(p === NoPerm(), PermLess(p, NoPerm()))
+    case e: EpsilonPerm => False()
+    case _ => Or(p === NoPerm(), PermLess(p, NoPerm())) 
+  }
+
+  def IsEpsilon(p: Term): Term = p match {
+    case e: EpsilonPerm => True()
+    case _ => False()
   }
 
   def BigPermSum(it: Iterable[Term], f: Term => Term = t => t): Term =
