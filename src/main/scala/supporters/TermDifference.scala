@@ -60,6 +60,14 @@ object TermDifference {
     case terms.Var(name, sort) => terms.Var(name, sort)
     case terms.SortWrapper(_, _) if excludedTerms.contains("SortWrapper") => expansionPhase(term)
     case terms.SortWrapper(t, sort) => terms.SortWrapper(visitor(expansionPhase, excludedTerms, t), sort)
+
+    // TODO: add more permission terms when necessary
+    case terms.NoPerm() if excludedTerms.contains("NoPerm") => expansionPhase(term)
+    case terms.NoPerm() => term
+    case terms.FractionPermLiteral(_) if excludedTerms.contains("PermLiteral") => expansionPhase(term)
+    case terms.FractionPermLiteral(r) => term 
+    case terms.PermLess(_, _) if excludedTerms.contains("PermLess") => expansionPhase(term)
+    case terms.PermLess(t0, t1) => terms.PermLess(visitor(expansionPhase, excludedTerms, t0), visitor(expansionPhase, excludedTerms, t1))
   }
 
   def eliminateImplications(symbolicValue: terms.Term): terms.Term = symbolicValue match {
@@ -205,7 +213,7 @@ object TermDifference {
       case None => 1000
       case Some(verifierTimeoutValue) => verifierTimeoutValue
     }
-
+    // println(s"TERM DIFF symbolicValue = ${symbolicValue}")
     // we (hopefully) have a conjunct elimination site here
     reduceConjuncts(
       expandConjuncts(symbolicValue).foldRight(Seq[terms.Term]())((term, terms) => {

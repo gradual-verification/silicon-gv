@@ -143,6 +143,14 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
       // case terms.Second(_)     => None
       // case terms.Combine(_, _) => None
       // }
+
+      // TODO: Add more permission terms when necessary
+      case terms.NoPerm() => Some(ast.NoPerm()())
+      case terms.PermLess(t0, t1) => 
+        (translate(t0), translate(t1)) match {
+          case (Some(e1), Some(e2)) => Some(ast.PermLtCmp(e1, e2)())
+          case _ => None
+        }
       case _ => sys.error(s"Unable to translate ${t}")
     }
   }

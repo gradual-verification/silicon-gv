@@ -64,7 +64,8 @@ trait ChunkSupportRules extends SymbolicExecutionRules {
             (h: Heap,
              resource: ast.Resource,
              args: Seq[Term],
-             v: Verifier)
+             v: Verifier,
+             perm: Term)
             : Boolean
 
 
@@ -545,21 +546,25 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
             (h: Heap,
              resource: ast.Resource,
              args: Seq[Term],
-             v: Verifier)
+             v: Verifier,
+             perm: Term)
             : Boolean = {
     val id = ChunkIdentifier(resource, Verifier.program)
-
-    findChunk[NonQuantifiedChunk](h.values, id, args, v) match {
+    
+    val permSum = findChunk[NonQuantifiedChunk](h.values, id, args, v) match {
       case Some(ch) =>
-        val doublePerm = PermPlus(FullPerm(), FullPerm())
-        if (v.decider.check(PermLess(doublePerm, ch.perm), Verifier.config.checkTimeout())) { 
-          true
-        }
-        else {
-          false
-        }
+        PermPlus(ch.perm, perm)
       case None =>
-        false // this case should NEVER happen as this method should only be called when after the chunk is added to the heap in Produce
+        perm
+    }
+
+    if (v.decider.check(PermLess(FullPerm(), permSum), Verifier.config.checkTimeout())) {
+      // println(v.decider.pcs)
+      // println(s"PermLess(FullPerm(), permSum) =  ${PermLess(FullPerm(), permSum)}")
+      true
+    }
+    else {
+      false
     }
   }
 

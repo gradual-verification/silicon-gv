@@ -621,128 +621,129 @@ object consumer extends ConsumptionRules with Immutable {
 
       case ast.FieldAccessPredicate(locacc: ast.LocationAccess, perm) =>
 
-       //eval for expression and perm (perm should always be 1)
         evalpc(s.copy(isImprecise = impr), perm, pve, v)((s1, tPerm, v1) =>
-          evalLocationAccesspc(s1.copy(isImprecise = impr), locacc, pve, v1)((s2, field, tArgs, v2) => {
+          evalLocationAccesspc(s1.copy(isImprecise = impr), locacc, pve, v1)((s1a, field, tArgs, v1a) => 
+            permissionSupporter.assertNotNegative(s1a.copy(isImprecise = s.isImprecise), tPerm, perm, pve, v1a)((s2, v2) => 
+            {
             // is this why we produce a runtime check for != Null? does the
             // path condition not imply this (no, apparently it does not, at least for the
             // extra_check_issue.vpr example)
-            v2.decider.assertgv(s.isImprecise, And(perms.IsNonNegative(tPerm), tArgs.head !== Null())){
-              case true =>
-                val resource = locacc.res(Verifier.program)
-                val loss = PermTimes(tPerm, s2.permissionScalingFactor)
-                val ve = pve dueTo InsufficientPermission(locacc)
-                val description = s"consume ${a.pos}: $a"
-                var s3 = s2.copy(isImprecise = s.isImprecise)
+              v2.decider.assertgv(s.isImprecise, tArgs.head !== Null()) {
+                case true =>
+                  val resource = locacc.res(Verifier.program)
+                  val loss = PermTimes(tPerm, s2.permissionScalingFactor)
+                  val ve = pve dueTo InsufficientPermission(locacc)
+                  val description = s"consume ${a.pos}: $a"
+                  var s3 = s2.copy(isImprecise = s.isImprecise)
 
-                chunkSupporter.consume(s3, h, true, resource, tArgs, loss, ve, v2, description, true)((s4, h1, snap1, v3, chunkExisted) => {
+                  chunkSupporter.consume(s3, h, true, resource, tArgs, loss, ve, v2, description, true)((s4, h1, snap1, v3, chunkExisted) => {
 
-                  profilingInfo.incrementTotalConjuncts
+                    profilingInfo.incrementTotalConjuncts
 
-                  // don't know if this should be s3 or s4 - J
-                  if (s4.isImprecise) {
-                    chunkSupporter.consume(s4, oh, false, resource, tArgs, loss, ve, v3, description, false)((s5, oh1, snap2, v4, chunkExisted1) => {
-                      
-                      if (!chunkExisted && !chunkExisted1) {
+                    // don't know if this should be s3 or s4 - J
+                    if (s4.isImprecise) {
+                      chunkSupporter.consume(s4, oh, false, resource, tArgs, loss, ve, v3, description, false)((s5, oh1, snap2, v4, chunkExisted1) => {
+                        
+                        if (!chunkExisted && !chunkExisted1) {
 
-                        val runtimeCheckAstNode: CheckPosition =
-                          (s5.methodCallAstNode, s5.foldOrUnfoldAstNode, s5.loopPosition) match {
-                            case (None, None, None) => CheckPosition.GenericNode(locacc)
-                            case (Some(methodCallAstNode), None, None) =>
-                              CheckPosition.GenericNode(methodCallAstNode)
-                            case (None, Some(foldOrUnfoldAstNode), None) =>
-                              CheckPosition.GenericNode(foldOrUnfoldAstNode)
-                            case (None, None, Some(loopPosition)) => loopPosition
-                            case _ => sys.error("Conflicting positions!")
+                          val runtimeCheckAstNode: CheckPosition =
+                            (s5.methodCallAstNode, s5.foldOrUnfoldAstNode, s5.loopPosition) match {
+                              case (None, None, None) => CheckPosition.GenericNode(locacc)
+                              case (Some(methodCallAstNode), None, None) =>
+                                CheckPosition.GenericNode(methodCallAstNode)
+                              case (None, Some(foldOrUnfoldAstNode), None) =>
+                                CheckPosition.GenericNode(foldOrUnfoldAstNode)
+                              case (None, None, Some(loopPosition)) => loopPosition
+                              case _ => sys.error("Conflicting positions!")
+                            }
+
+                          val g = s5.oldStore match {
+                            case Some(g) => g
+                            case None => s5.g
+                          }
+                          val translatedArgs: Seq[ast.Exp] =
+                            tArgs.map(tArg => new Translator(s5.copy(g = g), v4.decider.pcs).translate(tArg) match {
+                              case None => sys.error("Error translating! Exiting safely.")
+                              case Some(expr) => expr
+                            })
+
+                          if (s5.generateChecks) {
+                            runtimeChecks.addChecks(runtimeCheckAstNode,
+                              ast.FieldAccessPredicate(ast.FieldAccess(translatedArgs.head, resource.asInstanceOf[ast.Field])(), perm)(),
+                              viper.silicon.utils.zip3(v4.decider.pcs.branchConditionsSemanticAstNodes,
+                                v4.decider.pcs.branchConditionsAstNodes,
+                                v.decider.pcs.branchConditionsOrigins).map(bc => BranchCond(bc._1, bc._2, bc._3)),
+                              a,
+                              s5.forFraming)
+                          }
+                        }
+
+                        if (chunkExisted) {
+
+                          profilingInfo.incrementEliminatedConjuncts
+                          Q(s5, oh1, h1, snap1, v4)}
+
+                        else {
+
+                          // we don't want to count it if the runtime check
+                          // path happened, i think
+                          if (chunkExisted1) {
+                            profilingInfo.incrementEliminatedConjuncts
                           }
 
-                        val g = s5.oldStore match {
+                          Q(s5, oh1, h1, snap2, v4)}})}
+                    else if (chunkExisted) {
+                      profilingInfo.incrementEliminatedConjuncts
+                      Q(s4, oh, h1, snap1, v3)}
+                    else {
+                      createFailure(pve dueTo InsufficientPermission(locacc), v3, s4)}})
+
+                case false =>
+                  createFailure(pve dueTo ReceiverNull(locacc), v2, s2) 
+
+              // this is the assertgv case for field access
+              } match {
+                  case (verificationResult, potentialReturnedChecks) => {
+                    potentialReturnedChecks match {
+                      case None => ()
+                      case Some(returnedChecks) => {
+                        // should use v2.decider.pcs here? yes
+
+                        val runtimeCheckAstNode: CheckPosition =
+                          (s2.methodCallAstNode, s2.foldOrUnfoldAstNode, s2.loopPosition) match {
+                            case (None, None, None) => CheckPosition.GenericNode(a)
+                            case (Some(methodCallAstNode), None, None) =>
+                              CheckPosition.GenericNode(methodCallAstNode)
+                            case (None, Some(foldOrUnfoldAstNode), None) => CheckPosition.GenericNode(foldOrUnfoldAstNode)
+                            case (None, None, Some(loopPosition)) => loopPosition
+                            case _ =>
+                              sys.error("Conflicting positions while looking for position!")
+                          }
+
+                        val g = s2.oldStore match {
                           case Some(g) => g
-                          case None => s5.g
+                          case None => s2.g
                         }
-                        val translatedArgs: Seq[ast.Exp] =
-                          tArgs.map(tArg => new Translator(s5.copy(g = g), v4.decider.pcs).translate(tArg) match {
-                            case None => sys.error("Error translating! Exiting safely.")
-                            case Some(expr) => expr
-                          })
 
-                        if (s5.generateChecks) {
+                        if (s2.generateChecks) {
                           runtimeChecks.addChecks(runtimeCheckAstNode,
-                            ast.FieldAccessPredicate(ast.FieldAccess(translatedArgs.head, resource.asInstanceOf[ast.Field])(), perm)(),
-                            viper.silicon.utils.zip3(v4.decider.pcs.branchConditionsSemanticAstNodes,
-                              v4.decider.pcs.branchConditionsAstNodes,
-                              v.decider.pcs.branchConditionsOrigins).map(bc => BranchCond(bc._1, bc._2, bc._3)),
-                            a,
-                            s5.forFraming)
+                            (new Translator(s2.copy(g = g), v2.decider.pcs).translate(returnedChecks) match {
+                              case None => sys.error("Error translating! Exiting safely.")
+                              case Some(expr) => expr
+                            }),
+                          viper.silicon.utils.zip3(v2.decider.pcs.branchConditionsSemanticAstNodes,
+                            v2.decider.pcs.branchConditionsAstNodes,
+                            v2.decider.pcs.branchConditionsOrigins).map(bc => BranchCond(bc._1, bc._2, bc._3)),
+                          a,
+                          s2.forFraming)
                         }
-                      }
-
-                      if (chunkExisted) {
-
-                        profilingInfo.incrementEliminatedConjuncts
-                        Q(s5, oh1, h1, snap1, v4)}
-
-                      else {
-
-                        // we don't want to count it if the runtime check
-                        // path happened, i think
-                        if (chunkExisted1) {
-                          profilingInfo.incrementEliminatedConjuncts
-                        }
-
-                        Q(s5, oh1, h1, snap2, v4)}})}
-                  else if (chunkExisted) {
-                    profilingInfo.incrementEliminatedConjuncts
-                    Q(s4, oh, h1, snap1, v3)}
-                  else {
-                    createFailure(pve dueTo InsufficientPermission(locacc), v3, s4)}})
-
-              case false =>
-                createFailure(pve dueTo InsufficientPermission(locacc), v2, s2) 
-                // it would be best if it was insufficient permission error if field == null, 
-                // and negative permission error if field perm < 0, but very annoying to change
-
-            // this is the assertgv case for field access
-            } match {
-                case (verificationResult, potentialReturnedChecks) => {
-                  potentialReturnedChecks match {
-                    case None => ()
-                    case Some(returnedChecks) => {
-                      // should use v2.decider.pcs here? yes
-
-                      val runtimeCheckAstNode: CheckPosition =
-                        (s2.methodCallAstNode, s2.foldOrUnfoldAstNode, s2.loopPosition) match {
-                          case (None, None, None) => CheckPosition.GenericNode(a)
-                          case (Some(methodCallAstNode), None, None) =>
-                            CheckPosition.GenericNode(methodCallAstNode)
-                          case (None, Some(foldOrUnfoldAstNode), None) => CheckPosition.GenericNode(foldOrUnfoldAstNode)
-                          case (None, None, Some(loopPosition)) => loopPosition
-                          case _ =>
-                            sys.error("Conflicting positions while looking for position!")
-                        }
-
-                      val g = s2.oldStore match {
-                        case Some(g) => g
-                        case None => s2.g
-                      }
-
-                      if (s2.generateChecks) {
-                        runtimeChecks.addChecks(runtimeCheckAstNode,
-                          (new Translator(s2.copy(g = g), v2.decider.pcs).translate(returnedChecks) match {
-                            case None => sys.error("Error translating! Exiting safely.")
-                            case Some(expr) => expr
-                          }),
-                        viper.silicon.utils.zip3(v2.decider.pcs.branchConditionsSemanticAstNodes,
-                          v2.decider.pcs.branchConditionsAstNodes,
-                          v2.decider.pcs.branchConditionsOrigins).map(bc => BranchCond(bc._1, bc._2, bc._3)),
-                        a,
-                        s2.forFraming)
                       }
                     }
+                    verificationResult
                   }
-                  verificationResult
-                }
-            }}))
+              }
+            })))
+          
 
 /*
       case ast.AccessPredicate(locacc: ast.LocationAccess, perm/*,need an overloaded copy with impreciseHeap as a parameter*/) => //add h_?; perm = 1
