@@ -303,39 +303,35 @@ object producer extends ProductionRules with Immutable {
         val field = locacc.field
         val s0 = s.copy(generateChecks = false)
         evalpc(s0, eRcvr, pve, v, false)((s1, tRcvr, v1) =>
-          evalpc(s1, perm, pve, v1, false)((s2, tPerm, v2) => {
-            val s2_0 = s2.copy(generateChecks = true)
-            if (!v.decider.check(perms.IsNonNegative(tPerm), Verifier.config.checkTimeout())) { // maybe add a PermissionSupporter.scala with assertNonNegative check
-              createFailure(pve dueTo NegativePermission(perm), v2, s2_0)
-            }
-            // if(chunkSupporter.inHeap(s2_0.h, s2_0.h.values, field, Seq(tRcvr), v2)) {
-            //   // NEED: Actually because it's in the heap, but don't know how to do that yet
-            //   createFailure(pve dueTo NegativePermission(perm), v2, s2_0) } // MAYBE change this to PermExceedsOne at some point
-            else {
-              val snap = sf(v2.symbolConverter.toSort(field.typ), v2)
-              val gain = PermTimes(tPerm, s2_0.permissionScalingFactor)
-/*            if (s2.qpFields.contains(field)) {
- *            val trigger = (sm: Term) => FieldTrigger(field.name, sm, tRcvr)
- *            quantifiedChunkSupporter.produceSingleLocation(s2, field, Seq(`?r`), Seq(tRcvr), snap, gain, trigger, v2)(Q)
- *          } else {
- */
-              val ch = BasicChunk(FieldID, BasicChunkIdentifier(field.name), Seq(tRcvr), snap, gain)
-              chunkSupporter.produce(s2_0, s2_0.h, ch, v2)((s3, h3, v3) => {
-                if (chunkSupporter.duplicateAcc(h3, field, Seq(tRcvr), v3)) { // check that adding it to heap does not result in too much permisison
-                  createFailure(pve dueTo PermExceedsOne(locacc), v3, s2_0)
-                } else {
+          evalpc(s1, perm, pve, v1, false)((s1a, tPerm, v1a) => 
+            permissionSupporter.assertNotNegative(s1a, tPerm, perm, pve, v1a)((s2, v2) =>
+              {
+                val s2_0 = s2.copy(generateChecks = true)
+                if (chunkSupporter.duplicateAcc(s2_0.h, field, Seq(tRcvr), v2, tPerm)) {
+                  createFailure(pve dueTo PermExceedsOne(locacc), v2, s2_0)
+                }
+                else {
+                val snap = sf(v2.symbolConverter.toSort(field.typ), v2)
+                val gain = PermTimes(tPerm, s2_0.permissionScalingFactor)
+      /*        if (s2.qpFields.contains(field)) {
+      *            val trigger = (sm: Term) => FieldTrigger(field.name, sm, tRcvr)
+      *            quantifiedChunkSupporter.produceSingleLocation(s2, field, Seq(`?r`), Seq(tRcvr), snap, gain, trigger, v2)(Q)
+      *         } else {
+      */
+                val ch = BasicChunk(FieldID, BasicChunkIdentifier(field.name), Seq(tRcvr), snap, gain)
+                chunkSupporter.produce(s2_0, s2_0.h, ch, v2)((s3, h3, v3) => {
                   v3.decider.assume(tRcvr !== Null())
                   Q(s3.copy(h = h3), v3)
-                }         
-              })
-            }
-        }))
-
+                }
+                )
+        }})))
+            
       case ast.PredicateAccessPredicate(ast.PredicateAccess(eArgs, predicateName), perm) =>
         val predicate = Verifier.program.findPredicate(predicateName)
         val s0 = s.copy(generateChecks = false)
         evalspc(s0, eArgs, _ => pve, v, false)((s1, tArgs, v1) =>
-          evalpc(s1, perm, pve, v1, false)((s2, tPerm, v2) => {
+          evalpc(s1, perm, pve, v1, false)((s1a, tPerm, v1a) => 
+            permissionSupporter.assertNotNegative(s1a, tPerm, perm, pve, v1a) ((s2, v2) => {
             val s2_0 = s2.copy(generateChecks = true)
             val snap = sf(
               predicate.body.map(v2.snapshotSupporter.optimalSnapshotSort(_, Verifier.program)._1)
@@ -355,7 +351,7 @@ object producer extends ProductionRules with Immutable {
                 v3.decider.assume(App(Verifier.predicateData(predicate).triggerFunction, snap1 +: tArgs))
               } */
               Q(s3.copy(h = h3), v3)})
-            }))
+            })))
 
 /*
       case wand: ast.MagicWand if s.qpMagicWands.contains(MagicWandIdentifier(wand, Verifier.program)) =>

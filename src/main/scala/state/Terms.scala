@@ -993,7 +993,7 @@ case class EpsilonPerm() extends SymbolicPerm() { override lazy val toString = "
  * 2. epsilon > 0 
  * 3. For all p, p != epsilon. This follows since there is no such fraction p that can be epsilon.
  * 4. epsilon should never occur in real code - only used in optimistic heap!
- * 5. For convenience in consume, we define PermMin and PermMinus on epsilon to substitute 0 for epsilon. 
+ * 5. In no case should a formula containing epsilon ever be sent off to the SMT solver
  */
 
 case class NoPerm() extends PermLiteral(Rational.zero) { override lazy val toString = "Z" }
