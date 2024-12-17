@@ -770,17 +770,11 @@ object executor extends ExecutionRules with Immutable {
         val predicate = Verifier.program.findPredicate(predicateName)
         val pve = FoldFailed(fold)
         evals(s, eArgs, _ => pve, v)((s1, tArgs, v1) =>
-          eval(s1, ePerm, pve, v1)((s2, tPerm, v2) => {
-            v2.decider.assertgv(s2.isImprecise, IsPositive(tPerm)) { //The IsPositive check is redundant
-              case true =>
+          eval(s1, ePerm, pve, v1)((s1a, tPerm, v1a) => 
+            permissionSupporter.assertPositive(s1a, tPerm, ePerm, pve, v1a)((s2, v2) => {
                 val wildcards = s2.constrainableARPs -- s1.constrainableARPs
                 predicateSupporter.fold(s2, predicate, Some(fold), tArgs, tPerm, wildcards, pve, v2)(Q)
-              case false =>
-                createFailure(pve dueTo NegativePermission(ePerm), v2, s2)
-            } match {
-              case (verificationResult, _) => verificationResult
-            }
-          }))
+          })))
 
       case unfold @ ast.Unfold(ast.PredicateAccessPredicate(pa @ ast.PredicateAccess(eArgs, predicateName), ePerm)) =>
         val predicate = Verifier.program.findPredicate(predicateName)
@@ -801,16 +795,10 @@ object executor extends ExecutionRules with Immutable {
               s2.smCache
             }
 
-            v2.decider.assertgv(s2.isImprecise, IsPositive(tPerm)) { //The IsPositive check is redundant
-              case true =>
-                val wildcards = s2.constrainableARPs -- s1.constrainableARPs
-                predicateSupporter.unfold(s2.copy(smCache = smCache1), predicate, Some(unfold), tArgs, tPerm, ePerm, wildcards, pve, v2, pa)(Q)
-              case false =>
-                createFailure(pve dueTo NegativePermission(ePerm), v2, s2)
-            } match {
-              case (verificationResult, _) => verificationResult
-            }
-          }))
+            permissionSupporter.assertPositive(s2, tPerm, ePerm, pve, v2)((s3, v3) => {
+                val wildcards = s3.constrainableARPs -- s1.constrainableARPs
+                predicateSupporter.unfold(s3.copy(smCache = smCache1), predicate, Some(unfold), tArgs, tPerm, ePerm, wildcards, pve, v2, pa)(Q)
+        })}))
 
       /*
       case pckg @ ast.Package(wand, proofScript) =>

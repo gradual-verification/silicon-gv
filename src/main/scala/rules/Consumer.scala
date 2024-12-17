@@ -534,11 +534,9 @@ object consumer extends ConsumptionRules with Immutable {
 */
       case ast.PredicateAccessPredicate(locacc: ast.LocationAccess, perm) =>
 
-       //eval for expression and perm (perm should always be 1)
         evalpc(s.copy(isImprecise = impr), perm, pve, v)((s1, tPerm, v1) =>
-          evalLocationAccesspc(s1.copy(isImprecise = impr), locacc, pve, v1)((s2, predName, tArgs, v2) => {
-            v2.decider.assertgv(s.isImprecise, perms.IsPositive(tPerm)) {
-              case true =>
+          evalLocationAccesspc(s1.copy(isImprecise = impr), locacc, pve, v1)((s1a, predName, tArgs, v1a) => 
+            permissionSupporter.assertNotNegative(s1a.copy(isImprecise = s.isImprecise), tPerm, perm, pve, v1a) ((s2, v2) => {
                 val resource = locacc.res(Verifier.program)
                 val loss = PermTimes(tPerm, s2.permissionScalingFactor)
                 val ve = pve dueTo InsufficientPermission(locacc)
@@ -607,16 +605,7 @@ object consumer extends ConsumptionRules with Immutable {
                   else {
 
                     createFailure(pve dueTo InsufficientPermission(locacc), v3, s4)}})
-
-              case false =>
-
-                createFailure(pve dueTo InsufficientPermission(locacc), v2, s2)
-
-            } match {
-
-              case (verificationResult, _) => verificationResult
-
-            }}))
+            })))
 
 
       case ast.FieldAccessPredicate(locacc: ast.LocationAccess, perm) =>

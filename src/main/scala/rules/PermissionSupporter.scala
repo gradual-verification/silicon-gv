@@ -54,14 +54,14 @@ object permissionSupporter extends SymbolicExecutionRules {
                   case _ => sys.error("Conflicting positions!")
                 }
 
-              val translatedPerm = new Translator(s.copy(g = g), v.decider.pcs).translate(tPerm)
+              val translatedPerm = new Translator(s.copy(g = g), v.decider.pcs).translate(tPerm) 
                 match {
                   case None => sys.error("Error translating! Exiting safely.")
                   case Some(expr) => expr
                 }
             
               runtimeChecks.addChecks(runtimeCheckAstNode, 
-              ast.PermLeCmp(ast.NoPerm()(), translatedPerm)()
+              ast.PermLeCmp(ast.NoPerm()(), translatedPerm)() // should I use translatedPerm or just ePerm here?
               , viper.silicon.utils.zip3(v.decider.pcs.branchConditionsSemanticAstNodes,
               v.decider.pcs.branchConditionsAstNodes,
               v.decider.pcs.branchConditionsOrigins).map(bc => BranchCond(bc._1, bc._2, bc._3)),
@@ -75,18 +75,54 @@ object permissionSupporter extends SymbolicExecutionRules {
       }
     }
 
-  // This is used by 2024 Viper in Executor.scala when folding and unfolding predicates - CL
   def assertPositive(s: State, tPerm: Term, ePerm: ast.Exp, pve: PartialVerificationError, v: Verifier)
                     (Q: (State, Verifier) => VerificationResult)
   : VerificationResult = {
 
     tPerm match {
-      case k: Var if s.constrainableARPs.contains(k) =>
+      case k: Var if s.constrainableARPs.contains(k) => // dead case since we don't support wildcard
         Q(s, v)
       case _ =>
-        v.decider.assert(perms.IsPositive(tPerm)) {
+        v.decider.assertgv(s.isImprecise, perms.IsPositive(tPerm)) {
           case true => Q(s, v)
           case false => createFailure(pve dueTo NonPositivePermission(ePerm), v, s)
+        } match {
+          case (verificationResult, Some(_)) => 
+            verificationResult
+
+              val g = s.oldStore match {
+                case Some(g) => g
+                case None => s.g
+              }
+
+              val runtimeCheckAstNode: CheckPosition =
+                (s.methodCallAstNode, s.foldOrUnfoldAstNode, s.loopPosition) match {
+                  case (None, None, None) => CheckPosition.GenericNode(ePerm)
+                  case (Some(methodCallAstNode), None, None) =>
+                    CheckPosition.GenericNode(methodCallAstNode)
+                  case (None, Some(foldOrUnfoldAstNode), None) =>
+                    CheckPosition.GenericNode(foldOrUnfoldAstNode)
+                  case (None, None, Some(loopPosition)) => loopPosition
+                  case _ => sys.error("Conflicting positions!")
+                }
+
+              val translatedPerm = new Translator(s.copy(g = g), v.decider.pcs).translate(tPerm)
+                match {
+                  case None => sys.error("Error translating! Exiting safely.")
+                  case Some(expr) => expr
+                }
+
+            runtimeChecks.addChecks(runtimeCheckAstNode, 
+            ast.PermLtCmp(ast.NoPerm()(), translatedPerm)()
+            , viper.silicon.utils.zip3(v.decider.pcs.branchConditionsSemanticAstNodes,
+            v.decider.pcs.branchConditionsAstNodes,
+            v.decider.pcs.branchConditionsOrigins).map(bc => BranchCond(bc._1, bc._2, bc._3)),
+            ePerm, 
+            s.forFraming) 
+
+            verificationResult
+
+          case (verificationResult, None) => verificationResult
         }
     }
   }
