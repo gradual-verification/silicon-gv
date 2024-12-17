@@ -60,7 +60,7 @@ trait ChunkSupportRules extends SymbolicExecutionRules {
              v: Verifier)
             : Boolean
 
-  def duplicateAcc[CH <: NonQuantifiedChunk: ClassTag]
+  def permExceedsOne[CH <: NonQuantifiedChunk: ClassTag]
             (h: Heap,
              resource: ast.Resource,
              args: Seq[Term],
@@ -542,7 +542,7 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
     }
   }
 
-  def duplicateAcc[CH <: NonQuantifiedChunk: ClassTag]
+  def permExceedsOne[CH <: NonQuantifiedChunk: ClassTag]
             (h: Heap,
              resource: ast.Resource,
              args: Seq[Term],
@@ -558,7 +558,10 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
         perm
     }
 
-    if (v.decider.check(PermLess(FullPerm(), permSum), Verifier.config.checkTimeout())) {
+    if (v.decider.checkSmoke()) {
+      false
+    }
+    else if (v.decider.check(PermLess(FullPerm(), permSum), Verifier.config.checkTimeout())) {
       // println(v.decider.pcs)
       // println(s"PermLess(FullPerm(), permSum) =  ${PermLess(FullPerm(), permSum)}")
       true

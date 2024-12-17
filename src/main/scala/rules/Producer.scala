@@ -307,7 +307,7 @@ object producer extends ProductionRules with Immutable {
             permissionSupporter.assertNotNegative(s1a, tPerm, perm, pve, v1a)((s2, v2) =>
               {
                 val s2_0 = s2.copy(generateChecks = true)
-                if (chunkSupporter.duplicateAcc(s2_0.h, field, Seq(tRcvr), v2, tPerm)) {
+                if (chunkSupporter.permExceedsOne(s2_0.h, field, Seq(tRcvr), v2, tPerm)) {
                   createFailure(pve dueTo PermExceedsOne(locacc), v2, s2_0)
                 }
                 else {
