@@ -2,8 +2,9 @@ package viper.silicon.supporters
 
 import viper.silver.ast
 import viper.silicon.decider.RecordedPathConditions
-import viper.silicon.state.{BasicChunk, Identifier, State, Store, terms}
+import viper.silicon.state.{BasicChunk, Heap, Identifier, State, Store, terms}
 import viper.silicon.resources.{FieldID, PredicateID}
+import viper.silicon.verifier.Verifier
 
 // should we use the path conditions from the state?
 final class Translator(s: State, pcs: RecordedPathConditions) {
@@ -126,8 +127,11 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
           }
           case _ => selectShortestField(variableResolver(terms.Var(name, sort)))
         }
-      case terms.SortWrapper(t, sort) =>
+      case terms.SortWrapper(t, sort) => {
+        // println("Term: " + terms.SortWrapper(t, sort))
+        // println(s"oldHeaps: ${s.oldHeaps.map{case (id, h) => s"$id: ${h.values.mkString("[", ", ", "]")}"}.mkString("[", ", ", "]")}")
         Some(variableResolver(terms.SortWrapper(t, sort))(0))
+      }
       // how do we deal with snapshots? we need not {
       //
       // snapshots only exist in the path condition because the latter is
@@ -201,8 +205,11 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
 
     // Retrieve aliasing information; add our
     // input variable to it
+    // println("reached variableResolver: " + variable)
+    // println(s"oldHeaps: ${s.oldHeaps.map{case (id, h) => s"$id: ${h.values.mkString("[", ", ", "]")}"}.mkString("[", ", ", "]")}")
     val heapAliases: Seq[(terms.Term, String)] =
-      (s.h + s.optimisticHeap).getChunksForValue(variable, lenient)
+      (s.h + s.optimisticHeap + s.oldHeaps.values.foldLeft(Heap())(_ + _)).getChunksForValue(variable, lenient) // including oldHeaps here for help with translation - ASK JENNA if it might cause any unsoundness ( e.g. due to outdated values or other cases)
+    // val oldHeapAliases = s.oldHeaps.getOrElse(Verifier.PRE_STATE_LABEL, Heap()).getChunksForValue(variable, lenient) // Priyam - tracking oldHeapAliases here to fix translation for asserting/consuming an unfolding expression's framed part
     val pcsEquivalentVariables: Seq[terms.Term] =
       pcs.getEquivalentVariables(variable, lenient) :+ variable
     
@@ -290,6 +297,8 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
       case Some(oldStore) => oldStore
     }
 
+    //println("key for value from store: " + store.getKeyForValue(variable, lenient))
+
     val varType = resolveType(variable)
 
     // TODO: Make this handle predicates
@@ -303,7 +312,7 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
     // variable should never happen, maybe
     //
     // Ask Jenna about this?
-
+    // println("h (to find symvar) = " + s.h.values.mkString("[", ", ", "]"))
     store.getKeyForValue(variable, lenient) match {
       case None =>
         // Search both heaps for the variable
@@ -312,6 +321,7 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
             s.optimisticHeap.getChunkForValue(variable, lenient) match {
               case None => None
               case Some((symVar, id)) =>
+                // println("symvar from OH: " + symVar)
                 variableResolver(symVar) match {
                   case Seq() => None
                   case resolvedVariables =>
@@ -319,6 +329,7 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
                 }
             }
           case Some((symVar, id)) =>
+            // println("symvar from H: " + symVar)
             variableResolver(symVar) match {
               case Seq() => None
               case resolvedVariables =>

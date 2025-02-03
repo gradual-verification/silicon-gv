@@ -875,6 +875,7 @@ object consumer extends ConsumptionRules with Immutable {
                 }
 
                 if (s1.generateChecks) {
+                  v.logger.debug(s"returned Checks: ${returnedChecks}")
                   runtimeChecks.addChecks(runtimeCheckAstNode,
                     (new Translator(s1.copy(g = g), pcs).translate(returnedChecks) match {
                       case None => sys.error("Error translating! Exiting safely.")

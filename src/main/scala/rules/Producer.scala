@@ -298,7 +298,7 @@ object producer extends ProductionRules with Immutable {
                   sys.error("We shouldn't need to consider this case until "
                     + "we have unfoldings! We have an error here instead of a "
                     + "temporary solution like enclosing both in ast.And because "
-                    + "we want to know if this occurs!")
+                    + "we want to know if this occurs!") // it does occur (for frontInsert example)
               }
 
             branch(s1_1, t0, e0, branchPosition, v1)((s2, v2) => {

@@ -107,7 +107,7 @@ trait DefaultMethodVerificationUnitProvider extends VerifierComponent { v: Verif
                       v5.logger.debug(v5.stateFormatter.format(s5, v5.decider.pcs))
                       Success()
                     } ))}) }  )})})
-
+                    
       SymbExLogger.closeMemberScope()
       Seq(result)
     }

@@ -505,7 +505,7 @@ object evaluator extends EvaluationRules with Immutable {
 
       case ast.PermGtCmp(e0, e1) =>
         evalBinOp(s, e0, e1, Greater, pve, v)(Q)
-
+      
       case unfolding @ ast.Unfolding(
               acc @ ast.PredicateAccessPredicate(pa @ ast.PredicateAccess(eArgs, predicateName), ePerm),
               eIn) =>
@@ -557,6 +557,7 @@ object evaluator extends EvaluationRules with Immutable {
                       
                       // if-else casing required for setting origin while handling nested origins (outermost unfolding should be origin) - Priyam
                       val s7a = s7.copy(g = insg, unfoldingAstNode = if (s7.unfoldingAstNode == None) Some(unfolding) else s7.unfoldingAstNode, needConditionFramingUnfold = true)
+                      
                   
                       produce(s7a, toSf(snap), body, pve, v4)((s8, v5) => {
                         val s9 = s8.copy(g = s7.g,
@@ -1446,6 +1447,7 @@ object evaluator extends EvaluationRules with Immutable {
                     //     Q(s4a, eIna, v2a)
                     //     })}
                     // else {
+                    v2.logger.debug("In eval-pc for unfolding expression")
                     consume(s4, acc, pve, v2)((s5, snap, v4) => {
                       val s5_1 = s5.copy(forFraming = false)
                       val fr6 =
