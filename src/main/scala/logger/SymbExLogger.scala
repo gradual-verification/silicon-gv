@@ -12,6 +12,7 @@ import spray.json._
 import LogConfigProtocol._
 import com.typesafe.scalalogging.Logger
 import org.slf4j.LoggerFactory
+import viper.silicon.common.collections.immutable.InsertionOrderedSet
 import viper.silicon.decider.PathConditionStack
 import viper.silicon.interfaces.state.Chunk
 import viper.silicon.logger.SymbExLogger.getRecordConfig
@@ -300,36 +301,64 @@ object SymbExLogger {
   def m(symbLog: SymbLog): MemberRecord = symbLog.main
 
   var errors: Seq[AbstractError] = Seq.empty
+
   // we can have a single global snaps because fresh Vars starting with $t are globally unique
-  var snaps = mutable.Map[Term, BasicChunk]()
+  val snaps = mutable.Map[Term, BasicChunk]()
+  val freshPositions = mutable.Map[Term, ast.Position]()
+  // while loops are uniquely identified by their invariants, this is needed
+  // to find the position of the while loops for displaying the state when
+  // entering and leaving the loop
+  val whileLoops = mutable.Map[ast.Exp, ast.Stmt]()
 
   def formatTerm(term: Term): String =
     term match {
       case Var(SuffixedIdentifier(prefix, _, _), _) if prefix == "$t" =>
         formatBasicChunk(snaps(term), true)
-      case Var(SuffixedIdentifier(prefix, _, _), _) => prefix
+      case Var(SuffixedIdentifier(prefix, _, _), _) if !prefix.contains("$result") && prefix.contains("$") =>
+        if (freshPositions.contains(term) && freshPositions(term).isInstanceOf[ast.TranslatedPosition]) {
+          val pos = freshPositions(term).asInstanceOf[ast.TranslatedPosition].pos
+          formatBasicChunk(snaps(term), true) + "@" + pos.line.toString
+        } else {
+          formatBasicChunk(snaps(term), true)
+        }
+      case Var(SuffixedIdentifier(prefix, _, suffix), _) =>
+        if (freshPositions.contains(term) && freshPositions(term).isInstanceOf[ast.TranslatedPosition]) {
+          val pos = freshPositions(term).asInstanceOf[ast.TranslatedPosition].pos
+          prefix + "@" + pos.line.toString
+        } else {
+          prefix
+        }
       case SortWrapper(_, _) => formatBasicChunk(snaps(term), true)
       case Null() => "null"
       case True() => "true"
       case False() => "false"
-      case IntLiteral(n) => n.toString()
+      case IntLiteral(n) => n.toString
       case Plus(p0, p1) => "(" + formatTerm(p0) + " + " + formatTerm(p1) + ")"
       case Minus(p0, p1) => "(" + formatTerm(p0) + " - " + formatTerm(p1) + ")"
       case Times(p0, p1) => "(" + formatTerm(p0) + " * " + formatTerm(p1) + ")"
       case Div(p0, p1) => "(" + formatTerm(p0) + " / " + formatTerm(p1) + ")"
       case Mod(p0, p1) => "(" + formatTerm(p0) + " % " + formatTerm(p1) + ")"
+      case BuiltinEquals(p0, p1) => "(" + formatTerm(p0) + " == " + formatTerm(p1) + ")"
+      case Less(p0, p1) => "(" + formatTerm(p0) + " < " + formatTerm(p1) + ")"
+      case AtMost(p0, p1) => "(" + formatTerm(p0) + " <= " + formatTerm(p1) + ")"
+      case Greater(p0, p1) => "(" + formatTerm(p0) + " > " + formatTerm(p1) + ")"
+      case AtLeast(p0, p1) => "(" + formatTerm(p0) + " >= " + formatTerm(p1) + ")"
       case Not(p) => "(" + "!" + formatTerm(p) + ")"
-      case _ => "%" + term.getClass.getName
+      case Or(ts) => "(" + ts.map(formatTerm).mkString(" || ") + ")"
+      case And(ts) => "(" + ts.map(formatTerm).mkString(" && ") + ")"
+      case Implies(p0, p1) => "(" + formatTerm(p0) + " ==> " + formatTerm(p1) + ")"
+      case _ => "'" + term.toString + "'"
     }
 
   def formatBasicChunk(basicChunk: BasicChunk, insideTerm: Boolean): String = {
     val s = basicChunk.snap match {
       case Unit => " == " + basicChunk.snap.toString
       case Null() => " == null"
-      case IntLiteral(n) => " == " + n.toString()
+      case IntLiteral(n) => " == " + n.toString
       case True() => " == true"
       case False() => " == false"
       case Var(SuffixedIdentifier(prefix, _, _), _) if prefix == "$t" => ""
+      case Var(SuffixedIdentifier(prefix, _, _), _) if !prefix.contains("$result") && prefix.contains("$") => ""
       case Var(SuffixedIdentifier(prefix, _, _), _) => " == " + prefix
       case _ => ""
     }
@@ -354,13 +383,14 @@ object SymbExLogger {
     }
   }
 
-  def formatChunks(chunks: Iterable[Chunk]): String = {
-    // populate snaps
+  def populateSnaps(chunks: Seq[Chunk]): Unit =
     for (chunk <- chunks) {
       chunk match {
         case basicChunk: BasicChunk =>
           basicChunk.snap match {
             case Var(SuffixedIdentifier(prefix, _, _), _) if prefix == "$t" =>
+              snaps += basicChunk.snap -> basicChunk
+            case Var(SuffixedIdentifier(prefix, _, _), _) if !prefix.contains("$result") && prefix.contains("$")  =>
               snaps += basicChunk.snap -> basicChunk
             case SortWrapper(wrappedTerm, sort) =>
               snaps += basicChunk.snap -> basicChunk
@@ -369,7 +399,14 @@ object SymbExLogger {
         case _ => {}
       }
     }
-    // print values
+
+  def diffChunks(oldChunks: Seq[Chunk], newChunks: Seq[Chunk]): (Seq[Chunk], Seq[Chunk]) = {
+    val consumed = for (chunk <- oldChunks if !newChunks.exists(_ == chunk)) yield chunk
+    val produced = for (chunk <- newChunks if !oldChunks.exists(_ == chunk)) yield chunk
+    (consumed, produced)
+  }
+
+  def formatChunks(chunks: Seq[Chunk]): String = {
     var result = ""
     for (chunk <- chunks) {
       chunk match {
@@ -379,6 +416,91 @@ object SymbExLogger {
       }
     }
     result
+  }
+
+  def formatDiff(oldChunks: Seq[Chunk], newChunks: Seq[Chunk]): (String, String) = {
+    val (consumed, produced) = diffChunks(oldChunks, newChunks)
+    (formatChunks(consumed), formatChunks(produced))
+  }
+
+  def pcVisible(term: Term): Boolean =
+    term match {
+      case App(_, _) => false
+      case Combine(_, _) => false
+      case First(_) => false
+      case Second(_) => false
+      case Var(SuffixedIdentifier(prefix, _, _), _) if prefix == "$t" => snaps.isDefinedAt(term)
+      case Var(SuffixedIdentifier(prefix, _, _), _) => true
+      case SortWrapper(_, _) => snaps.isDefinedAt(term)
+      case Null() => true
+      case True() => true
+      case False() => true
+      case IntLiteral(n) => true
+      case Plus(p0, p1) => pcVisible(p0) && pcVisible(p1)
+      case Minus(p0, p1) => pcVisible(p0) && pcVisible(p1)
+      case Times(p0, p1) => pcVisible(p0) && pcVisible(p1)
+      case Div(p0, p1) => pcVisible(p0) && pcVisible(p1)
+      case Mod(p0, p1) => pcVisible(p0) && pcVisible(p1)
+      case BuiltinEquals(p0, p1) => pcVisible(p0) && pcVisible(p1)
+      case Less(p0, p1) => pcVisible(p0) && pcVisible(p1)
+      case AtMost(p0, p1) => pcVisible(p0) && pcVisible(p1)
+      case Greater(p0, p1) => pcVisible(p0) && pcVisible(p1)
+      case AtLeast(p0, p1) => pcVisible(p0) && pcVisible(p1)
+      case Not(p) => pcVisible(p)
+      case Or(ts) => ts.map(pcVisible).reduce((x, y) => x && y)
+      case And(ts) => ts.map(pcVisible).reduce((x, y) => x && y)
+      case Implies(p0, p1) => pcVisible(p0) && pcVisible(p1)
+      case _ => true
+    }
+
+  def isNotEquals(term: Term): Boolean =
+    term match {
+      case Not(BuiltinEquals(_, _)) => false
+      case _ => true
+    }
+
+  def formatPcs(oldPcs: InsertionOrderedSet[Term], newPcs: InsertionOrderedSet[Term]): String = {
+    val added = for (pc <- newPcs if !oldPcs.exists(_ == pc)) yield pc
+    added.filter(pcVisible).map(formatTerm).mkString(", ")
+  }
+
+  def formatStore(g: Store): Seq[(String, String)] =
+    g.values.map({ case (v, term) => (v.name, formatTerm(term)) }).toList
+
+  def populateWhileLoops(stmts: Seq[ast.Stmt]): Unit = {
+    for (stmt <- stmts) {
+      stmt match {
+        case ast.NewStmt(lhs, fields) =>
+        case _: ast.AbstractAssign =>
+        case ast.MethodCall(methodName, args, targets) =>
+        case ast.Exhale(exp) =>
+        case ast.Inhale(exp) =>
+        case ast.Assert(exp) =>
+        case ast.Assume(exp) =>
+        case ast.Fold(acc) =>
+        case ast.Unfold(acc) =>
+        case ast.Package(wand, proofScript) =>
+        case ast.Apply(exp) =>
+        case ast.Seqn(ss, scopedDecls) =>
+          populateWhileLoops(ss)
+        case ast.If(cond, thn, els) =>
+          populateWhileLoops(thn.ss)
+          populateWhileLoops(els.ss)
+        case ast.While(cond, invs, body) =>
+          assert(invs.length == 1)
+          whileLoops += invs.head -> stmt
+        case ast.Label(name, invs) =>
+        case ast.Goto(target) =>
+        case ast.LocalVarDeclStmt(decl) =>
+        case _: ast.ExtensionStmt =>
+      }
+    }
+  }
+
+  def resetMaps(): Unit = {
+    snaps.clear()
+    freshPositions.clear()
+    whileLoops.clear()
   }
 
   /** Path to the file that is being executed. Is used for UnitTesting. **/

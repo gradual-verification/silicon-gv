@@ -13,9 +13,9 @@ import viper.silver.verifier.errors._
 import viper.silicon.interfaces._
 import viper.silicon.decider.Decider
 import viper.silicon.logger.SymbExLogger
-import viper.silicon.logger.records.data.CommentRecord
+import viper.silicon.logger.records.data.EndRecord
 import viper.silicon.logger.records.data.WellformednessCheckRecord
-import viper.silicon.rules.{consumer, executionFlowController, executor, producer, wellFormedness}
+import viper.silicon.rules.{consumer, executionFlowController, executor, wellFormedness}
 import viper.silicon.state.{Heap, State, Store}
 import viper.silicon.state.State.OldHeaps
 import viper.silicon.verifier.{Verifier, VerifierComponent}
@@ -31,7 +31,6 @@ trait DefaultMethodVerificationUnitProvider extends VerifierComponent { v: Verif
 
   object methodSupporter extends MethodVerificationUnit with StatefulComponent {
     import executor._
-    import producer._
     import consumer._
     import wellFormedness._
 
@@ -95,19 +94,19 @@ trait DefaultMethodVerificationUnitProvider extends VerifierComponent { v: Verif
                     SymbExLogger.currentLog().closeScope(sepIdentifier)
                     Success()})})
             && {
-               executionFlowController.locally(s2a, v2)((s3, v3) =>  {
-                  exec(s3, body, v3)((s4, v4) =>
-                    consumes(s4, posts, postViolated, v4)((s5, _, v5) => {
-                      val impLog = new CommentRecord("End", s5, v5.decider.pcs)
-                      val sepIdentifier = SymbExLogger.currentLog().openScope(impLog)
+               executionFlowController.locally(s2a, v2)((s3, v3) => {
+                  exec(s3, body, v3)((s4, v4) => {
+                    val sepIdentifier = SymbExLogger.currentLog().openScope(new EndRecord(s4, v4.decider.pcs))
+                    consumes(s4, posts, postViolated, v4)((_, _, _) => {
                       SymbExLogger.currentLog().closeScope(sepIdentifier)
                       // print final state here
                       // put logger debug here
                       v5.logger.debug(s"\nFINAL STATE OF METHOD ${method.name}")
                       v5.logger.debug(v5.stateFormatter.format(s5, v5.decider.pcs))
                       Success()
-                    } ))}) }  )})})
-                    
+                    })
+                  }) }) }  )})})
+
       SymbExLogger.closeMemberScope()
       Seq(result)
     }

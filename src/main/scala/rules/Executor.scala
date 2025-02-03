@@ -15,9 +15,8 @@ import viper.silver.{ast, cfg}
 import viper.silicon.common.collections.immutable.InsertionOrderedSet
 import viper.silicon.decider.RecordedPathConditions
 import viper.silicon.interfaces._
-import viper.silicon.interfaces.state.{NonQuantifiedChunk}
 import viper.silicon.logger.SymbExLogger
-import viper.silicon.logger.records.data.{CommentRecord, ConditionalEdgeRecord, ExecuteRecord, MethodCallRecord}
+import viper.silicon.logger.records.data._
 import viper.silicon.resources.FieldID
 import viper.silicon.state._
 import viper.silicon.state.terms._
@@ -291,6 +290,10 @@ object executor extends ExecutionRules with Immutable {
         sys.error(s"Unexpected block: $block")
 
       case block @ cfg.LoopHeadBlock(invs, stmts) =>
+        // every loop should have exactly one invariant, which may be an And
+        // we use the first invariant in invs because invs is a Seq[ast.Exp]
+        // and a Seq may be mutable
+        assert(invs.length == 1)
         incomingEdgeKind match {
           case cfg.Kind.In =>
             /* We've reached a loop head block via an in-edge. Steps to perform:
@@ -303,12 +306,28 @@ object executor extends ExecutionRules with Immutable {
              *   - Execute the statements in the loop head block
              *   - Follow the outgoing edges
              */
+            val sepIdentifier = SymbExLogger.currentLog().openScope(
+              new LoopInRecord(invs.head, s, v.decider.pcs))
 
             /* Havoc local variables that are assigned to in the loop body */
             val wvs = s.methodCfg.writtenVars(block)
               /* TODO: BUG: Variables declared by LetWand show up in this list, but shouldn't! */
 
-            val gBody = Store(wvs.foldLeft(s.g.values)((map, x) => map.updated(x, v.decider.fresh(x))))
+            val gBody = Store(wvs.foldLeft(s.g.values)((map, x) => {
+              /* 2025-01-29 Long:
+               * havoc variables will get a new suffix and will not show up
+               * in freshPositions, so we need to add them to freshPositions
+               */
+              val freshVar = v.decider.fresh(x)
+              val existingTerm = map(x)
+              /* if the variable cannot be found in freshPositions, it means
+               * that it has not been assigned to yet
+               */
+              if (SymbExLogger.enabled && SymbExLogger.freshPositions.contains(existingTerm)) {
+                SymbExLogger.freshPositions += freshVar -> SymbExLogger.freshPositions(existingTerm)
+              }
+              map.updated(x, freshVar)
+            } ))
             val sBody = s.copy(isImprecise = false,
                                g = gBody,
                                h = Heap(),
@@ -337,8 +356,8 @@ object executor extends ExecutionRules with Immutable {
                   invs,
                   ContractNotWellformed(viper.silicon.utils.ast.BigAnd(invs)),
                   v0)((s1, v1) => {   //pve is a placeholder
-
-                    val s1point5 = s1.copy(loopPosition = None)
+                  SymbExLogger.currentLog().closeScope(sepIdentifier)
+                  val s1point5 = s1.copy(loopPosition = None)
 
                   // unset for at beginning of loop body
                   // produces into phase1data
@@ -409,8 +428,14 @@ object executor extends ExecutionRules with Immutable {
             // call eval on the loop condition to get checks for framing it if needed
             eval(s0, edgeConditions.head, IfFailed(edgeConditions.head), v)((_, _, _) => 
               Success())
+            val sepIdentifier = SymbExLogger.currentLog().openScope(
+              new LoopOutRecord(invs.head, s0, v.decider.pcs))
             // consume the loop invariant
-            consumes(s0, invs, e => LoopInvariantNotPreserved(e), v)((s1, _, _) => {
+            consumes(s0, invs, e => LoopInvariantNotPreserved(e), v)((s1, _, v1) => {
+              SymbExLogger.currentLog().closeScope(sepIdentifier)
+              val sepIdentifier2 = SymbExLogger.currentLog().openScope(
+                new EndRecord(s1, v1.decider.pcs))
+              SymbExLogger.currentLog().closeScope(sepIdentifier2)
               Success()})
         }
 
@@ -477,7 +502,7 @@ object executor extends ExecutionRules with Immutable {
 
       case ass @ ast.LocalVarAssign(x, rhs) =>
         eval(s, rhs, AssignmentFailed(ass), v)((s1, tRhs, v1) => {
-          val t = ssaifyRhs(tRhs, x.name, x.typ, v)
+          val t = ssaifyRhs(tRhs, x.name, x.typ, v, ass.pos)
           Q(s1.copy(g = s1.g + (x, t)), v1)
         })
 
@@ -543,7 +568,7 @@ object executor extends ExecutionRules with Immutable {
 
               // TODO;EXTRA CHECK ISSUE(S): We assume the Ref is !== null here
               v3.decider.assume(tRcvr !== Null())
-              val tSnap = ssaifyRhs(tRhs, field.name, field.typ, v3)
+              val tSnap = ssaifyRhs(tRhs, field.name, field.typ, v3, ass.pos)
               val id = BasicChunkIdentifier(field.name)
               val newChunk = BasicChunk(FieldID, id, Seq(tRcvr), tSnap, FullPerm())
 
@@ -852,9 +877,13 @@ object executor extends ExecutionRules with Immutable {
     executed
   }
 
-   private def ssaifyRhs(rhs: Term, name: String, typ: ast.Type, v: Verifier): Term = {
+   private def ssaifyRhs(rhs: Term, name: String, typ: ast.Type, v: Verifier, pos: ast.Position): Term = {
      rhs match {
-       case _: Var | _: Literal =>
+       /* 2025-01-29 Long:
+        * The following line used to be
+        * case _: Var | _: Literal =>
+        */
+       case _: Literal =>
          rhs
 
        case _  =>
@@ -870,6 +899,13 @@ object executor extends ExecutionRules with Immutable {
           */
          val t = v.decider.fresh(name, v.symbolConverter.toSort(typ))
          v.decider.assume(t === rhs)
+         /* 2025-01-29 Long:
+          * record position where the Var was freshened in freshPositions
+          * freshPositions should not contain this Var yet
+          */
+         if (SymbExLogger.enabled) {
+           SymbExLogger.freshPositions += t -> pos
+         }
 
          t
      }
