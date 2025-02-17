@@ -295,6 +295,7 @@ object producer extends ProductionRules with Immutable {
                 case (None, None, None, Some(unfoldingAstNode)) =>
                   Some(CheckPosition.GenericNode(unfoldingAstNode))
                 case _ =>
+                  println((s1_1.methodCallAstNode, s1_1.foldOrUnfoldAstNode, s1_1.loopPosition, s1_1.unfoldingAstNode))
                   sys.error("We shouldn't need to consider this case until "
                     + "we have unfoldings! We have an error here instead of a "
                     + "temporary solution like enclosing both in ast.And because "
