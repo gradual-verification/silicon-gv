@@ -1353,10 +1353,10 @@ object evaluator extends EvaluationRules with Immutable {
          For consistency I've turned short-circuiting off for all specs, aka in produce as well - JWD */
       case ae @ ast.And(e0, e1) =>
         //if (s.generateChecks)
-          evalBinOpPc(s, e0, e1, (t1, t2) => And(t1, t2), pve, v, generateChecks)(Q)
+          // evalBinOpPc(s, e0, e1, (t1, t2) => And(t1, t2), pve, v, generateChecks)(Q)
         //else {
-          //val flattened = flattenOperator(ae, {case ast.And(e2, e3) => Seq(e2, e3)})
-          //evalSeqShortCircuit(And, s, flattened, pve, v)(Q)
+          val flattened = flattenOperator(ae, {case ast.And(e2, e3) => Seq(e2, e3)})
+          evalSeqShortCircuit(And, s, flattened, pve, v)(Q)
         //}
 
       /* Strict evaluation of OR */
@@ -1372,10 +1372,10 @@ object evaluator extends EvaluationRules with Immutable {
          For consistency I've turned short-circuiting off for all specs, aka in produce as well - JWD */
       case oe @ ast.Or(e0, e1) =>
         //if (s.generateChecks)
-          evalBinOpPc(s, e0, e1, (t1, t2) => Or(t1, t2), pve, v, generateChecks)(Q)
+          // evalBinOpPc(s, e0, e1, (t1, t2) => Or(t1, t2), pve, v, generateChecks)(Q)
         //else {
-        //  val flattened = flattenOperator(oe, {case ast.Or(e2, e3) => Seq(e2, e3)})
-        //  evalSeqShortCircuit(Or, s, flattened, pve, v)(Q)
+         val flattened = flattenOperator(oe, {case ast.Or(e2, e3) => Seq(e2, e3)})
+         evalSeqShortCircuit(Or, s, flattened, pve, v)(Q)
         //}
 
       /*
@@ -2587,10 +2587,11 @@ object evaluator extends EvaluationRules with Immutable {
 
     type brFun = (State, Verifier) => VerificationResult
 
-    // TODO: Find out and document why swapIfAnd is needed
-    val (stop, swapIfAnd) =
-      if(constructor == Or) (True(), (a: brFun, b: brFun) => (a, b))
-      else (False(), (a: brFun, b: brFun) => (b, a))
+    // // // TODO: Find out and document why swapIfAnd is needed
+    // val (stop, swapIfAnd) =
+    //   if(constructor == Or) (True(), (a: brFun, b: brFun) => (a, b))
+    //   else (False(), (a: brFun, b: brFun) => (a, b))
+    val stop = if (constructor == Or) True() else False()
 
     eval(s, exps.head, pve, v)((s1, t0, v1) => {
       t0 match {
@@ -2608,7 +2609,7 @@ object evaluator extends EvaluationRules with Immutable {
             }
 
           joiner.join[Term, Term](s1, v1)((s2, v2, QB) =>            
-            brancher.branch(s2, t0, exps.head, branchCondOrigin, v2, true) _ tupled swapIfAnd(
+            brancher.branch(s2, if (constructor == Or) t0 else Not(t0), exps.head, branchCondOrigin, v2, true)(
               (s3, v3) => QB(s3, constructor(Seq(t0)), v3),
               (s3, v3) => evalSeqShortCircuit(constructor, s3, exps.tail, pve, v3)(QB))
             ){case Seq(ent) =>
