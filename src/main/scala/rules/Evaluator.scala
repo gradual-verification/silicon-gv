@@ -1356,7 +1356,7 @@ object evaluator extends EvaluationRules with Immutable {
           // evalBinOpPc(s, e0, e1, (t1, t2) => And(t1, t2), pve, v, generateChecks)(Q)
         //else {
           val flattened = flattenOperator(ae, {case ast.And(e2, e3) => Seq(e2, e3)})
-          evalSeqShortCircuit(And, s, flattened, pve, v)(Q)
+          evalSeqShortCircuitPc(And, s, flattened, pve, v, generateChecks)(Q)
         //}
 
       /* Strict evaluation of OR */
@@ -1375,7 +1375,7 @@ object evaluator extends EvaluationRules with Immutable {
           // evalBinOpPc(s, e0, e1, (t1, t2) => Or(t1, t2), pve, v, generateChecks)(Q)
         //else {
          val flattened = flattenOperator(oe, {case ast.Or(e2, e3) => Seq(e2, e3)})
-         evalSeqShortCircuit(Or, s, flattened, pve, v)(Q)
+         evalSeqShortCircuitPc(Or, s, flattened, pve, v, generateChecks)(Q)
         //}
 
       /*
