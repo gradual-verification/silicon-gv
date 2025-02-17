@@ -1511,7 +1511,6 @@ object evaluator extends EvaluationRules with Immutable {
                     //     })}
                     // else {
                     v2.logger.debug("In eval-pc for unfolding expression")
-                    
                     consume(s4, acc, pve, v2)((s5, snap, v4) => {
                       val s5_1 = s5.copy(forFraming = false)
                       val fr6 =
@@ -1547,8 +1546,6 @@ object evaluator extends EvaluationRules with Immutable {
                           
                           val s11a = s11.copy(oldStore = Some(s11.g), oldHeaps = s11.oldHeaps + (Verifier.PRE_HEAP_LABEL -> s11.h) + (Verifier.PRE_OPTHEAP_LABEL -> s11.optimisticHeap))
                           val ch = BasicChunk(PredicateID, BasicChunkIdentifier(predicateName), tArgs, snap.convert(sorts.Snap), tPerm)
-
-
       
                           body match {
                             case impr @ ast.ImpreciseExp(e) =>
@@ -1556,9 +1553,7 @@ object evaluator extends EvaluationRules with Immutable {
                               Q(s12, eIn1, v6)
                             case _ =>
                               // keep OH chunks assumed during evaluation of eIn
-                              
                               val s12 = if (predFramed) s11a.copy(h = s2.h, optimisticHeap = s2.optimisticHeap + s11.optimisticHeap) else s11a.copy(h = s2.h, optimisticHeap = s2.optimisticHeap + s11.optimisticHeap + ch)// adding consumed predicate to OH when it wasn't statically framed before consume
-                              //sys.error(s"${s12.generateChecks}") // true
                               Q(s12, eIn1, v6)
                           }
                         })})})
