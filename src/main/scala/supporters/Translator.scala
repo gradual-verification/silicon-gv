@@ -128,8 +128,8 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
           case _ => selectShortestField(variableResolver(terms.Var(name, sort)))
         }
       case terms.SortWrapper(t, sort) => {
-        // println("Term: " + terms.SortWrapper(t, sort))
-        // println(s"oldHeaps: ${s.oldHeaps.map{case (id, h) => s"$id: ${h.values.mkString("[", ", ", "]")}"}.mkString("[", ", ", "]")}")
+        // println("Term: " + terms.SortWrapper(t, sort)) // debugging translate - Priyam
+        // println(s"oldHeaps: ${s.oldHeaps.map{case (id, h) => s"$id: ${h.values.mkString("[", ", ", "]")}"}.mkString("[", ", ", "]")}") // debugging translate - Priyam
         Some(variableResolver(terms.SortWrapper(t, sort))(0))
       }
       // how do we deal with snapshots? we need not {
@@ -205,10 +205,10 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
 
     // Retrieve aliasing information; add our
     // input variable to it
-    // println("reached variableResolver: " + variable)
-    // println(s"oldHeaps: ${s.oldHeaps.map{case (id, h) => s"$id: ${h.values.mkString("[", ", ", "]")}"}.mkString("[", ", ", "]")}")
+    //println("reached variableResolver: " + variable) // debugging translate - Priyam
+    //println(s"oldHeaps: ${s.oldHeaps.map{case (id, h) => s"$id: ${h.values.mkString("[", ", ", "]")}"}.mkString("[", ", ", "]")}") // debugging translate - Priyam
     val heapAliases: Seq[(terms.Term, String)] =
-      (s.h + s.optimisticHeap + s.oldHeaps.values.foldLeft(Heap())(_ + _)).getChunksForValue(variable, lenient) // including oldHeaps here for help with translation - ASK JENNA if it might cause any unsoundness ( e.g. due to outdated values or other cases)
+      (s.h + s.optimisticHeap + s.oldHeaps.values.foldLeft(Heap())(_ + _)).getChunksForValue(variable, lenient) //  + s.oldHeaps.values.foldLeft(Heap())(_ + _) including oldHeaps here for help with translation - ASK JENNA if it might cause any unsoundness ( e.g. due to outdated values or other cases)
     // val oldHeapAliases = s.oldHeaps.getOrElse(Verifier.PRE_STATE_LABEL, Heap()).getChunksForValue(variable, lenient) // Priyam - tracking oldHeapAliases here to fix translation for asserting/consuming an unfolding expression's framed part
     val pcsEquivalentVariables: Seq[terms.Term] =
       pcs.getEquivalentVariables(variable, lenient) :+ variable
@@ -312,7 +312,7 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
     // variable should never happen, maybe
     //
     // Ask Jenna about this?
-    // println("h (to find symvar) = " + s.h.values.mkString("[", ", ", "]"))
+    // println("h (to find symvar) = " + s.h.values.mkString("[", ", ", "]")) // debugging translate - Priyam
     store.getKeyForValue(variable, lenient) match {
       case None =>
         // Search both heaps for the variable
@@ -321,7 +321,7 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
             s.optimisticHeap.getChunkForValue(variable, lenient) match {
               case None => None
               case Some((symVar, id)) =>
-                // println("symvar from OH: " + symVar)
+                // println("symvar from OH: " + symVar) // debugging translate - Priyam
                 variableResolver(symVar) match {
                   case Seq() => None
                   case resolvedVariables =>
@@ -329,7 +329,7 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
                 }
             }
           case Some((symVar, id)) =>
-            // println("symvar from H: " + symVar)
+            // println("symvar from H: " + symVar) // debugging translate - Priyam
             variableResolver(symVar) match {
               case Seq() => None
               case resolvedVariables =>
