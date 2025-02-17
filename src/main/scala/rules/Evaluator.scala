@@ -505,6 +505,65 @@ object evaluator extends EvaluationRules with Immutable {
 
       case ast.PermGtCmp(e0, e1) =>
         evalBinOp(s, e0, e1, Greater, pve, v)(Q)
+
+//       case ast.Unfolding(
+//               acc @ ast.PredicateAccessPredicate(pa @ ast.PredicateAccess(eArgs, predicateName), ePerm),
+//               eIn) =>
+
+//         val predicate = Verifier.program.findPredicate(predicateName)
+//         if (s.cycles(predicate) < Verifier.config.recursivePredicateUnfoldings()) {
+//           evals(s, eArgs, _ => pve, v)((s1, tArgs, v1) =>
+//             eval(s1, ePerm, pve, v1)((s2, tPerm, v2) =>
+//               v2.decider.assert(IsNonNegative(tPerm)) {
+//                 case true =>
+//                   joiner.join[Term, Term](s2, v2)((s3, v3, QB) => {
+//                     val s4 = s3.incCycleCounter(predicate)
+//                                .copy(recordVisited = true,
+//                                  forFraming = true)
+//                       /* [2014-12-10 Malte] The commented code should replace the code following
+//                        * it, but using it slows down RingBufferRd.sil significantly. The generated
+//                        * Z3 output looks nearly identical, so my guess is that it is some kind
+//                        * of triggering problem, probably related to sequences.
+//                        */
+// //                      predicateSupporter.unfold(σ, predicate, tArgs, tPerm, pve, c2, pa)((σ1, c3) => {
+// //                        val c4 = c3.decCycleCounter(predicate)
+// //                        eval(σ1, eIn, pve, c4)((tIn, c5) =>
+// //                          QB(tIn, c5))})
+//                     consume(s4, acc, pve, v3)((s5, snap, v4) => {
+
+//                       val s5_1 = s5.copy(forFraming = false)
+
+//                       val fr6 =
+//                         s5_1.functionRecorder.recordSnapshot(pa, v4.decider.pcs.branchConditions, snap)
+//                                            .changeDepthBy(+1)
+//                       val s6 = s5_1.copy(functionRecorder = fr6,
+//                                        constrainableARPs = s1.constrainableARPs)
+//                         /* Recording the unfolded predicate's snapshot is necessary in order to create the
+//                          * additional predicate-based trigger function applications because these are applied
+//                          * to the function arguments and the predicate snapshot
+//                          * (see 'predicateTriggers' in FunctionData.scala).
+//                          */
+//                       v4.decider.assume(App(Verifier.predicateData(predicate).triggerFunction, snap.convert(terms.sorts.Snap) +: tArgs))
+//                       val body = predicate.body.get /* Only non-abstract predicates can be unfolded */
+//                       val s7 = s6.scalePermissionFactor(tPerm)
+//                       val insg = s7.g + Store(predicate.formalArgs map (_.localVar) zip tArgs)
+//                       val s7a = s7.copy(g = insg)
+//                       produce(s7a, toSf(snap), body, pve, v4)((s8, v5) => {
+//                         val s9 = s8.copy(g = s7.g,
+//                                          functionRecorder = s8.functionRecorder.changeDepthBy(-1),
+//                                          recordVisited = s3.recordVisited,
+//                                          permissionScalingFactor = s6.permissionScalingFactor)
+//                                    .decCycleCounter(predicate)
+//                         val s10 = stateConsolidator.consolidateIfRetrying(s9, v5)
+//                         eval(s10, eIn, pve, v5)(QB)})})
+//                   })(join(v2.symbolConverter.toSort(eIn.typ), "joined_unfolding", s2.relevantQuantifiedVariables, v2))(Q)
+//                 case false =>
+//                   createFailure(pve dueTo NegativePermission(ePerm), v2, s2)}))
+//         } else {
+//           val unknownValue = v.decider.appliedFresh("recunf", v.symbolConverter.toSort(eIn.typ), s.relevantQuantifiedVariables)
+//           Q(s, unknownValue, v)
+//         }
+
       
       case unfolding @ ast.Unfolding(
               acc @ ast.PredicateAccessPredicate(pa @ ast.PredicateAccess(eArgs, predicateName), ePerm),
@@ -557,6 +616,9 @@ object evaluator extends EvaluationRules with Immutable {
                       
                       // if-else casing required for setting origin while handling nested origins (outermost unfolding should be origin) - Priyam
                       val s7a = s7.copy(g = insg, unfoldingAstNode = if (s7.unfoldingAstNode == None) Some(unfolding) else s7.unfoldingAstNode, needConditionFramingUnfold = true)
+
+                      // disable origin tracking (for testing two different origins problem)
+                      // val s7b = s7a.copy(unfoldingAstNode = None)
                       
                   
                       produce(s7a, toSf(snap), body, pve, v4)((s8, v5) => {
@@ -1414,9 +1476,10 @@ object evaluator extends EvaluationRules with Immutable {
               eIn) =>
         // val gIns = s.g + Store(predicate.formalArgs map (_.localVar) zip eArgs) // copied from unfold in PredicateSupporter, not sure if needed - Priyam
         val predicate = Verifier.program.findPredicate(predicateName)
-        if (s.cycles(predicate) < Verifier.config.recursivePredicateUnfoldings()) {
-          evalspc(s, eArgs, _ => pve, v)((s1, tArgs, v1) =>
-            evalpc(s1, ePerm, pve, v1)((s2, tPerm, v2) =>
+        v.logger.debug(s"recursive unfolding depth ${s.cycles(predicate)}")
+        if (s.cycles(predicate) < Verifier.config.recursivePredicateUnfoldings()) { // config value is 1
+          evalspc(s, eArgs, _ => pve, v, generateChecks)((s1, tArgs, v1) =>
+            evalpc(s1, ePerm, pve, v1, generateChecks)((s2, tPerm, v2) =>
               v2.decider.assert(IsNonNegative(tPerm)) {
                 case true =>
                   //joiner.join[Term, Term](s2, v2)((s3, v3, QB) => { // removed join functionality for now (Priyam, Sept 2024)
@@ -1448,6 +1511,7 @@ object evaluator extends EvaluationRules with Immutable {
                     //     })}
                     // else {
                     v2.logger.debug("In eval-pc for unfolding expression")
+                    
                     consume(s4, acc, pve, v2)((s5, snap, v4) => {
                       val s5_1 = s5.copy(forFraming = false)
                       val fr6 =
@@ -1466,19 +1530,25 @@ object evaluator extends EvaluationRules with Immutable {
                       val insg = s7.g + Store(predicate.formalArgs map (_.localVar) zip tArgs)
                       
                       // if-else casing required for setting origin while handling nested origins (outermost unfolding should be origin) - Priyam
-                      val s7a = s7.copy(g = insg, unfoldingAstNode = if (s7.unfoldingAstNode == None) Some(unfolding) else s7.unfoldingAstNode, needConditionFramingUnfold = true)
+                      // edge case check for framing condition not needed in the context of producing unfolding expression
+                      val s7a = s7.copy(g = insg, unfoldingAstNode = if (s7.unfoldingAstNode == None) Some(unfolding) else s7.unfoldingAstNode, needConditionFramingUnfold = generateChecks)
+                      // // disable origin tracking (for testing)
+                      // val s7b = s7a.copy(unfoldingAstNode = None)
                   
                       produce(s7a, toSf(snap), body, pve, v4)((s8, v5) => {
                         val s9 = s8.copy(g = s7.g,
                                          functionRecorder = s8.functionRecorder.changeDepthBy(-1),
                                          recordVisited = s2.recordVisited,
                                          permissionScalingFactor = s6.permissionScalingFactor,
-                                         unfoldingAstNode = s7.unfoldingAstNode, needConditionFramingUnfold = false)
+                                         unfoldingAstNode = s7.unfoldingAstNode, needConditionFramingUnfold = false, generateChecks = s7.generateChecks)
                                    .decCycleCounter(predicate)
                         val s10 = stateConsolidator.consolidateIfRetrying(s9, v5)
-                        evalpc(s10, eIn, pve, v5)((s11, eIn1, v6) => {
+                        evalpc(s10, eIn, pve, v5, generateChecks)((s11, eIn1, v6) => {
+                          
                           val s11a = s11.copy(oldStore = Some(s11.g), oldHeaps = s11.oldHeaps + (Verifier.PRE_HEAP_LABEL -> s11.h) + (Verifier.PRE_OPTHEAP_LABEL -> s11.optimisticHeap))
                           val ch = BasicChunk(PredicateID, BasicChunkIdentifier(predicateName), tArgs, snap.convert(sorts.Snap), tPerm)
+
+
       
                           body match {
                             case impr @ ast.ImpreciseExp(e) =>
@@ -1486,7 +1556,9 @@ object evaluator extends EvaluationRules with Immutable {
                               Q(s12, eIn1, v6)
                             case _ =>
                               // keep OH chunks assumed during evaluation of eIn
+                              
                               val s12 = if (predFramed) s11a.copy(h = s2.h, optimisticHeap = s2.optimisticHeap + s11.optimisticHeap) else s11a.copy(h = s2.h, optimisticHeap = s2.optimisticHeap + s11.optimisticHeap + ch)// adding consumed predicate to OH when it wasn't statically framed before consume
+                              //sys.error(s"${s12.generateChecks}") // true
                               Q(s12, eIn1, v6)
                           }
                         })})})
@@ -1496,6 +1568,7 @@ object evaluator extends EvaluationRules with Immutable {
                   createFailure(pve dueTo NegativePermission(ePerm), v2, s2)}))
         } else {
           val unknownValue = v.decider.appliedFresh("recunf", v.symbolConverter.toSort(eIn.typ), s.relevantQuantifiedVariables)
+          v.logger.debug(s"assigning whole expression a symbolic value: ${unknownValue}")
           Q(s, unknownValue, v)
         }
 
@@ -2546,6 +2619,73 @@ object evaluator extends EvaluationRules with Immutable {
             ){case Seq(ent) =>
                 (ent.s, ent.data)
               case Seq(ent1, ent2) =>
+                // v1.logger.debug("state 1 below:")
+                // v1.logger.debug(v1.stateFormatter.format(ent1.s, v1.decider.pcs))
+                // v1.logger.debug(s"${ent1.s.unfoldingAstNode}")
+                // v1.logger.debug("state 2 below:")
+                // v1.logger.debug(v1.stateFormatter.format(ent2.s, v1.decider.pcs))
+                // v1.logger.debug(s"${ent2.s.unfoldingAstNode}")
+                (ent1.s.merge(ent2.s), constructor(Seq(ent1.data, ent2.data)))
+              case entries =>
+                sys.error(s"Unexpected join data entries $entries")
+            }(Q)
+        }
+      }})
+  }
+
+    /* Evaluate a sequence of expressions in Order
+   * The constructor determines when the evaluation stops
+   * Only Or and And are supported for the constructor
+   */
+  private def evalSeqShortCircuitPc(constructor: Seq[Term] => Term,
+                                  s: State,
+                                  exps: Seq[ast.Exp],
+                                  pve: PartialVerificationError,
+                                  v: Verifier,
+                                  generateChecks: Boolean = true)
+                                 (Q: (State, Term, Verifier) => VerificationResult)
+                                 : VerificationResult = {
+    assert(
+      constructor == Or || constructor == And,
+      "Only Or and And are supported as constructors for evalSeqShortCircuitPc")
+
+    assert(exps.nonEmpty, "Empty sequence of expressions not allowed")
+
+    type brFun = (State, Verifier) => VerificationResult
+    
+    // TODO: Find out and document why swapIfAnd is needed
+    val (stop, swapIfAnd) =
+      if(constructor == Or) (True(), (a: brFun, b: brFun) => (a, b))
+      else (False(), (a: brFun, b: brFun) => (b, a))
+
+    evalpc(s, exps.head, pve, v, generateChecks)((s1, t0, v1) => {
+      t0 match {
+        case _ if exps.tail.isEmpty => Q(s1, t0, v1) // Done, if no expressions left (necessary)
+        case `stop` => Q(s1, t0, v1) // Done, if last expression was true/false for or/and (optimisation)
+        case _ => {
+          // Get branch origin for brancher.branch
+          val branchCondOrigin: Option[CheckPosition] =
+            (s1.methodCallAstNode, s1.foldOrUnfoldAstNode, s1.loopPosition) match {
+              case (None, None, None) => None
+              case (Some(methodCallAstNode), None, None) => Some(CheckPosition.GenericNode(methodCallAstNode))
+              case (None, Some(foldOrUnfoldAstNode), None) => Some(CheckPosition.GenericNode(foldOrUnfoldAstNode))
+              case (None, None, Some(_)) => s1.loopPosition
+              case _ => sys.error("Error: _ match case when setting a branch condition origin!")
+            }
+
+          joiner.join[Term, Term](s1, v1)((s2, v2, QB) =>            
+            brancher.branch(s2, t0, exps.head, branchCondOrigin, v2, true) _ tupled swapIfAnd(
+              (s3, v3) => QB(s3, constructor(Seq(t0)), v3),
+              (s3, v3) => evalSeqShortCircuitPc(constructor, s3, exps.tail, pve, v3, generateChecks)(QB))
+            ){case Seq(ent) =>
+                (ent.s, ent.data)
+              case Seq(ent1, ent2) =>
+                // v1.logger.debug("state 1 below:")
+                // v1.logger.debug(v1.stateFormatter.format(ent1.s, v1.decider.pcs))
+                // v1.logger.debug(s"${ent1.s.unfoldingAstNode}")
+                // v1.logger.debug("state 2 below:")
+                // v1.logger.debug(v1.stateFormatter.format(ent2.s, v1.decider.pcs))
+                // v1.logger.debug(s"${ent2.s.unfoldingAstNode}")
                 (ent1.s.merge(ent2.s), constructor(Seq(ent1.data, ent2.data)))
               case entries =>
                 sys.error(s"Unexpected join data entries $entries")
