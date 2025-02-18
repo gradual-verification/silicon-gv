@@ -1262,6 +1262,7 @@ object evaluator extends EvaluationRules with Immutable {
             val ve = pve dueTo InsufficientPermission(fa)
             val resource = fa.res(Verifier.program)
             val addToOh = false /* so lookup knows whether or not to add optimistically assumed permissions to the optimistic heap */
+            // addToOh really just represents whether we are in eval (true) or eval-pc (false)
             
             val s1_0 = s1.copy(madeOptimisticAssumptions = false)
 
