@@ -244,7 +244,7 @@ if (reserveHeaps1 != reserveHeaps2) mismatches += s"reserveHeaps mismatch: ${res
             if (generateChecks != generateChecks2) mismatches += s"generateChecks mismatch: ${generateChecks} != ${generateChecks2}"
             if (needConditionFramingUnfold != needConditionFramingUnfold2) mismatches += s"needConditionFramingUnfold mismatch: ${needConditionFramingUnfold} != ${needConditionFramingUnfold2}"
             if (needConditionFramingProduce != needConditionFramingProduce2) mismatches += s"needConditionFramingProduce mismatch: ${needConditionFramingProduce} != ${needConditionFramingProduce2}"
-            if (madeOptimisticAssumptions != madeOptimisticAssumptions2) mismatches += s"madeOptimisticAssumptions mismatch: ${madeOptimisticAssumptions} != ${madeOptimisticAssumptions2}"
+            //if (madeOptimisticAssumptions != madeOptimisticAssumptions2) mismatches += s"madeOptimisticAssumptions mismatch: ${madeOptimisticAssumptions} != ${madeOptimisticAssumptions2}"
 
 
             if (mismatches.nonEmpty) {
@@ -260,13 +260,16 @@ if (reserveHeaps1 != reserveHeaps2) mismatches += s"reserveHeaps mismatch: ${res
             val pmCache3 = pmCache1 ++ pmCache2
             val ssCache3 = ssCache1 ++ ssCache2
 
+            val madeOptimisticAssumptions3 = madeOptimisticAssumptions || madeOptimisticAssumptions2
+
             s1.copy(functionRecorder = functionRecorder3,
                     possibleTriggers = possibleTriggers3,
                     triggerExp = triggerExp3,
                     constrainableARPs = constrainableARPs3,
                     ssCache = ssCache3,
                     smCache = smCache3,
-                    pmCache = pmCache3)
+                    pmCache = pmCache3,
+                    madeOptimisticAssumptions = madeOptimisticAssumptions3)
 
           case _ =>
             throw new IllegalArgumentException("State merging failed: unexpected mismatch between symbolic states")
