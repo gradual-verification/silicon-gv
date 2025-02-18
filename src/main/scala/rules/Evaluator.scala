@@ -1531,7 +1531,7 @@ object evaluator extends EvaluationRules with Immutable {
                       
                       // if-else casing required for setting origin while handling nested origins (outermost unfolding should be origin) - Priyam
                       // edge case check for framing condition not needed in the context of producing unfolding expression
-                      val s7a = s7.copy(g = insg, unfoldingAstNode = if (s7.unfoldingAstNode == None) Some(unfolding) else s7.unfoldingAstNode, needConditionFramingUnfold = generateChecks)
+                      val s7a = s7.copy(g = insg, unfoldingAstNode = if (s7.unfoldingAstNode == None) Some(unfolding) else s7.unfoldingAstNode, needConditionFramingUnfold = s7.generateChecks)
                       // // disable origin tracking (for testing)
                       // val s7b = s7a.copy(unfoldingAstNode = None)
                   
@@ -2616,12 +2616,6 @@ object evaluator extends EvaluationRules with Immutable {
             ){case Seq(ent) =>
                 (ent.s, ent.data)
               case Seq(ent1, ent2) =>
-                // v1.logger.debug("state 1 below:")
-                // v1.logger.debug(v1.stateFormatter.format(ent1.s, v1.decider.pcs))
-                // v1.logger.debug(s"${ent1.s.unfoldingAstNode}")
-                // v1.logger.debug("state 2 below:")
-                // v1.logger.debug(v1.stateFormatter.format(ent2.s, v1.decider.pcs))
-                // v1.logger.debug(s"${ent2.s.unfoldingAstNode}")
                 (ent1.s.merge(ent2.s), constructor(Seq(ent1.data, ent2.data)))
               case entries =>
                 sys.error(s"Unexpected join data entries $entries")
@@ -2677,12 +2671,6 @@ object evaluator extends EvaluationRules with Immutable {
             ){case Seq(ent) =>
                 (ent.s, ent.data)
               case Seq(ent1, ent2) =>
-                // v1.logger.debug("state 1 below:")
-                // v1.logger.debug(v1.stateFormatter.format(ent1.s, v1.decider.pcs))
-                // v1.logger.debug(s"${ent1.s.unfoldingAstNode}")
-                // v1.logger.debug("state 2 below:")
-                // v1.logger.debug(v1.stateFormatter.format(ent2.s, v1.decider.pcs))
-                // v1.logger.debug(s"${ent2.s.unfoldingAstNode}")
                 (ent1.s.merge(ent2.s), constructor(Seq(ent1.data, ent2.data)))
               case entries =>
                 sys.error(s"Unexpected join data entries $entries")
