@@ -1506,11 +1506,6 @@ object evaluator extends EvaluationRules with Immutable {
                       case _ =>
                         predFramed = false
                     }
-                    // if (!predFramed && s4.evaluatingIte) { // short circuiting evaluation for ite condition expression
-                    //   eval(s4, eIn, pve, v2)((s4a, eIna, v2a) => {
-                    //     Q(s4a, eIna, v2a)
-                    //     })}
-                    // else {
                     v2.logger.debug("In eval-pc for unfolding expression")
                     consume(s4, acc, pve, v2)((s5, snap, v4) => {
                       val s5_1 = s5.copy(forFraming = false)
@@ -1532,8 +1527,6 @@ object evaluator extends EvaluationRules with Immutable {
                       // if-else casing required for setting origin while handling nested origins (outermost unfolding should be origin) - Priyam
                       // edge case check for framing condition not needed in the context of producing unfolding expression
                       val s7a = s7.copy(g = insg, unfoldingAstNode = if (s7.unfoldingAstNode == None) Some(unfolding) else s7.unfoldingAstNode, needConditionFramingUnfold = s7.generateChecks)
-                      // // disable origin tracking (for testing)
-                      // val s7b = s7a.copy(unfoldingAstNode = None)
                   
                       produce(s7a, toSf(snap), body, pve, v4)((s8, v5) => {
                         val s9 = s8.copy(g = s7.g,
