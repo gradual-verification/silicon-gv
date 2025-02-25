@@ -285,12 +285,12 @@ object producer extends ProductionRules with Immutable {
             
             val branchPosition: Option[CheckPosition] =
               (s1_1.methodCallAstNode, s1_1.foldOrUnfoldAstNode, s1_1.loopPosition, s1_1.unfoldingAstNode) match {
-                case (None, None, None, None) => None
+                case (None, None, None, _) => None
                 case (Some(methodCallAstNode), None, None, None) =>
                   Some(CheckPosition.GenericNode(methodCallAstNode))
-                case (None, Some(foldOrUnfoldAstNode), None, None) =>
+                case (None, Some(foldOrUnfoldAstNode), None, _) =>
                   Some(CheckPosition.GenericNode(foldOrUnfoldAstNode))
-                case (None, None, Some(loopPosition), None) =>
+                case (None, None, Some(loopPosition), _) =>
                   Some(loopPosition)
                 case (None, None, None, Some(unfoldingAstNode)) =>
                   Some(CheckPosition.GenericNode(unfoldingAstNode))
