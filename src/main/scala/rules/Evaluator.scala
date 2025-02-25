@@ -1279,11 +1279,11 @@ object evaluator extends EvaluationRules with Immutable {
                   val runtimeCheckAstNode: CheckPosition =
                     (s2.methodCallAstNode, s2.foldOrUnfoldAstNode, s2.loopPosition, s2.unfoldingAstNode) match {
                       case (None, None, None, None) => CheckPosition.GenericNode(fa)
-                      case (Some(methodCallAstNode), None, None, None) => CheckPosition.GenericNode(methodCallAstNode)
-                      case (None, Some(foldOrUnfoldAstNode), None, None) => CheckPosition.GenericNode(foldOrUnfoldAstNode)
-                      case (None, None, Some(loopPosition), None) => loopPosition
+                      case (Some(methodCallAstNode), None, None, _) => CheckPosition.GenericNode(methodCallAstNode)
+                      case (None, Some(foldOrUnfoldAstNode), None, _) => CheckPosition.GenericNode(foldOrUnfoldAstNode)
+                      case (None, None, Some(loopPosition), _) => loopPosition
                       case (None, None, None, Some(unfoldingAstNode)) => CheckPosition.GenericNode(unfoldingAstNode)
-                      case _ => sys.error("Conflicting positions found while adding runtime check!")
+                      case _ => sys.error("Conflicting positions found while adding framing runtime check!")
                     }
 
                   val (g, tH, tOH) = s2.oldStore match { /* Heap/OH part shouldn't be necessary based on currently functionality, but here for safety - JW */
@@ -2593,14 +2593,21 @@ object evaluator extends EvaluationRules with Immutable {
         case `stop` => Q(s1, t0, v1) // Done, if last expression was true/false for or/and (optimisation)
         case _ => {
           // Get branch origin for brancher.branch
-          val branchCondOrigin: Option[CheckPosition] =
-            (s1.methodCallAstNode, s1.foldOrUnfoldAstNode, s1.loopPosition) match {
-              case (None, None, None) => None
-              case (Some(methodCallAstNode), None, None) => Some(CheckPosition.GenericNode(methodCallAstNode))
-              case (None, Some(foldOrUnfoldAstNode), None) => Some(CheckPosition.GenericNode(foldOrUnfoldAstNode))
-              case (None, None, Some(_)) => s1.loopPosition
-              case _ => sys.error("Error: _ match case when setting a branch condition origin!")
-            }
+            val branchCondOrigin: Option[CheckPosition] =
+              (s1_1.methodCallAstNode, s1_1.foldOrUnfoldAstNode, s1_1.loopPosition, s1_1.unfoldingAstNode) match {
+                case (None, None, None, _) => None
+                case (Some(methodCallAstNode), None, None, None) =>
+                  Some(CheckPosition.GenericNode(methodCallAstNode))
+                case (None, Some(foldOrUnfoldAstNode), None, _) =>
+                  Some(CheckPosition.GenericNode(foldOrUnfoldAstNode))
+                case (None, None, Some(loopPosition), _) =>
+                  Some(loopPosition)
+                case (None, None, None, Some(unfoldingAstNode)) =>
+                  Some(CheckPosition.GenericNode(unfoldingAstNode))
+                case _ =>
+                  println((s1_1.methodCallAstNode, s1_1.foldOrUnfoldAstNode, s1_1.loopPosition, s1_1.unfoldingAstNode))
+                  sys.error("Error: _ match case when setting a branch condition origin!")
+              }
 
           joiner.join[Term, Term](s1, v1)((s2, v2, QB) =>            
             brancher.branch(s2, if (constructor == Or) t0 else Not(t0), exps.head, branchCondOrigin, v2, true)(
@@ -2648,14 +2655,21 @@ object evaluator extends EvaluationRules with Immutable {
         case `stop` => Q(s1, t0, v1) // Done, if last expression was true/false for or/and (optimisation)
         case _ => {
           // Get branch origin for brancher.branch
-          val branchCondOrigin: Option[CheckPosition] =
-            (s1.methodCallAstNode, s1.foldOrUnfoldAstNode, s1.loopPosition) match {
-              case (None, None, None) => None
-              case (Some(methodCallAstNode), None, None) => Some(CheckPosition.GenericNode(methodCallAstNode))
-              case (None, Some(foldOrUnfoldAstNode), None) => Some(CheckPosition.GenericNode(foldOrUnfoldAstNode))
-              case (None, None, Some(_)) => s1.loopPosition
-              case _ => sys.error("Error: _ match case when setting a branch condition origin!")
-            }
+            val branchCondOrigin: Option[CheckPosition] =
+              (s1_1.methodCallAstNode, s1_1.foldOrUnfoldAstNode, s1_1.loopPosition, s1_1.unfoldingAstNode) match {
+                case (None, None, None, None) => None
+                case (Some(methodCallAstNode), None, None, _) =>
+                  Some(CheckPosition.GenericNode(methodCallAstNode))
+                case (None, Some(foldOrUnfoldAstNode), None, _) =>
+                  Some(CheckPosition.GenericNode(foldOrUnfoldAstNode))
+                case (None, None, Some(loopPosition), _) =>
+                  Some(loopPosition)
+                case (None, None, None, Some(unfoldingAstNode)) =>
+                  Some(CheckPosition.GenericNode(unfoldingAstNode))
+                case _ =>
+                  println((s1_1.methodCallAstNode, s1_1.foldOrUnfoldAstNode, s1_1.loopPosition, s1_1.unfoldingAstNode))
+                  sys.error("Error: _ match case when setting a branch condition origin!")
+              }
 
           joiner.join[Term, Term](s1, v1)((s2, v2, QB) =>            
             brancher.branch(s2, t0, exps.head, branchCondOrigin, v2, true) _ tupled swapIfAnd(

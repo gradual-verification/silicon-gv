@@ -340,11 +340,12 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
                     val s2 = s.copy(optimisticHeap = oh)
 
                     val runtimeCheckAstNode: CheckPosition =
-                      (s2.methodCallAstNode, s2.foldOrUnfoldAstNode, s2.loopPosition) match {
-                        case (None, None, None) => CheckPosition.GenericNode(runtimeCheckFieldTarget)
-                        case (Some(methodCallAstNode), None, None) => CheckPosition.GenericNode(methodCallAstNode)
-                        case (None, Some(foldOrUnfoldAstNode), None) => CheckPosition.GenericNode(foldOrUnfoldAstNode)
-                        case (None, None, Some(loopPosition)) => loopPosition
+                      (s2.methodCallAstNode, s2.foldOrUnfoldAstNode, s2.loopPosition, s2.unfoldingAstNode) match {
+                        case (None, None, None, None) => CheckPosition.GenericNode(runtimeCheckFieldTarget)
+                        case (Some(methodCallAstNode), None, None, _) => CheckPosition.GenericNode(methodCallAstNode)
+                        case (None, Some(foldOrUnfoldAstNode), None, _) => CheckPosition.GenericNode(foldOrUnfoldAstNode)
+                        case (None, None, Some(loopPosition), _) => loopPosition
+                        case (None, None, None, Some(unfoldingAstNode)) => Some(CheckPosition.GenericNode(unfoldingAstNode))
                         case _ => sys.error("Conflicting positions found while adding runtime check!")
                       }
 
@@ -413,11 +414,12 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
                     val snap = v.decider.fresh(s"${args.head}.$id", v.symbolConverter.toSort(f.typ))
 
                     val runtimeCheckAstNode: CheckPosition =
-                      (s.methodCallAstNode, s.foldOrUnfoldAstNode, s.loopPosition) match {
-                        case (None, None, None) => CheckPosition.GenericNode(runtimeCheckFieldTarget)
-                        case (Some(methodCallAstNode), None, None) => CheckPosition.GenericNode(methodCallAstNode)
-                        case (None, Some(foldOrUnfoldAstNode), None) => CheckPosition.GenericNode(foldOrUnfoldAstNode)
-                        case (None, None, Some(loopPosition)) => loopPosition
+                      (s2.methodCallAstNode, s2.foldOrUnfoldAstNode, s2.loopPosition, s2.unfoldingAstNode) match {
+                        case (None, None, None, None) => CheckPosition.GenericNode(runtimeCheckFieldTarget)
+                        case (Some(methodCallAstNode), None, None, _) => CheckPosition.GenericNode(methodCallAstNode)
+                        case (None, Some(foldOrUnfoldAstNode), None, _) => CheckPosition.GenericNode(foldOrUnfoldAstNode)
+                        case (None, None, Some(loopPosition), _) => loopPosition
+                        case (None, None, None, Some(unfoldingAstNode)) => Some(CheckPosition.GenericNode(unfoldingAstNode))
                         case _ => sys.error("Conflicting positions found while adding runtime check!")
                       }
 

@@ -285,8 +285,8 @@ object producer extends ProductionRules with Immutable {
             
             val branchPosition: Option[CheckPosition] =
               (s1_1.methodCallAstNode, s1_1.foldOrUnfoldAstNode, s1_1.loopPosition, s1_1.unfoldingAstNode) match {
-                case (None, None, None, _) => None
-                case (Some(methodCallAstNode), None, None, None) =>
+                case (None, None, None, None) => None
+                case (Some(methodCallAstNode), None, None, _) =>
                   Some(CheckPosition.GenericNode(methodCallAstNode))
                 case (None, Some(foldOrUnfoldAstNode), None, _) =>
                   Some(CheckPosition.GenericNode(foldOrUnfoldAstNode))
@@ -296,10 +296,7 @@ object producer extends ProductionRules with Immutable {
                   Some(CheckPosition.GenericNode(unfoldingAstNode))
                 case _ =>
                   println((s1_1.methodCallAstNode, s1_1.foldOrUnfoldAstNode, s1_1.loopPosition, s1_1.unfoldingAstNode))
-                  sys.error("We shouldn't need to consider this case until "
-                    + "we have unfoldings! We have an error here instead of a "
-                    + "temporary solution like enclosing both in ast.And because "
-                    + "we want to know if this occurs!") // it does occur (for frontInsert example)
+                  sys.error("Error: _ match case when setting a branch condition origin!")
               }
 
             branch(s1_1, t0, e0, branchPosition, v1)((s2, v2) => {
