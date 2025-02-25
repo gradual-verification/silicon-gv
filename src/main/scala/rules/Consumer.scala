@@ -298,7 +298,7 @@ object consumer extends ConsumptionRules with Immutable {
             // issue was... it is commit with the message "Buggy changes to track branch positions
             // for method call sites"
             val branchPosition: Option[CheckPosition] =
-              (s1_1.methodCallAstNode, s1_1.foldOrUnfoldAstNode, s1_1.loopPosition, s1_1.unfoldingAstNode) match {
+              (s.methodCallAstNode, s.foldOrUnfoldAstNode, s.loopPosition, s.unfoldingAstNode) match {
                 case (None, None, None, None) => None
                 case (Some(methodCallAstNode), None, None, _) =>
                   Some(CheckPosition.GenericNode(methodCallAstNode))
@@ -309,7 +309,7 @@ object consumer extends ConsumptionRules with Immutable {
                 case (None, None, None, Some(unfoldingAstNode)) =>
                   Some(CheckPosition.GenericNode(unfoldingAstNode))
                 case _ =>
-                  println((s1_1.methodCallAstNode, s1_1.foldOrUnfoldAstNode, s1_1.loopPosition, s1_1.unfoldingAstNode))
+                  println((s.methodCallAstNode, s.foldOrUnfoldAstNode, s.loopPosition, s.unfoldingAstNode))
                   sys.error("Error: _ match case when setting a branch condition origin!")
               }
 

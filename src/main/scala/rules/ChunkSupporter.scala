@@ -345,7 +345,7 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
                         case (Some(methodCallAstNode), None, None, _) => CheckPosition.GenericNode(methodCallAstNode)
                         case (None, Some(foldOrUnfoldAstNode), None, _) => CheckPosition.GenericNode(foldOrUnfoldAstNode)
                         case (None, None, Some(loopPosition), _) => loopPosition
-                        case (None, None, None, Some(unfoldingAstNode)) => Some(CheckPosition.GenericNode(unfoldingAstNode))
+                        case (None, None, None, Some(unfoldingAstNode)) => CheckPosition.GenericNode(unfoldingAstNode)
                         case _ => sys.error("Conflicting positions found while adding runtime check!")
                       }
 
@@ -414,12 +414,12 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
                     val snap = v.decider.fresh(s"${args.head}.$id", v.symbolConverter.toSort(f.typ))
 
                     val runtimeCheckAstNode: CheckPosition =
-                      (s2.methodCallAstNode, s2.foldOrUnfoldAstNode, s2.loopPosition, s2.unfoldingAstNode) match {
+                      (s.methodCallAstNode, s.foldOrUnfoldAstNode, s.loopPosition, s.unfoldingAstNode) match {
                         case (None, None, None, None) => CheckPosition.GenericNode(runtimeCheckFieldTarget)
                         case (Some(methodCallAstNode), None, None, _) => CheckPosition.GenericNode(methodCallAstNode)
                         case (None, Some(foldOrUnfoldAstNode), None, _) => CheckPosition.GenericNode(foldOrUnfoldAstNode)
                         case (None, None, Some(loopPosition), _) => loopPosition
-                        case (None, None, None, Some(unfoldingAstNode)) => Some(CheckPosition.GenericNode(unfoldingAstNode))
+                        case (None, None, None, Some(unfoldingAstNode)) => CheckPosition.GenericNode(unfoldingAstNode)
                         case _ => sys.error("Conflicting positions found while adding runtime check!")
                       }
 

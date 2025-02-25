@@ -2594,7 +2594,7 @@ object evaluator extends EvaluationRules with Immutable {
         case _ => {
           // Get branch origin for brancher.branch
             val branchCondOrigin: Option[CheckPosition] =
-              (s1_1.methodCallAstNode, s1_1.foldOrUnfoldAstNode, s1_1.loopPosition, s1_1.unfoldingAstNode) match {
+              (s1.methodCallAstNode, s1.foldOrUnfoldAstNode, s1.loopPosition, s1.unfoldingAstNode) match {
                 case (None, None, None, _) => None
                 case (Some(methodCallAstNode), None, None, None) =>
                   Some(CheckPosition.GenericNode(methodCallAstNode))
@@ -2605,7 +2605,7 @@ object evaluator extends EvaluationRules with Immutable {
                 case (None, None, None, Some(unfoldingAstNode)) =>
                   Some(CheckPosition.GenericNode(unfoldingAstNode))
                 case _ =>
-                  println((s1_1.methodCallAstNode, s1_1.foldOrUnfoldAstNode, s1_1.loopPosition, s1_1.unfoldingAstNode))
+                  println((s1.methodCallAstNode, s1.foldOrUnfoldAstNode, s1.loopPosition, s1.unfoldingAstNode))
                   sys.error("Error: _ match case when setting a branch condition origin!")
               }
 
@@ -2656,7 +2656,7 @@ object evaluator extends EvaluationRules with Immutable {
         case _ => {
           // Get branch origin for brancher.branch
             val branchCondOrigin: Option[CheckPosition] =
-              (s1_1.methodCallAstNode, s1_1.foldOrUnfoldAstNode, s1_1.loopPosition, s1_1.unfoldingAstNode) match {
+              (s1.methodCallAstNode, s1.foldOrUnfoldAstNode, s1.loopPosition, s1.unfoldingAstNode) match {
                 case (None, None, None, None) => None
                 case (Some(methodCallAstNode), None, None, _) =>
                   Some(CheckPosition.GenericNode(methodCallAstNode))
@@ -2667,7 +2667,7 @@ object evaluator extends EvaluationRules with Immutable {
                 case (None, None, None, Some(unfoldingAstNode)) =>
                   Some(CheckPosition.GenericNode(unfoldingAstNode))
                 case _ =>
-                  println((s1_1.methodCallAstNode, s1_1.foldOrUnfoldAstNode, s1_1.loopPosition, s1_1.unfoldingAstNode))
+                  println((s1.methodCallAstNode, s1.foldOrUnfoldAstNode, s1.loopPosition, s1.unfoldingAstNode))
                   sys.error("Error: _ match case when setting a branch condition origin!")
               }
 
