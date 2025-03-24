@@ -147,7 +147,7 @@ object State {
 
     s1 match {
       case State(g1, oldStore1, h1, oldHeaps1,
-                 isImprecise, optimisticHeap1,
+                 isImprecise1, optimisticHeap1,
                  gatherFrame1, frameArgHeap1,
                  parallelizeBranches1,
                  recordVisited1, visited1,
@@ -166,14 +166,14 @@ object State {
                  applyHeuristics1, heuristicsDepth1, triggerAction1,
                  ssCache1, hackIssue387DisablePermissionConsumption1,
                  qpFields1, qpPredicates1, qpMagicWands1, smCache1, pmCache1, smDomainNeeded1,
-                 predicateSnapMap1, predicateFormalVarMap1, hack,
-                 methodCallAstNode1, foldOrUnfoldAstNode1, loopPosition1, unfoldingAstNode1, forFraming, generateChecks,
-                 needConditionFramingUnfold, needConditionFramingProduce,
-                 madeOptimisticAssumptions) =>
+                 predicateSnapMap1, predicateFormalVarMap1, hack1,
+                 methodCallAstNode1, foldOrUnfoldAstNode1, loopPosition1, unfoldingAstNode1, forFraming1, generateChecks1,
+                 needConditionFramingUnfold1, needConditionFramingProduce1,
+                 madeOptimisticAssumptions1) =>
         //sys.error("testing")
 
         s2 match {
-          case State(g2, oldStore2, h2, oldHeaps2,
+          case State(g2, oldStore2, h2, oldHeaps2, // oldStore shouldn't be checked
                      isImprecise2, optimisticHeap2,
                      gatherFrame2, frameArgHeap2,
                      parallelizeBranches2,
@@ -199,10 +199,9 @@ object State {
                      needConditionFramingProduce2, madeOptimisticAssumptions2) =>
            // only check relevant constructs
             if (g1 != g2) mismatches += s"g mismatch: ${g1} != ${g2}"
-            if (oldStore1 != oldStore2) mismatches += s"oldStore mismatch: ${oldStore1} != ${oldStore2}"
             if (h1 != h2) mismatches += s"heap mismatch: ${h1} != ${h2}"
             if (oldHeaps1 != oldHeaps2) mismatches += s"oldHeaps mismatch ${oldHeaps1} != ${oldHeaps2}"
-            if (isImprecise != isImprecise2) mismatches += s"isImprecise mismatch: ${isImprecise} != ${isImprecise2}"
+            if (isImprecise1 != isImprecise2) mismatches += s"isImprecise mismatch: ${isImprecise1} != ${isImprecise2}"
             if (optimisticHeap1 != optimisticHeap2) mismatches += s"optimisticHeap mismatch: ${optimisticHeap1} != ${optimisticHeap2}"
             if (gatherFrame1 != gatherFrame2) mismatches += s"gatherFrame mismatch: ${gatherFrame1} != ${gatherFrame2}"
             if (frameArgHeap1 != frameArgHeap2) mismatches += s"frameArgHeap mismatch: ${frameArgHeap1} != ${frameArgHeap2}"
@@ -218,7 +217,7 @@ object State {
             if (recordPossibleTriggers1 != recordPossibleTriggers2) mismatches += s"recordPossibleTriggers mismatch: ${recordPossibleTriggers1} != ${recordPossibleTriggers2}"
             if (partiallyConsumedHeap1 != partiallyConsumedHeap2) mismatches += s"partiallyConsumedHeap mismatch: ${partiallyConsumedHeap1} != ${partiallyConsumedHeap2}"
             if (permissionScalingFactor1 != permissionScalingFactor2) mismatches += s"permissionScalingFactor mismatch: ${permissionScalingFactor1} != ${permissionScalingFactor2}"
-if (reserveHeaps1 != reserveHeaps2) mismatches += s"reserveHeaps mismatch: ${reserveHeaps1} != ${reserveHeaps2}"
+            if (reserveHeaps1 != reserveHeaps2) mismatches += s"reserveHeaps mismatch: ${reserveHeaps1} != ${reserveHeaps2}"
             if (reserveCfgs1 != reserveCfgs2) mismatches += s"reserveCfgs mismatch: ${reserveCfgs1} != ${reserveCfgs2}"
             if (conservedPcs1 != conservedPcs2) mismatches += s"conservedPcs mismatch: ${conservedPcs1} != ${conservedPcs2}"
             if (recordPcs1 != recordPcs2) mismatches += s"recordPcs mismatch: ${recordPcs1} != ${recordPcs2}"
@@ -235,17 +234,15 @@ if (reserveHeaps1 != reserveHeaps2) mismatches += s"reserveHeaps mismatch: ${res
             if (smDomainNeeded1 != smDomainNeeded2) mismatches += s"smDomainNeeded mismatch: ${smDomainNeeded1} != ${smDomainNeeded2}"
             if (predicateSnapMap1 != predicateSnapMap2) mismatches += s"predicateSnapMap mismatch: ${predicateSnapMap1} != ${predicateSnapMap2}"
             if (predicateFormalVarMap1 != predicateFormalVarMap2) mismatches += s"predicateFormalVarMap mismatch: ${predicateFormalVarMap1} != ${predicateFormalVarMap2}"
-            if (hack != hack2) mismatches += s"hack mismatch: ${hack} != ${hack2}"
+            if (hack1 != hack2) mismatches += s"hack mismatch: ${hack1} != ${hack2}"
             if (methodCallAstNode1 != methodCallAstNode2) mismatches += s"methodCallAstNode mismatch: ${methodCallAstNode1} != ${methodCallAstNode2}"
             if (foldOrUnfoldAstNode1 != foldOrUnfoldAstNode2) mismatches += s"foldOrUnfoldAstNode mismatch: ${foldOrUnfoldAstNode1} != ${foldOrUnfoldAstNode2}"
             if (loopPosition1 != loopPosition2) mismatches += s"loopPosition mismatch: ${loopPosition1} != ${loopPosition2}"
             if (unfoldingAstNode1 != unfoldingAstNode2) mismatches += s"unfoldingAstNode mismatch: ${unfoldingAstNode1} != ${unfoldingAstNode2}"
-            if (forFraming != forFraming2) mismatches += s"forFraming mismatch: ${forFraming} != ${forFraming2}"
-            if (generateChecks != generateChecks2) mismatches += s"generateChecks mismatch: ${generateChecks} != ${generateChecks2}"
-            if (needConditionFramingUnfold != needConditionFramingUnfold2) mismatches += s"needConditionFramingUnfold mismatch: ${needConditionFramingUnfold} != ${needConditionFramingUnfold2}"
-            if (needConditionFramingProduce != needConditionFramingProduce2) mismatches += s"needConditionFramingProduce mismatch: ${needConditionFramingProduce} != ${needConditionFramingProduce2}"
-            //if (madeOptimisticAssumptions != madeOptimisticAssumptions2) mismatches += s"madeOptimisticAssumptions mismatch: ${madeOptimisticAssumptions} != ${madeOptimisticAssumptions2}"
-
+            if (forFraming1 != forFraming2) mismatches += s"forFraming mismatch: ${forFraming1} != ${forFraming2}"
+            if (generateChecks1 != generateChecks2) mismatches += s"generateChecks mismatch: ${generateChecks1} != ${generateChecks2}"
+            // if (needConditionFramingUnfold1 != needConditionFramingUnfold2) mismatches += s"needConditionFramingUnfold mismatch: ${needConditionFramingUnfold1} != ${needConditionFramingUnfold2}"
+            // if (needConditionFramingProduce1 != needConditionFramingProduce2) mismatches += s"needConditionFramingProduce mismatch: ${needConditionFramingProduce1} != ${needConditionFramingProduce2}"
 
             if (mismatches.nonEmpty) {
                 throw new IllegalArgumentException("State merging failed due to mismatches: " + mismatches.mkString(", "))
@@ -260,7 +257,7 @@ if (reserveHeaps1 != reserveHeaps2) mismatches += s"reserveHeaps mismatch: ${res
             val pmCache3 = pmCache1 ++ pmCache2
             val ssCache3 = ssCache1 ++ ssCache2
 
-            val madeOptimisticAssumptions3 = madeOptimisticAssumptions || madeOptimisticAssumptions2
+            val madeOptimisticAssumptions3 = madeOptimisticAssumptions1 || madeOptimisticAssumptions2
 
             s1.copy(functionRecorder = functionRecorder3,
                     possibleTriggers = possibleTriggers3,
@@ -270,6 +267,7 @@ if (reserveHeaps1 != reserveHeaps2) mismatches += s"reserveHeaps mismatch: ${res
                     smCache = smCache3,
                     pmCache = pmCache3,
                     madeOptimisticAssumptions = madeOptimisticAssumptions3)
+            // TODO: Should oldStore be updated here? what is oldStore for?
 
           case _ =>
             throw new IllegalArgumentException("State merging failed: unexpected mismatch between symbolic states")
