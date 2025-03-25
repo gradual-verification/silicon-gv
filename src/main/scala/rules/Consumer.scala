@@ -283,7 +283,7 @@ object consumer extends ConsumptionRules with Immutable {
       case ite @ ast.CondExp(e0, a1, a2) =>
         val condExpRecord = new CondExpRecord(ite, s, v.decider.pcs, "consume")
         val uidCondExp = SymbExLogger.currentLog().openScope(condExpRecord)
-        //val s_1 = s.copy(evaluatingIte = true)
+
         evalpc(s.copy(isImprecise = impr), e0, pve, v)((s1, t0, v1) => {
           val s2 = s1.copy(isImprecise = s.isImprecise)
       
@@ -297,6 +297,8 @@ object consumer extends ConsumptionRules with Immutable {
             // this has been changed since that point, but we should figure out what the
             // issue was... it is commit with the message "Buggy changes to track branch positions
             // for method call sites"
+
+            // unfolding can probably never be the origin here - Priyam
             val branchPosition: Option[CheckPosition] =
               (s.methodCallAstNode, s.foldOrUnfoldAstNode, s.loopPosition, s.unfoldingAstNode) match {
                 case (None, None, None, None) => None
@@ -684,7 +686,6 @@ object consumer extends ConsumptionRules with Immutable {
                       }
 
                       if (chunkExisted) {
-                        // v.logger.debug(s"consumeGreedy call with Heap: ${v.stateFormatter.format(h)}\n")
 
                         profilingInfo.incrementEliminatedConjuncts
                         Q(s5, oh1, h1, snap1, v4)}
@@ -694,8 +695,6 @@ object consumer extends ConsumptionRules with Immutable {
                         // we don't want to count it if the runtime check
                         // path happened, i think
                         if (chunkExisted1) {
-                          // v.logger.debug(s"new heap after chunk supporter consume: ${v.stateFormatter.format(h1)}\n")
-                          // v.logger.debug(s"new optimistic heap after chunk supporter consume: ${v.stateFormatter.format(oh1)}\n")
                           profilingInfo.incrementEliminatedConjuncts
                         }
 
@@ -883,7 +882,6 @@ object consumer extends ConsumptionRules with Immutable {
                 }
 
                 if (s1.generateChecks) {
-                  v.logger.debug(s"returned Checks: ${returnedChecks}")
                   runtimeChecks.addChecks(runtimeCheckAstNode,
                     (new Translator(s1.copy(g = g), pcs).translate(returnedChecks) match {
                       case None => sys.error("Error translating! Exiting safely.")

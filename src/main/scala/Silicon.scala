@@ -206,7 +206,7 @@ class Silicon(val reporter: PluginAwareReporter, private var debugInfo: Seq[(Str
       } catch { /* Catch exceptions thrown during verification (errors are not caught) */
         case _: TimeoutException =>
           // verification was interrupted, therefore close the current member's scope:
-          //SymbExLogger.currentLog().closeMemberScope()
+          SymbExLogger.currentLog().closeMemberScope()
           reporter report ExecutionTraceReport(SymbExLogger.memberList, List(), List())
           result = Some(SilFailure(SilTimeoutOccurred(config.timeout(), "second(s)") :: Nil))
         case exception: Exception if config.verified && !config.disableCatchingExceptions() =>

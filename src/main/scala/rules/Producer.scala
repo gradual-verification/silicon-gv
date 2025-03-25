@@ -257,21 +257,6 @@ object producer extends ProductionRules with Immutable {
         val uidCondExp = SymbExLogger.currentLog().openScope(condExpRecord)
 
         val s_1 = s.copy(generateChecks = false, needConditionFramingProduce = true)
-        
-        // // case: e0 is an unfolding expression
-        // val e1 = e0 match {
-        //   case unfolding @ ast.Unfolding(
-        //       acc @ ast.PredicateAccessPredicate(pa @ ast.PredicateAccess(eArgs, predicateName), ePerm),
-        //       eIn) =>
-        //             val hTotal = s.h + s.optimisticHeap
-        //             chunkSupporter.findChunk[NonQuantifiedChunk](hTotal.values, BasicChunkIdentifier(predicateName), eArgs, v) match {
-        //               case Some(ch) =>//if v.decider.check(ch.perm === perms, Verifier.config.checkTimeout()) && v.decider.check(perms === FullPerm(), Verifier.config.checkTimeout()) =>
-        //                 e0
-        //               case _ =>
-        //                 eIn
-        //             }
-        // }
-
         evalpc(s_1, e0, pve, v, false)((s1, t0, v1) => {
           val s1_1 = s.copy(generateChecks = true, needConditionFramingProduce = false, oldStore = s1.oldStore, oldHeaps = s1.oldHeaps) // updating oldStore and oldHeaps for getting heap information in unfolding case
 
@@ -300,13 +285,13 @@ object producer extends ProductionRules with Immutable {
               }
 
             branch(s1_1, t0, e0, branchPosition, v1)((s2, v2) => {
-                val s2a = s2.copy(oldStore = s_1.oldStore, oldHeaps = s1.oldHeaps) // reverting oldStore and oldHeaps that was updated for getting Heap information in unfolding case
+                val s2a = s2.copy(oldStore = s_1.oldStore, oldHeaps = s_1.oldHeaps) // reverting oldStore and oldHeaps that was updated for getting Heap information in unfolding case
                 produceR(s2a, sf, a1, pve, v2)((s3, v3) => {
                 SymbExLogger.currentLog().closeScope(uidCondExp)
                 Q(s3, v3)
               })},
               (s2, v2) => {
-                val s2a = s2.copy(oldStore = s_1.oldStore, oldHeaps = s1.oldHeaps) // reverting oldStore and oldHeaps that was updated for getting Heap information in unfolding case
+                val s2a = s2.copy(oldStore = s_1.oldStore, oldHeaps = s_1.oldHeaps) // reverting oldStore and oldHeaps that was updated for getting Heap information in unfolding case
                 produceR(s2a, sf, a2, pve, v2)((s3, v3) => {
                 SymbExLogger.currentLog().closeScope(uidCondExp)
                 Q(s3, v3)
