@@ -2608,65 +2608,6 @@ object evaluator extends EvaluationRules with Immutable {
       }})
   }
 
-    /* Evaluate a sequence of expressions in Order
-   * The constructor determines when the evaluation stops
-   * Only Or and And are supported for the constructor
-   */
-  private def evalSeqShortCircuitPc(constructor: Seq[Term] => Term,
-                                  s: State,
-                                  exps: Seq[ast.Exp],
-                                  pve: PartialVerificationError,
-                                  v: Verifier,
-                                  generateChecks: Boolean = true)
-                                 (Q: (State, Term, Verifier) => VerificationResult)
-                                 : VerificationResult = {
-    assert(
-      constructor == Or || constructor == And,
-      "Only Or and And are supported as constructors for evalSeqShortCircuitPc")
-
-    assert(exps.nonEmpty, "Empty sequence of expressions not allowed")
-
-    type brFun = (State, Verifier) => VerificationResult
-
-    val stop = if (constructor == Or) True() else False()
-
-    evalpc(s, exps.head, pve, v, generateChecks)((s1, t0, v1) => {
-      t0 match {
-        case _ if exps.tail.isEmpty => Q(s1, t0, v1) // Done, if no expressions left (necessary)
-        case `stop` => Q(s1, t0, v1) // Done, if last expression was true/false for or/and (optimisation)
-        case _ => {
-          // Get branch origin for brancher.branch
-            val branchCondOrigin: Option[CheckPosition] =
-              (s1.methodCallAstNode, s1.foldOrUnfoldAstNode, s1.loopPosition, s1.unfoldingAstNode) match {
-                case (None, None, None, None) => None
-                case (Some(methodCallAstNode), None, None, _) =>
-                  Some(CheckPosition.GenericNode(methodCallAstNode))
-                case (None, Some(foldOrUnfoldAstNode), None, _) =>
-                  Some(CheckPosition.GenericNode(foldOrUnfoldAstNode))
-                case (None, None, Some(loopPosition), _) =>
-                  Some(loopPosition)
-                case (None, None, None, Some(unfoldingAstNode)) =>
-                  Some(CheckPosition.GenericNode(unfoldingAstNode))
-                case _ =>
-                  println((s1.methodCallAstNode, s1.foldOrUnfoldAstNode, s1.loopPosition, s1.unfoldingAstNode))
-                  sys.error("Error: _ match case when setting a branch condition origin!")
-              }
-
-          joiner.join[Term, Term](s1, v1)((s2, v2, QB) =>            
-            brancher.branch(s2, if (constructor == Or) t0 else Not(t0), exps.head, branchCondOrigin, v2, true)(
-              (s3, v3) => QB(s3, constructor(Seq(t0)), v3),
-              (s3, v3) => evalSeqShortCircuitPc(constructor, s3, exps.tail, pve, v3, generateChecks)(QB))
-            ){case Seq(ent) =>
-                (ent.s, ent.data)
-              case Seq(ent1, ent2) =>
-                (ent1.s.merge(ent2.s), constructor(Seq(ent1.data, ent2.data)))
-              case entries =>
-                sys.error(s"Unexpected join data entries $entries")
-            }(Q)
-        }
-      }})
-  }
-
   private[silicon] case object FromShortCircuitingAnd extends Info {
     val comment = Nil
     val isCached = false
