@@ -290,10 +290,8 @@ object executor extends ExecutionRules with Immutable {
         sys.error(s"Unexpected block: $block")
 
       case block @ cfg.LoopHeadBlock(invs, stmts) =>
-        // every loop should have exactly one invariant, which may be an And
         // we use the first invariant in invs because invs is a Seq[ast.Exp]
-        // and a Seq may be mutable
-        assert(invs.length == 1)
+        // and a Seq may be mutable in CFGs produced by gvc0
         incomingEdgeKind match {
           case cfg.Kind.In =>
             /* We've reached a loop head block via an in-edge. Steps to perform:
