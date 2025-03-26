@@ -874,16 +874,21 @@ object consumer extends ConsumptionRules with Immutable {
           Q(s1, oh, h, t, v1)
         }) match {
           case (verificationResult, Some(returnedChecks)) =>
+            println("returnedChecks: " + returnedChecks)
             returnedState match {
               case Some((s1, pcs)) => {
-                val g = s1.oldStore match {
-                  case Some(g) => g
-                  case None => s1.g
+                // val g = s1.oldStore match {
+                //   case Some(g) => g
+                //   case None => s1.g
+                // }
+                val (g, h, oh) = s1.oldStore match {
+                  case Some(store) => (store, s1.h + s1.oldHeaps(Verifier.PRE_HEAP_LABEL), s1.optimisticHeap + s1.oldHeaps(Verifier.PRE_OPTHEAP_LABEL))
+                  case None => (s.g, s.h, s.optimisticHeap)
                 }
 
                 if (s1.generateChecks) {
                   runtimeChecks.addChecks(runtimeCheckAstNode,
-                    (new Translator(s1.copy(g = g), pcs).translate(returnedChecks) match {
+                    (new Translator(s1.copy(g = g, h = h, optimisticHeap = oh), pcs).translate(returnedChecks) match {
                       case None => sys.error("Error translating! Exiting safely.")
                       case Some(expr) => expr
                     }),

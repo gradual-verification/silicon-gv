@@ -205,10 +205,10 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
 
     // Retrieve aliasing information; add our
     // input variable to it
-    //println("reached variableResolver: " + variable) // debugging translate - Priyam
-    //println(s"oldHeaps: ${s.oldHeaps.map{case (id, h) => s"$id: ${h.values.mkString("[", ", ", "]")}"}.mkString("[", ", ", "]")}") // debugging translate - Priyam
+    println("reached variableResolver: " + variable) // debugging translate - Priyam
+    println(s"oldHeaps: ${s.oldHeaps.map{case (id, h) => s"$id: ${h.values.mkString("[", ", ", "]")}"}.mkString("[", ", ", "]")}") // debugging translate - Priyam
     val heapAliases: Seq[(terms.Term, String)] =
-      (s.h + s.optimisticHeap + s.oldHeaps.values.foldLeft(Heap())(_ + _)).getChunksForValue(variable, lenient) //  + s.oldHeaps.values.foldLeft(Heap())(_ + _) including oldHeaps here for help with translation - ASK JENNA if it might cause any unsoundness ( e.g. due to outdated values or other cases)
+      (s.h + s.optimisticHeap).getChunksForValue(variable, lenient) //  + s.oldHeaps.values.foldLeft(Heap())(_ + _) including oldHeaps here for help with translation - ASK JENNA if it might cause any unsoundness ( e.g. due to outdated values or other cases)
     // val oldHeapAliases = s.oldHeaps.getOrElse(Verifier.PRE_STATE_LABEL, Heap()).getChunksForValue(variable, lenient) // Priyam - tracking oldHeapAliases here to fix translation for asserting/consuming an unfolding expression's framed part
     val pcsEquivalentVariables: Seq[terms.Term] =
       pcs.getEquivalentVariables(variable, lenient) :+ variable
