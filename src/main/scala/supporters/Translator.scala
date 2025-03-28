@@ -129,7 +129,6 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
         }
       case terms.SortWrapper(t, sort) => {
         // println("Term: " + terms.SortWrapper(t, sort)) // debugging translate - Priyam
-        // println(s"oldHeaps: ${s.oldHeaps.map{case (id, h) => s"$id: ${h.values.mkString("[", ", ", "]")}"}.mkString("[", ", ", "]")}") // debugging translate - Priyam
         Some(variableResolver(terms.SortWrapper(t, sort))(0))
       }
       // how do we deal with snapshots? we need not {
@@ -297,8 +296,6 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
       case Some(oldStore) => oldStore
     }
 
-    //println("key for value from store: " + store.getKeyForValue(variable, lenient))
-
     val varType = resolveType(variable)
 
     // TODO: Make this handle predicates
@@ -321,7 +318,6 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
             s.optimisticHeap.getChunkForValue(variable, lenient) match {
               case None => None
               case Some((symVar, id)) =>
-                // println("symvar from OH: " + symVar) // debugging translate - Priyam
                 variableResolver(symVar) match {
                   case Seq() => None
                   case resolvedVariables =>
@@ -329,7 +325,6 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
                 }
             }
           case Some((symVar, id)) =>
-            // println("symvar from H: " + symVar) // debugging translate - Priyam
             variableResolver(symVar) match {
               case Seq() => None
               case resolvedVariables =>

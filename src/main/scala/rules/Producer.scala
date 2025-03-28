@@ -258,7 +258,8 @@ object producer extends ProductionRules with Immutable {
 
         val s_1 = s.copy(generateChecks = false, needConditionFramingProduce = true)
         evalpc(s_1, e0, pve, v, false)((s1, t0, v1) => {
-          val s1_1 = s.copy(generateChecks = true, needConditionFramingProduce = false, oldStore = s1.oldStore, oldHeaps = s1.oldHeaps) // updating oldStore and oldHeaps for getting heap information in unfolding case
+          val s1_1 = s.copy(generateChecks = true, needConditionFramingProduce = false, evalHeapsSet = s1.evalHeapsSet, oldHeaps = s1.oldHeaps) // updating evalHeapsSet and oldHeaps for getting heap information in unfolding case
+          // updating evalHeapsSet, oldHeaps is necessary to translate the branch condition when e0 is an unfolding expression
 
             // val branchPositionAstNode = s.methodCallAstNode match {
             //   case None => {
@@ -285,13 +286,13 @@ object producer extends ProductionRules with Immutable {
               }
 
             branch(s1_1, t0, e0, branchPosition, v1)((s2, v2) => {
-                val s2a = s2.copy(oldStore = s_1.oldStore, oldHeaps = s_1.oldHeaps) // reverting oldStore and oldHeaps that was updated for getting Heap information in unfolding case
+                val s2a = s2.copy(evalHeapsSet = s_1.evalHeapsSet, oldHeaps = s_1.oldHeaps) // reverting evalHeapsSet and oldHeaps that was updated for getting Heap information in unfolding case
                 produceR(s2a, sf, a1, pve, v2)((s3, v3) => {
                 SymbExLogger.currentLog().closeScope(uidCondExp)
                 Q(s3, v3)
               })},
               (s2, v2) => {
-                val s2a = s2.copy(oldStore = s_1.oldStore, oldHeaps = s_1.oldHeaps) // reverting oldStore and oldHeaps that was updated for getting Heap information in unfolding case
+                val s2a = s2.copy(evalHeapsSet = s_1.evalHeapsSet, oldHeaps = s_1.oldHeaps) // reverting evalHeapsSet and oldHeaps that was updated for getting Heap information in unfolding case
                 produceR(s2a, sf, a2, pve, v2)((s3, v3) => {
                 SymbExLogger.currentLog().closeScope(uidCondExp)
                 Q(s3, v3)

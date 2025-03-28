@@ -79,7 +79,8 @@ final case class State(g: Store = Store(),
                        generateChecks: Boolean = true,
                        needConditionFramingUnfold: Boolean = false,
                        needConditionFramingProduce: Boolean = false,
-                       madeOptimisticAssumptions: Boolean = false)
+                       madeOptimisticAssumptions: Boolean = false,
+                       evalHeapsSet: Boolean = false)
     extends Mergeable[State] {
 
   def incCycleCounter(m: ast.Predicate) =
@@ -169,7 +170,7 @@ object State {
                  predicateSnapMap1, predicateFormalVarMap1, hack1,
                  methodCallAstNode1, foldOrUnfoldAstNode1, loopPosition1, unfoldingAstNode1, forFraming1, generateChecks1,
                  needConditionFramingUnfold1, needConditionFramingProduce1,
-                 madeOptimisticAssumptions1) =>
+                 madeOptimisticAssumptions1, evalHeapsSet1) =>
         //sys.error("testing")
 
         s2 match {
@@ -196,11 +197,11 @@ object State {
                      predicateSnapMap2, predicateFormalVarMap2, hack2,
                      methodCallAstNode2, foldOrUnfoldAstNode2, loopPosition2, unfoldingAstNode2, forFraming2,
                      generateChecks2, needConditionFramingUnfold2,
-                     needConditionFramingProduce2, madeOptimisticAssumptions2) =>
+                     needConditionFramingProduce2, madeOptimisticAssumptions2, evalHeapsSet2) =>
            // only check relevant constructs
             if (g1 != g2) mismatches += s"g mismatch: ${g1} != ${g2}"
             if (h1 != h2) mismatches += s"heap mismatch: ${h1} != ${h2}"
-            if (oldHeaps1 != oldHeaps2) mismatches += s"oldHeaps mismatch ${oldHeaps1} != ${oldHeaps2}"
+            //if (oldHeaps1 != oldHeaps2) mismatches += s"oldHeaps mismatch ${oldHeaps1} != ${oldHeaps2}"
             if (isImprecise1 != isImprecise2) mismatches += s"isImprecise mismatch: ${isImprecise1} != ${isImprecise2}"
             if (optimisticHeap1 != optimisticHeap2) mismatches += s"optimisticHeap mismatch: ${optimisticHeap1} != ${optimisticHeap2}"
             if (gatherFrame1 != gatherFrame2) mismatches += s"gatherFrame mismatch: ${gatherFrame1} != ${gatherFrame2}"
@@ -258,7 +259,8 @@ object State {
             val ssCache3 = ssCache1 ++ ssCache2
 
             val madeOptimisticAssumptions3 = madeOptimisticAssumptions1 || madeOptimisticAssumptions2
-
+            val evalHeapsSet3 = evalHeapsSet1 || evalHeapsSet2
+            val oldHeaps3 = oldHeaps1 ++ oldHeaps2
             s1.copy(functionRecorder = functionRecorder3,
                     possibleTriggers = possibleTriggers3,
                     triggerExp = triggerExp3,
@@ -266,7 +268,9 @@ object State {
                     ssCache = ssCache3,
                     smCache = smCache3,
                     pmCache = pmCache3,
-                    madeOptimisticAssumptions = madeOptimisticAssumptions3)
+                    madeOptimisticAssumptions = madeOptimisticAssumptions3,
+                    evalHeapsSet = evalHeapsSet3,
+                    oldHeaps = oldHeaps3)
             // TODO: Should oldStore be updated here? what is oldStore for?
 
           case _ =>

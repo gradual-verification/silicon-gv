@@ -226,7 +226,9 @@ object evaluator extends EvaluationRules with Immutable {
                     reserveHeaps = Nil,
                     exhaleExt = false)
 
-    eval2pc(s1, e, pve, v, generateChecks)((s2, t, v1) => {
+    val s1a = s1.copy(evalHeapsSet = false) // resetting evalHeapsSet to false (only true after evaluating an unfolding expression)
+
+    eval2pc(s1a, e, pve, v, generateChecks)((s2, t, v1) => {
       val s3 =
         if (s2.recordPossibleTriggers)
           e match {
@@ -570,8 +572,9 @@ object evaluator extends EvaluationRules with Immutable {
               acc @ ast.PredicateAccessPredicate(pa @ ast.PredicateAccess(eArgs, predicateName), ePerm),
               eIn) =>
         println("WARNING: eval version of unfolding being called - shouldn't happen in gvc0 programs")
+        // val gIns = s.g + Store(predicate.formalArgs map (_.localVar) zip eArgs) // copied from unfold in PredicateSupporter, not sure if needed - Priyam
         val predicate = Verifier.program.findPredicate(predicateName)
-        if (s.cycles(predicate) < Verifier.config.recursivePredicateUnfoldings()) {
+        if (s.cycles(predicate) < Verifier.config.recursivePredicateUnfoldings()) { // config value is 1
           evals(s, eArgs, _ => pve, v)((s1, tArgs, v1) =>
             eval(s1, ePerm, pve, v1)((s2, tPerm, v2) =>
               v2.decider.assert(IsNonNegative(tPerm)) {
@@ -619,7 +622,7 @@ object evaluator extends EvaluationRules with Immutable {
                       // if-else casing required for setting origin while handling nested origins (outermost unfolding should be origin) - Priyam
                       val s7a = s7.copy(g = insg, unfoldingAstNode = if (s7.unfoldingAstNode == None) Some(unfolding) else s7.unfoldingAstNode, needConditionFramingUnfold = true)
 
-                      // disable origin tracking (for testing two different origins problem)
+                      // disable origin tracking (for testing purposes)
                       // val s7b = s7a.copy(unfoldingAstNode = None)
                       
                   
@@ -649,6 +652,7 @@ object evaluator extends EvaluationRules with Immutable {
                   createFailure(pve dueTo NegativePermission(ePerm), v2, s2)}))
         } else {
           val unknownValue = v.decider.appliedFresh("recunf", v.symbolConverter.toSort(eIn.typ), s.relevantQuantifiedVariables)
+          // v.logger.debug(s"assigning whole expression a symbolic value: ${unknownValue}")
           Q(s, unknownValue, v)
         }
 
@@ -1459,7 +1463,7 @@ object evaluator extends EvaluationRules with Immutable {
               eIn) =>
         // val gIns = s.g + Store(predicate.formalArgs map (_.localVar) zip eArgs) // copied from unfold in PredicateSupporter, not sure if needed - Priyam
         val predicate = Verifier.program.findPredicate(predicateName)
-        v.logger.debug(s"recursive unfolding depth ${s.cycles(predicate)}")
+        //v.logger.debug(s"recursive unfolding depth ${s.cycles(predicate)}")
         if (s.cycles(predicate) < Verifier.config.recursivePredicateUnfoldings()) { // config value is 1
           evalspc(s, eArgs, _ => pve, v, generateChecks)((s1, tArgs, v1) =>
             evalpc(s1, ePerm, pve, v1, generateChecks)((s2, tPerm, v2) =>
@@ -1481,14 +1485,13 @@ object evaluator extends EvaluationRules with Immutable {
 
                     // check here using findChunk if predicate is present in heap- Priyam
                     var predFramed = true
-                    val hTotal = s.h + s.optimisticHeap
+                    val hTotal = s4.h + s4.optimisticHeap
                     chunkSupporter.findChunk[NonQuantifiedChunk](hTotal.values, BasicChunkIdentifier(predicateName), tArgs, v2) match {
                       case Some(ch) =>//if v.decider.check(ch.perm === perms, Verifier.config.checkTimeout()) && v.decider.check(perms === FullPerm(), Verifier.config.checkTimeout()) =>
                         predFramed = true
                       case _ =>
                         predFramed = false
                     }
-                    v2.logger.debug("In eval-pc for unfolding expression")
                     consume(s4, acc, pve, v2)((s5, snap, v4) => {
                       val s5_1 = s5.copy(forFraming = false)
                       val fr6 =
@@ -1511,7 +1514,7 @@ object evaluator extends EvaluationRules with Immutable {
                       val s7a = s7.copy(g = insg, unfoldingAstNode = if (s7.unfoldingAstNode == None) Some(unfolding) else s7.unfoldingAstNode, needConditionFramingUnfold = s7.generateChecks)
 
 
-                      // disable origin tracking (for testing)
+                      // disable origin tracking (for testing purposes)
                       // val s7b = s7a.copy(unfoldingAstNode = None)
                   
                       produce(s7a, toSf(snap), body, pve, v4)((s8, v5) => {
@@ -1524,7 +1527,7 @@ object evaluator extends EvaluationRules with Immutable {
                         val s10 = stateConsolidator.consolidateIfRetrying(s9, v5)
                         evalpc(s10, eIn, pve, v5, generateChecks)((s11, eIn1, v6) => {
                           
-                          val s11a = s11.copy(oldStore = Some(s11.g), oldHeaps = s11.oldHeaps + (Verifier.PRE_HEAP_LABEL -> s11.h) + (Verifier.PRE_OPTHEAP_LABEL -> s11.optimisticHeap))
+                          val s11a = s11.copy(evalHeapsSet = true, oldHeaps = s11.oldHeaps + (Verifier.EVAL_HEAP_LABEL -> s11.h) + (Verifier.EVAL_OPTHEAP_LABEL -> s11.optimisticHeap)) // needed for translator
                           val ch = BasicChunk(PredicateID, BasicChunkIdentifier(predicateName), tArgs, snap.convert(sorts.Snap), tPerm)
       
                           body match {
@@ -1543,7 +1546,7 @@ object evaluator extends EvaluationRules with Immutable {
                   createFailure(pve dueTo NegativePermission(ePerm), v2, s2)}))
         } else {
           val unknownValue = v.decider.appliedFresh("recunf", v.symbolConverter.toSort(eIn.typ), s.relevantQuantifiedVariables)
-          v.logger.debug(s"assigning whole expression a symbolic value: ${unknownValue}")
+          // v.logger.debug(s"assigning whole expression a symbolic value: ${unknownValue}")
           Q(s, unknownValue, v)
         }
 

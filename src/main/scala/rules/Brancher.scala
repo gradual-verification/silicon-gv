@@ -50,6 +50,11 @@ object brancher extends BranchingRules with Immutable {
       case None => (s.g, s.h, s.optimisticHeap)
     }
 
+    val (h1, oh1) = s.evalHeapsSet match {
+      case true => (h + s.oldHeaps(Verifier.EVAL_HEAP_LABEL), oh + s.oldHeaps(Verifier.EVAL_OPTHEAP_LABEL))
+      case false => (h, oh)
+    }
+
     /* Skip path feasibility check if one of the following holds:
      *   (1) the branching is due to the short-circuiting evaluation of a conjunction
      *   (2) the branch condition contains a quantified variable
@@ -133,7 +138,7 @@ object brancher extends BranchingRules with Immutable {
 
             v1.decider.prover.comment(s"[else-branch: $cnt | $negatedCondition]")
             val negCond: Exp =
-              (new Translator(s1.copy(g = g, h = h, optimisticHeap = oh), v1.decider.pcs).translate(negatedCondition) match {
+              (new Translator(s1.copy(g = g, h = h1, optimisticHeap = oh1), v1.decider.pcs).translate(negatedCondition) match {
                 case None => sys.error("Error translating! Exiting safely.")
                 case Some(expr) => expr
               })
@@ -177,7 +182,7 @@ object brancher extends BranchingRules with Immutable {
         // v1.logger.debug("g = " + v1.stateFormatter.format(g))
         // v1.logger.debug(s"condition: ${condition}")
         val cond: Exp =
-          (new Translator(s1.copy(g = g, h = h, optimisticHeap = oh), v1.decider.pcs).translate(condition) match {
+          (new Translator(s1.copy(g = g, h = h1, optimisticHeap = oh1), v1.decider.pcs).translate(condition) match {
             case None => sys.error("Error translating! Exiting safely.")
             case Some(expr) => expr
           })
@@ -234,7 +239,7 @@ object brancher extends BranchingRules with Immutable {
             case Failure(m1) => {
               /* run-time check for rsThen branch */
               val cond: Exp =
-                (new Translator(s.copy(g = g, h = h, optimisticHeap = oh), v.decider.pcs).translate(condition) match {
+                (new Translator(s.copy(g = g, h = h1, optimisticHeap = oh1), v.decider.pcs).translate(condition) match {
                   case None => sys.error("Error translating! Exiting safely.")
                   case Some(expr) => expr
                 })
@@ -274,7 +279,7 @@ object brancher extends BranchingRules with Immutable {
             case Success() => {
               /* run-time check for rsElse branch */
               val negCond: Exp =
-                (new Translator(s.copy(g = g, h = h, optimisticHeap = oh), v.decider.pcs).translate(negatedCondition) match {
+                (new Translator(s.copy(g = g, h = h1, optimisticHeap = oh1), v.decider.pcs).translate(negatedCondition) match {
                   case None => sys.error("Error translating! Exiting safely.")
                   case Some(expr) => expr
                 })
