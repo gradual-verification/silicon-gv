@@ -127,10 +127,8 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
           }
           case _ => selectShortestField(variableResolver(terms.Var(name, sort)))
         }
-      case terms.SortWrapper(t, sort) => {
-        // println("Term: " + terms.SortWrapper(t, sort)) // debugging translate - Priyam
+      case terms.SortWrapper(t, sort) => 
         Some(variableResolver(terms.SortWrapper(t, sort))(0))
-      }
       // how do we deal with snapshots? we need not {
       //
       // snapshots only exist in the path condition because the latter is
