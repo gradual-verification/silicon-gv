@@ -2,8 +2,9 @@ package viper.silicon.supporters
 
 import viper.silver.ast
 import viper.silicon.decider.RecordedPathConditions
-import viper.silicon.state.{BasicChunk, Identifier, State, Store, terms}
+import viper.silicon.state.{BasicChunk, Heap, Identifier, State, Store, terms}
 import viper.silicon.resources.{FieldID, PredicateID}
+import viper.silicon.verifier.Verifier
 
 // should we use the path conditions from the state?
 final class Translator(s: State, pcs: RecordedPathConditions) {
@@ -126,7 +127,7 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
           }
           case _ => selectShortestField(variableResolver(terms.Var(name, sort)))
         }
-      case terms.SortWrapper(t, sort) =>
+      case terms.SortWrapper(t, sort) => 
         Some(variableResolver(terms.SortWrapper(t, sort))(0))
       // how do we deal with snapshots? we need not {
       //
@@ -201,8 +202,11 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
 
     // Retrieve aliasing information; add our
     // input variable to it
+    // println("reached variableResolver: " + variable) // debugging translate - Priyam
+    // println(s"oldHeaps: ${s.oldHeaps.map{case (id, h) => s"$id: ${h.values.mkString("[", ", ", "]")}"}.mkString("[", ", ", "]")}") // debugging translate - Priyam
     val heapAliases: Seq[(terms.Term, String)] =
-      (s.h + s.optimisticHeap).getChunksForValue(variable, lenient)
+      (s.h + s.optimisticHeap).getChunksForValue(variable, lenient) //  + s.oldHeaps.values.foldLeft(Heap())(_ + _) including oldHeaps here for help with translation - ASK JENNA if it might cause any unsoundness ( e.g. due to outdated values or other cases)
+    // val oldHeapAliases = s.oldHeaps.getOrElse(Verifier.PRE_STATE_LABEL, Heap()).getChunksForValue(variable, lenient) // Priyam - tracking oldHeapAliases here to fix translation for asserting/consuming an unfolding expression's framed part
     val pcsEquivalentVariables: Seq[terms.Term] =
       pcs.getEquivalentVariables(variable, lenient) :+ variable
     
@@ -300,10 +304,10 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
     // I guess we may attempt to translate predicate instance arguments...?
 
     // TODO: The case where both the regular heap and optimistic heap have the
-    // variable should never happen, maybe
+    // variable should never happen, maybe -> it can happen due to optimizations in evaluating unfolding expressions - Priyam
+    // 
     //
-    // Ask Jenna about this?
-
+    // println("h (to find symvar) = " + s.h.values.mkString("[", ", ", "]")) // debugging translate - Priyam
     store.getKeyForValue(variable, lenient) match {
       case None =>
         // Search both heaps for the variable

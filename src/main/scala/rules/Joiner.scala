@@ -49,7 +49,7 @@ object joiner extends JoiningRules with Immutable {
                          h = s1.h,
                          optimisticHeap = s1.optimisticHeap,
                          frameArgHeap  = s1.frameArgHeap,
-                         oldHeaps = s1.oldHeaps,
+                         //oldHeaps = s1.oldHeaps, - commented out since resetting oldHeaps results in loss of info needed to translate an unfolding expression
                          underJoin = s1.underJoin)
         entries :+= JoinDataEntry(s4, data, v2.decider.pcs.after(preMark))
         Success()

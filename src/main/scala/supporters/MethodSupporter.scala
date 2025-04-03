@@ -79,6 +79,7 @@ trait DefaultMethodVerificationUnitProvider extends VerifierComponent { v: Verif
         /* Combined the well-formedness check and the execution of the body, which are two separate
          * rules in Smans paper.
          */
+         
         executionFlowController.locally(s, v)((s1, v1) => {
           wellformed(s1, freshSnap, pres, ContractNotWellformed(viper.silicon.utils.ast.BigAnd(pres)), v1)((s2, v2) => {
             v2.decider.prover.saturate(Verifier.config.z3SaturationTimeouts.afterContract)
@@ -96,8 +97,12 @@ trait DefaultMethodVerificationUnitProvider extends VerifierComponent { v: Verif
                executionFlowController.locally(s2a, v2)((s3, v3) => {
                   exec(s3, body, v3)((s4, v4) => {
                     val sepIdentifier = SymbExLogger.currentLog().openScope(new EndRecord(s4, v4.decider.pcs))
-                    consumes(s4, posts, postViolated, v4)((_, _, _) => {
+                    consumes(s4, posts, postViolated, v4)((s5, _, v5) => {
                       SymbExLogger.currentLog().closeScope(sepIdentifier)
+                      // print final state here
+                      // put logger debug here
+                      v4.logger.debug(s"\nFINAL STATE OF METHOD ${method.name}")
+                      v4.logger.debug(v4.stateFormatter.format(s5, v5.decider.pcs))
                       Success()
                     })
                   }) }) }  )})})

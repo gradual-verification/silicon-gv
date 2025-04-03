@@ -46,6 +46,8 @@ object Verifier {
   val PRE_STATE_LABEL = "old"
   val PRE_HEAP_LABEL = "oldH"
   val PRE_OPTHEAP_LABEL = "oldOH"
+  val EVAL_HEAP_LABEL = "oldeH"
+  val EVAL_OPTHEAP_LABEL = "oldeOH"
   val MAGIC_WAND_LHS_STATE_LABEL = LabelledOld.LhsOldLabel
 
   private var _config: Config = _

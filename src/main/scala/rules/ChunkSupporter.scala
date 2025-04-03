@@ -111,7 +111,7 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
 
   private def consume(s: State,
                       h: Heap,
-                      consolidate: Boolean,
+                      consolidate: Boolean, // True when regular heap
                       resource: ast.Resource,
                       args: Seq[Term],
                       perms: Term,
@@ -123,7 +123,7 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
     if (consolidate) {
       s1 = stateConsolidator.consolidate(s.copy(h = h), v)
     }
-    consumeGreedy(s1, s1.h, resource, args, perms, v) match {
+    consumeGreedy(s1, s1.h, consolidate, resource, args, perms, v) match {
       case (Complete(), s2, h2, optCh2) =>
         Q(s2.copy(h = s.h), h2, optCh2.map(_.snap), v)
 
@@ -139,6 +139,7 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
 
   private def consumeGreedy(s: State,
                             h: Heap,
+                            isRegularHeap: Boolean,
                             resource: ast.Resource,
                             args: Seq[Term],
                             perms: Term,
@@ -182,7 +183,27 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
         findChunk[NonQuantifiedChunk](h.values, id, args, v) match {
           // I'm not sure if I need these checks but I included them to be safe - J
           case Some(ch) if v.decider.check(ch.perm === perms, Verifier.config.checkTimeout()) && v.decider.check(perms === FullPerm(), Verifier.config.checkTimeout()) =>
-            (Complete(), s, newH, Some(ch))
+            // handles removing all predicates from OH when field chunk is in optimistic heap (Note: field chunk in regular heap handled by next case) - Priyam
+            if (!isRegularHeap){
+              var newH2: Heap = newH.values.foldLeft(Heap()) { (currHeap, chunk) =>
+                chunk match {
+                  case c: NonQuantifiedChunk =>
+                    c.resourceID match {
+                      case FieldID =>
+                        currHeap + c
+                      case _ =>
+                        currHeap
+                    }
+                  case _ =>
+                    currHeap
+                }
+              }
+              (Complete(), s, newH2, Some(ch))
+            }
+            else {
+              (Complete(), s, newH, Some(ch))
+            }
+
 
           case _ => {
             var newH2: Heap = newH.values.foldLeft(Heap()) { (currHeap, chunk) =>
@@ -315,11 +336,12 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
                     val s2 = s.copy(optimisticHeap = oh)
 
                     val runtimeCheckAstNode: CheckPosition =
-                      (s2.methodCallAstNode, s2.foldOrUnfoldAstNode, s2.loopPosition) match {
-                        case (None, None, None) => CheckPosition.GenericNode(runtimeCheckFieldTarget)
-                        case (Some(methodCallAstNode), None, None) => CheckPosition.GenericNode(methodCallAstNode)
-                        case (None, Some(foldOrUnfoldAstNode), None) => CheckPosition.GenericNode(foldOrUnfoldAstNode)
-                        case (None, None, Some(loopPosition)) => loopPosition
+                      (s2.methodCallAstNode, s2.foldOrUnfoldAstNode, s2.loopPosition, s2.unfoldingAstNode) match {
+                        case (None, None, None, None) => CheckPosition.GenericNode(runtimeCheckFieldTarget)
+                        case (Some(methodCallAstNode), None, None, _) => CheckPosition.GenericNode(methodCallAstNode)
+                        case (None, Some(foldOrUnfoldAstNode), None, _) => CheckPosition.GenericNode(foldOrUnfoldAstNode)
+                        case (None, None, Some(loopPosition), _) => loopPosition
+                        case (None, None, None, Some(unfoldingAstNode)) => CheckPosition.GenericNode(unfoldingAstNode)
                         case _ => sys.error("Conflicting positions found while adding runtime check!")
                       }
 
@@ -388,11 +410,12 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
                     val snap = v.decider.fresh(s"${args.head}.$id", v.symbolConverter.toSort(f.typ))
 
                     val runtimeCheckAstNode: CheckPosition =
-                      (s.methodCallAstNode, s.foldOrUnfoldAstNode, s.loopPosition) match {
-                        case (None, None, None) => CheckPosition.GenericNode(runtimeCheckFieldTarget)
-                        case (Some(methodCallAstNode), None, None) => CheckPosition.GenericNode(methodCallAstNode)
-                        case (None, Some(foldOrUnfoldAstNode), None) => CheckPosition.GenericNode(foldOrUnfoldAstNode)
-                        case (None, None, Some(loopPosition)) => loopPosition
+                      (s.methodCallAstNode, s.foldOrUnfoldAstNode, s.loopPosition, s.unfoldingAstNode) match {
+                        case (None, None, None, None) => CheckPosition.GenericNode(runtimeCheckFieldTarget)
+                        case (Some(methodCallAstNode), None, None, _) => CheckPosition.GenericNode(methodCallAstNode)
+                        case (None, Some(foldOrUnfoldAstNode), None, _) => CheckPosition.GenericNode(foldOrUnfoldAstNode)
+                        case (None, None, Some(loopPosition), _) => loopPosition
+                        case (None, None, None, Some(unfoldingAstNode)) => CheckPosition.GenericNode(unfoldingAstNode)
                         case _ => sys.error("Conflicting positions found while adding runtime check!")
                       }
 

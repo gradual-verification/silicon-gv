@@ -11,6 +11,7 @@ import viper.silver.ast
 import viper.silver.ast.utility.QuantifiedPermissions.QuantifiedPermissionAssertion
 import viper.silver.verifier.PartialVerificationError
 import viper.silicon.interfaces.{Failure, VerificationResult}
+import viper.silicon.interfaces.state.{ChunkIdentifer, NonQuantifiedChunk}
 import viper.silicon.logger.SymbExLogger
 import viper.silicon.logger.records.data.{CondExpRecord, ProduceRecord}
 import viper.silicon.resources.{FieldID, PredicateID}
@@ -257,7 +258,8 @@ object producer extends ProductionRules with Immutable {
 
         val s_1 = s.copy(generateChecks = false, needConditionFramingProduce = true)
         evalpc(s_1, e0, pve, v, false)((s1, t0, v1) => {
-          val s1_1 = s.copy(generateChecks = true, needConditionFramingProduce = false)
+          val s1_1 = s.copy(generateChecks = true, needConditionFramingProduce = false, evalHeapsSet = s1.evalHeapsSet, oldHeaps = s1.oldHeaps) // updating evalHeapsSet and oldHeaps for getting heap information in unfolding case
+          // updating evalHeapsSet, oldHeaps is necessary to translate the branch condition when e0 is an unfolding expression
 
             // val branchPositionAstNode = s.methodCallAstNode match {
             //   case None => {
@@ -268,30 +270,33 @@ object producer extends ProductionRules with Immutable {
             // }
             
             val branchPosition: Option[CheckPosition] =
-              (s1_1.methodCallAstNode, s1_1.foldOrUnfoldAstNode, s1_1.loopPosition) match {
-                case (None, None, None) => None
-                case (Some(methodCallAstNode), None, None) =>
+              (s1_1.methodCallAstNode, s1_1.foldOrUnfoldAstNode, s1_1.loopPosition, s1_1.unfoldingAstNode) match {
+                case (None, None, None, None) => None
+                case (Some(methodCallAstNode), None, None, _) =>
                   Some(CheckPosition.GenericNode(methodCallAstNode))
-                case (None, Some(foldOrUnfoldAstNode), None) =>
+                case (None, Some(foldOrUnfoldAstNode), None, _) =>
                   Some(CheckPosition.GenericNode(foldOrUnfoldAstNode))
-                case (None, None, Some(loopPosition)) =>
+                case (None, None, Some(loopPosition), _) =>
                   Some(loopPosition)
+                case (None, None, None, Some(unfoldingAstNode)) =>
+                  Some(CheckPosition.GenericNode(unfoldingAstNode))
                 case _ =>
-                  sys.error("We shouldn't need to consider this case until "
-                    + "we have unfoldings! We have an error here instead of a "
-                    + "temporary solution like enclosing both in ast.And because "
-                    + "we want to know if this occurs!")
+                  println((s1_1.methodCallAstNode, s1_1.foldOrUnfoldAstNode, s1_1.loopPosition, s1_1.unfoldingAstNode))
+                  sys.error("Error: _ match case when setting a branch condition origin!")
               }
 
-            branch(s1_1, t0, e0, branchPosition, v1)(
-              (s2, v2) => produceR(s2, sf, a1, pve, v2)((s3, v3) => {
+            branch(s1_1, t0, e0, branchPosition, v1)((s2, v2) => {
+                val s2a = s2.copy(evalHeapsSet = s_1.evalHeapsSet, oldHeaps = s_1.oldHeaps) // reverting evalHeapsSet and oldHeaps that was updated for getting Heap information in unfolding case
+                produceR(s2a, sf, a1, pve, v2)((s3, v3) => {
                 SymbExLogger.currentLog().closeScope(uidCondExp)
                 Q(s3, v3)
-              }),
-              (s2, v2) => produceR(s2, sf, a2, pve, v2)((s3, v3) => {
+              })},
+              (s2, v2) => {
+                val s2a = s2.copy(evalHeapsSet = s_1.evalHeapsSet, oldHeaps = s_1.oldHeaps) // reverting evalHeapsSet and oldHeaps that was updated for getting Heap information in unfolding case
+                produceR(s2a, sf, a2, pve, v2)((s3, v3) => {
                 SymbExLogger.currentLog().closeScope(uidCondExp)
                 Q(s3, v3)
-              }))
+              })})
         })
 
 /*      case let: ast.Let if !let.isPure =>

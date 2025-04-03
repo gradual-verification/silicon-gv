@@ -297,17 +297,22 @@ object consumer extends ConsumptionRules with Immutable {
             // this has been changed since that point, but we should figure out what the
             // issue was... it is commit with the message "Buggy changes to track branch positions
             // for method call sites"
+
+            // unfolding can probably never be the origin here - Priyam
             val branchPosition: Option[CheckPosition] =
-              (s.methodCallAstNode, s.foldOrUnfoldAstNode, s.loopPosition) match {
-                case (None, None, None) => None
-                case (Some(methodCallAstNode), None, None) => Some(CheckPosition.GenericNode(methodCallAstNode))
-                case (None, Some(foldOrUnfoldAstNode), None) => Some(CheckPosition.GenericNode(foldOrUnfoldAstNode))
-                case (None, None, Some(_)) => s.loopPosition
-                case _ => {
-                  sys.error("This should not happen, at least until we support "
-                    + "unfoldings, maybe! We don't deal with this case at the "
-                    + "moment because we want to know if this happens!")
-                }
+              (s.methodCallAstNode, s.foldOrUnfoldAstNode, s.loopPosition, s.unfoldingAstNode) match {
+                case (None, None, None, None) => None
+                case (Some(methodCallAstNode), None, None, _) =>
+                  Some(CheckPosition.GenericNode(methodCallAstNode))
+                case (None, Some(foldOrUnfoldAstNode), None, _) =>
+                  Some(CheckPosition.GenericNode(foldOrUnfoldAstNode))
+                case (None, None, Some(loopPosition), _) =>
+                  Some(loopPosition)
+                case (None, None, None, Some(unfoldingAstNode)) =>
+                  Some(CheckPosition.GenericNode(unfoldingAstNode))
+                case _ =>
+                  println((s.methodCallAstNode, s.foldOrUnfoldAstNode, s.loopPosition, s.unfoldingAstNode))
+                  sys.error("Error: _ match case when setting a branch condition origin!")
               }
 
             branch(s2, t0, e0, branchPosition, v1)(
@@ -554,6 +559,7 @@ object consumer extends ConsumptionRules with Immutable {
                       
                       if (!chunkExisted && !chunkExisted1) {
                         
+                      // unfolding cannot be the origin here
                         val runtimeCheckAstNode: CheckPosition =
                           (s5.methodCallAstNode, s5.foldOrUnfoldAstNode, s5.loopPosition) match {
                             case (None, None, None) => CheckPosition.GenericNode(a)
@@ -596,7 +602,8 @@ object consumer extends ConsumptionRules with Immutable {
                           profilingInfo.incrementEliminatedConjuncts
                         }
 
-                        Q(s5, oh1, h1, snap2, v4)}})}
+                        Q(s5, Heap(), Heap(), snap2, v4)}})} // replace oh1 and h1 with Heap() since OH and H should be emptied since predicate was in OH - Priyam
+
 
                   else if (chunkExisted) {
 
@@ -645,6 +652,7 @@ object consumer extends ConsumptionRules with Immutable {
                       
                       if (!chunkExisted && !chunkExisted1) {
 
+                        // unfolding cannot be the origin here
                         val runtimeCheckAstNode: CheckPosition =
                           (s5.methodCallAstNode, s5.foldOrUnfoldAstNode, s5.loopPosition) match {
                             case (None, None, None) => CheckPosition.GenericNode(locacc)
@@ -708,6 +716,7 @@ object consumer extends ConsumptionRules with Immutable {
                     case Some(returnedChecks) => {
                       // should use v2.decider.pcs here? yes
 
+                      // unfolding cannot be the origin here
                       val runtimeCheckAstNode: CheckPosition =
                         (s2.methodCallAstNode, s2.foldOrUnfoldAstNode, s2.loopPosition) match {
                           case (None, None, None) => CheckPosition.GenericNode(a)
@@ -833,6 +842,8 @@ object consumer extends ConsumptionRules with Immutable {
         //
         // we want to map the runtime check from the fold or unfold statement,
         // not something in the body of a predicate
+
+        // unfolding cannot be the origin here
         var runtimeCheckAstNode: CheckPosition = (s.methodCallAstNode, s.foldOrUnfoldAstNode, s.loopPosition) match {
           case (None, None, None) => CheckPosition.GenericNode(a)
           case (Some(methodCallAstNode), None, None) =>
@@ -863,16 +874,21 @@ object consumer extends ConsumptionRules with Immutable {
           Q(s1, oh, h, t, v1)
         }) match {
           case (verificationResult, Some(returnedChecks)) =>
+            // println("returnedChecks: " + returnedChecks)
             returnedState match {
               case Some((s1, pcs)) => {
-                val g = s1.oldStore match {
-                  case Some(g) => g
-                  case None => s1.g
+                // val g = s1.oldStore match {
+                //   case Some(g) => g
+                //   case None => s1.g
+                // }
+                val (h, oh) = s1.evalHeapsSet match {
+                  case true => (s1.h + s1.oldHeaps(Verifier.EVAL_HEAP_LABEL), s1.optimisticHeap + s1.oldHeaps(Verifier.EVAL_OPTHEAP_LABEL))
+                  case false => (s1.h, s1.optimisticHeap)
                 }
 
                 if (s1.generateChecks) {
                   runtimeChecks.addChecks(runtimeCheckAstNode,
-                    (new Translator(s1.copy(g = g), pcs).translate(returnedChecks) match {
+                    (new Translator(s1.copy(h = h, optimisticHeap = oh), pcs).translate(returnedChecks) match {
                       case None => sys.error("Error translating! Exiting safely.")
                       case Some(expr) => expr
                     }),
