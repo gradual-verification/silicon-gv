@@ -7,55 +7,37 @@
 package viper.silicon.logger
 
 import org.slf4j.LoggerFactory
-<<<<<<< HEAD
+import spray.json._
 import viper.silicon.common.collections.immutable.InsertionOrderedSet
 import viper.silicon.decider.PathConditionStack
-import viper.silicon.interfaces.state.Chunk
-import viper.silicon.logger.SymbExLogger.getRecordConfig
-=======
-import spray.json._
-import viper.silicon.decider.PathConditionStack
 import viper.silicon.logger.LogConfigProtocol._
->>>>>>> upstream/master
+import viper.silicon.logger.SymbExLogger.getRecordConfig
+import viper.silicon.interfaces.state.Chunk
 import viper.silicon.logger.records.SymbolicRecord
 import viper.silicon.logger.records.data._
 import viper.silicon.logger.records.scoping.{CloseScopeRecord, OpenScopeRecord, ScopingRecord}
 import viper.silicon.logger.records.structural.BranchingRecord
 import viper.silicon.logger.renderer.SimpleTreeRenderer
-<<<<<<< HEAD
 import viper.silicon.resources.{FieldID, PredicateID}
 import viper.silicon.state._
 import viper.silicon.state.terms._
 import viper.silicon.{Config, Map}
 import viper.silver.ast
-import viper.silver.verifier.AbstractError
-=======
-import viper.silicon.state.terms._
-import viper.silicon.{Config, Map}
-import viper.silver.ast
 import viper.silver.ast.{Exp, Member}
->>>>>>> upstream/master
+import viper.silver.verifier.AbstractError
 
 import java.util.concurrent.atomic.AtomicInteger
 import scala.annotation.elidable
 import scala.annotation.elidable._
-<<<<<<< HEAD
 import scala.collection.mutable
-=======
 import scala.collection.immutable
->>>>>>> upstream/master
 import scala.util.{Failure, Success, Try}
 
 /**
   * ================================
   * SymbExLogger Usage
   * ================================
-<<<<<<< HEAD
-  * The SymbExLogger has to be enabled by passing `--ideModeAdvanced` to Silicon (which in turn
-  * requires numberOfParallelVerifiers to be 1).
-=======
   * The SymbExLogger has to be enabled by passing `--ideModeAdvanced` to Silicon.
->>>>>>> upstream/master
   * Unless otherwise specified, the default logConfig will be used (viper.silicon.logger.LogConfig.default()):
   * All logged records will be included in the report, but store, heap, and path conditions will be omitted.
   *
@@ -216,8 +198,14 @@ import scala.util.{Failure, Success, Try}
   * // symbExLog.markReachable(uidBranchPoint)
   */
 
-<<<<<<< HEAD
-object SymbExLogger {
+case object SymbExLogger {
+  def ofConfig(config: Config): SymbExLogger[_ <: MemberSymbExLogger] = {
+    if (config.ideModeAdvanced())
+      SymbExLog(parseLogConfig(config))
+    else
+      NoopSymbExLog
+  }
+
   /** Collection of logged Method/Predicates/Functions. **/
   var memberList: Seq[SymbLog] = Seq[SymbLog]()
   private var uidCounter = 0
@@ -229,19 +217,10 @@ object SymbExLogger {
     val uid = uidCounter
     uidCounter = uidCounter + 1
     uid
-=======
-case object SymbExLogger {
-  def ofConfig(config: Config): SymbExLogger[_ <: MemberSymbExLogger] = {
-    if (config.ideModeAdvanced())
-      SymbExLog(parseLogConfig(config))
-    else
-      NoopSymbExLog
->>>>>>> upstream/master
   }
 
   private lazy val textLogger = LoggerFactory.getLogger(classOf[SymbExLogger[_]])
 
-<<<<<<< HEAD
   /**
     * stores the last SMT solver statistics to calculate the diff
     */
@@ -293,15 +272,9 @@ case object SymbExLogger {
     enabled = b
   }
 
-  private def parseLogConfig(c: Config): LogConfig = {
-    var logConfigPath = Try(c.logConfig())
-    logConfigPath = logConfigPath.filter(path => Files.exists(Paths.get(path)))
-    val source = logConfigPath.map(path => scala.io.Source.fromFile(path))
-=======
   private def parseLogConfig(config: Config): LogConfig = {
     val logConfigPath = config.logConfig.getOrElse(return LogConfig.default())
     val source = Success(logConfigPath).map(path => scala.io.Source.fromFile(path))
->>>>>>> upstream/master
     val fileContent = source.map(s => s.getLines().mkString)
     val jsonAst = fileContent.flatMap(content => Try(content.parseJson))
     val logConfig = jsonAst.flatMap(ast => Try(ast.convertTo[LogConfig]))
@@ -378,7 +351,6 @@ case class SymbExLog(logConfig: LogConfig) extends SymbExLogger[MemberSymbExLog]
     * Simple string representation of the logs.
     */
   def toSimpleTreeString: String = {
-<<<<<<< HEAD
     if (enabled) {
       val simpleTreeRenderer = new SimpleTreeRenderer()
       simpleTreeRenderer.render(memberList)
@@ -644,10 +616,6 @@ case class SymbExLog(logConfig: LogConfig) extends SymbExLogger[MemberSymbExLog]
       case (_, _, Some(curDouble), Some(prevDouble)) => (pair._1, Some((curDouble - prevDouble).toString))
       case _ => (pair._1, None)
     }
-=======
-    val simpleTreeRenderer = new SimpleTreeRenderer()
-    simpleTreeRenderer.render(members.values)
->>>>>>> upstream/master
   }
 }
 
@@ -678,7 +646,7 @@ abstract class MemberSymbExLogger(log: SymbExLogger[_],
   // Maps macros to their body
   private var _macros = Map[App, Term]()
 
-<<<<<<< HEAD
+/*<<<<<<< HEAD
   val main: MemberRecord = v match {
     case m: ast.Method => new MethodRecord(m, s, pcs)
     case p: ast.Predicate => new PredicateRecord(p, s, pcs)
@@ -686,12 +654,12 @@ abstract class MemberSymbExLogger(log: SymbExLogger[_],
     case _ => null
   }
   openScope(main)
-=======
+=======*/
   def close(): Unit =
     synchronized {
       closed = true
     }
->>>>>>> upstream/master
+//>>>>>>> upstream/master
 
   def whenOpen(f: => Unit): Unit =
     synchronized {

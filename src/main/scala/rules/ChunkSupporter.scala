@@ -6,11 +6,8 @@
 
 package viper.silicon.rules
 
-<<<<<<< HEAD
-import scala.reflect.ClassTag
-import viper.silver.ast
-import viper.silver.verifier.{VerificationError, PartialVerificationError}
 import viper.silicon.Stack
+import viper.silicon.debugger.DebugExp
 import viper.silicon.interfaces.state._
 import viper.silicon.interfaces.{Failure, Success, VerificationResult}
 import viper.silicon.resources.{NonQuantifiedPropertyInterpreter, Resources, FieldID, PredicateID}
@@ -19,16 +16,7 @@ import viper.silicon.state.terms._
 import viper.silicon.state.terms.perms.IsPositive
 import viper.silicon.supporters.Translator
 import viper.silicon.utils
-=======
-import viper.silicon.debugger.DebugExp
-import viper.silicon.interfaces.state._
-import viper.silicon.interfaces.{Success, VerificationResult}
-import viper.silicon.resources.{NonQuantifiedPropertyInterpreter, Resources}
-import viper.silicon.state._
-import viper.silicon.state.terms._
-import viper.silicon.state.terms.perms.IsPositive
 import viper.silicon.utils.ast.buildMinExp
->>>>>>> upstream/master
 import viper.silicon.verifier.Verifier
 import viper.silver.ast
 import viper.silver.parser.PUnknown
@@ -49,11 +37,7 @@ trait ChunkSupportRules extends SymbolicExecutionRules {
               ve: VerificationError,
               v: Verifier,
               description: String)
-<<<<<<< HEAD
-             (Q: (State, Heap, Term, Verifier, Boolean) => VerificationResult)
-=======
-             (Q: (State, Heap, Option[Term], Verifier) => VerificationResult)
->>>>>>> upstream/master
+             (Q: (State, Heap, Option[Term], Verifier, Boolean) => VerificationResult)
              : VerificationResult
 
   def produce(s: State, h: Heap, ch: NonQuantifiedChunk, v: Verifier)
@@ -79,11 +63,8 @@ trait ChunkSupportRules extends SymbolicExecutionRules {
              chunk: Iterable[Chunk],
              resource: ast.Resource,
              args: Seq[Term],
-<<<<<<< HEAD
-=======
              argsExp: Option[Seq[ast.Exp]],
              ve: VerificationError,
->>>>>>> upstream/master
              v: Verifier)
             : Boolean
 
@@ -116,25 +97,80 @@ object chunkSupporter extends ChunkSupportRules {
               v: Verifier,
               description: String)
 <<<<<<< HEAD
-             (Q: (State, Heap, Term, Verifier, Boolean) => VerificationResult)
+             (Q: (State, Heap, Option[Term], Verifier, Boolean) => VerificationResult)
              : VerificationResult = {
 
-      consume(s, h, consolidate, resource, args, perms, ve, v)((s1, h1, optSnap, v1) =>
-        optSnap match {
-          case Some(snap) =>
-            Q(s1, h1, snap.convert(sorts.Snap), v1, true)
-
-          case None =>
-            /* Not having consumed anything could mean that we are in an infeasible
-             * branch, or that the permission amount to consume was zero.
-             * Returning a fresh snapshot in these cases should not lose any information.
-             */
-
-            val fresh = v1.decider.fresh(sorts.Snap)
-            val s2 = s1.copy(functionRecorder = s1.functionRecorder.recordFreshSnapshot(fresh.applicable))
-            Q(s2, h1, fresh, v1, false)
-        })
+    consume2(s, h, consolidate, resource, args, argsExp, perms, permsExp, returnSnap, ve, v)((s2, h2, optSnap, v2) =>
+      optSnap match {
+        case Some(snap) =>
+          Q(s2, h2, Some(snap.convert(sorts.Snap)), v2, true)
+        case None if returnSnap =>
+          /* Not having consumed anything could mean that we are in an infeasible
+           * branch, or that the permission amount to consume was zero.
+           *
+           * [MS 2022-01-28] Previously, a a fresh snapshot was retured, which also had to be
+           * registered with the function recorder. However, since nothing was consumed,
+           * returning the unit snapshot seems more appropriate.
+           */
+          val fresh = v2.decider.fresh(sorts.Snap, Option.when(withExp)(PUnknown()))
+          val s3 = s2.copy(functionRecorder = s2.functionRecorder.recordFreshSnapshot(fresh.applicable))
+          Q(s3, h2, Some(fresh), v2, false)
+        case None => Q(s2, h2, None, v2, false)
+      })
   }
+  
+  private def consume2(s: State,
+                       h: Heap,
+                       consolidate: Boolean,
+                       resource: ast.Resource,
+                       args: Seq[Term],
+                       argsExp: Option[Seq[ast.Exp]],
+                       perms: Term,
+                       permsExp: Option[ast.Exp],
+                       returnSnap: Boolean,
+                       ve: VerificationError,
+                       v: Verifier)
+                      (Q: (State, Heap, Option[Term], Verifier) => VerificationResult)
+                      : VerificationResult = {
+    
+    val id = ChunkIdentifier(resource, s.program)
+    if (s.exhaleExt) {
+      val failure = createFailure(ve, v, s, "chunk consume in package")
+      magicWandSupporter.transfer(s, perms, permsExp, failure, Seq(), v)(consumeGreedy(_, _, id, args, _, _, _))((s1, optCh, v1) =>
+        if (returnSnap){
+          Q(s1, h, optCh.flatMap(ch => Some(ch.snap)), v1)
+        } else {
+          Q(s1, h, None, v1)
+        })
+    } else {
+      executionFlowController.tryOrFail2[Heap, Option[Term]](s.copy(h = h), v)((s1, v1, QS) =>
+        if (s1.moreCompleteExhale) {
+          moreCompleteExhaleSupporter.consumeComplete(s1, s1.h, resource, args, argsExp, perms, permsExp, returnSnap, ve, v1)((s2, h2, snap2, v2) => {
+            QS(s2.copy(h = s.h), h2, snap2, v2)
+          })
+        } else {
+          if (consolidate) {
+            s1 = stateConsolidator.consolidate(s.copy(h = h), v)
+          }
+          consumeGreedy(s1, s1.h, id, args, perms, permsExp, v1) match {
+            case (Complete(), s2, h2, optCh2) =>
+              val snap = optCh2 match {
+                case Some(ch) if returnSnap =>
+                  if (v1.decider.check(IsPositive(perms), Verifier.config.checkTimeout())) {
+                    Some(ch.snap)
+                  } else {
+                    Some(Ite(IsPositive(perms), ch.snap.convert(sorts.Snap), Unit))
+                  }
+                case _ => None
+              }
+              QS(s2.copy(h = s.h), h2, snap, v1)
+            case _ if v1.decider.checkSmoke(true) =>
+              Success() // TODO: Mark branch as dead?
+            case (Incomplete(p), s2, h2, None) =>
+              Q(s2.copy(h = s.h), h2, None, v)
+          }
+        }
+      )(Q)
 
   private def consume(s: State,
                       h: Heap,
