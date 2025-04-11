@@ -96,7 +96,7 @@ object chunkSupporter extends ChunkSupportRules {
               ve: VerificationError,
               v: Verifier,
               description: String)
-<<<<<<< HEAD
+//<<<<<<< HEAD
              (Q: (State, Heap, Option[Term], Verifier, Boolean) => VerificationResult)
              : VerificationResult = {
 
@@ -172,7 +172,7 @@ object chunkSupporter extends ChunkSupportRules {
         }
       )(Q)
 
-  private def consume(s: State,
+/*  private def consume(s: State,
                       h: Heap,
                       consolidate: Boolean,
                       resource: ast.Resource,
@@ -205,7 +205,7 @@ object chunkSupporter extends ChunkSupportRules {
       optSnap match {
         case Some(snap) =>
           Q(s2, h2, Some(snap.convert(sorts.Snap)), v2)
-        case None if returnSnap =>
+        case None if returnSnap =>*/
           /* Not having consumed anything could mean that we are in an infeasible
            * branch, or that the permission amount to consume was zero.
            *
@@ -213,7 +213,7 @@ object chunkSupporter extends ChunkSupportRules {
            * registered with the function recorder. However, since nothing was consumed,
            * returning the unit snapshot seems more appropriate.
            */
-          val fresh = v2.decider.fresh(sorts.Snap, Option.when(withExp)(PUnknown()))
+          /*val fresh = v2.decider.fresh(sorts.Snap, Option.when(withExp)(PUnknown()))
           val s3 = s2.copy(functionRecorder = s2.functionRecorder.recordFreshSnapshot(fresh.applicable))
           Q(s3, h2, Some(fresh), v2)
         case None => Q(s2, h2, None, v2)
@@ -268,7 +268,7 @@ object chunkSupporter extends ChunkSupportRules {
           }
         }
       )(Q)
->>>>>>> upstream/master
+>>>>>>> upstream/master*/
     }
   }
 
@@ -424,36 +424,34 @@ object chunkSupporter extends ChunkSupportRules {
              resource: ast.Resource,
              runtimeCheckFieldTarget: ast.FieldAccess,
              args: Seq[Term],
-<<<<<<< HEAD
-             pve: PartialVerificationError,
-=======
              argsExp: Option[Seq[ast.Exp]],
->>>>>>> upstream/master
+             pve: PartialVerificationError,
              ve: VerificationError,
              v: Verifier,
              generateChecks: Boolean = true)
             (Q: (State, Heap, Heap, Term, Verifier) => VerificationResult)
             : VerificationResult = {
-<<<<<<< HEAD
+/*<<<<<<< HEAD
 //    executionFlowController.tryOrFail2[Heap, Term](s.copy(h = h), v)((s1, v1, QS) => {
       val s1 = stateConsolidator.consolidate(s.copy(h = h, optimisticHeap = oh), v)
-=======
+=======*/
 
-    executionFlowController.tryOrFail2[Heap, Term](s.copy(h = h), v)((s1, v1, QS) => {
->>>>>>> upstream/master
+    //executionFlowController.tryOrFail2[Heap, Term](s.copy(h = h), v)((s1, v1, QS) => {
+//>>>>>>> upstream/master
+      val s1 = stateConsolidator.consolidate(s.copy(h = h, optimisticHeap = oh), v)
       val lookupFunction =
         if (s1.moreCompleteExhale) moreCompleteExhaleSupporter.lookupComplete _
         else lookupGreedy _
-<<<<<<< HEAD
+//<<<<<<< HEAD
       lookupFunction(s1, s1.h, s1.optimisticHeap, addToOh, resource,
-        runtimeCheckFieldTarget, args, pve, ve, v, generateChecks)((s2, tSnap, v1) =>
+        runtimeCheckFieldTarget, args, argsExp, pve, ve, v, generateChecks)((s2, tSnap, v1) =>
         Q(s2.copy(h = s.h, optimisticHeap = s.optimisticHeap), s2.h, s2.optimisticHeap, tSnap, v1))
-//    })(Q)
-=======
+    }
+/*=======
       lookupFunction(s1, s1.h, resource, args, argsExp, ve, v1)((s2, tSnap, v2) =>
         QS(s2.copy(h = s.h), s2.h, tSnap, v2))
     })(Q)
->>>>>>> upstream/master
+>>>>>>> upstream/master*/
   }
 
   private def lookupGreedy(s: State,
@@ -463,11 +461,11 @@ object chunkSupporter extends ChunkSupportRules {
                            resource: ast.Resource,
                            runtimeCheckFieldTarget: ast.FieldAccess,
                            args: Seq[Term],
-<<<<<<< HEAD
-                           pve: PartialVerificationError,
-=======
                            argsExp: Option[Seq[ast.Exp]],
->>>>>>> upstream/master
+//<<<<<<< HEAD
+                           pve: PartialVerificationError,
+//=======
+//>>>>>>> upstream/master
                            ve: VerificationError,
                            v: Verifier,
                            generateChecks: Boolean)

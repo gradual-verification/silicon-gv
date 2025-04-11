@@ -14,23 +14,24 @@ import viper.silver.ast
 import viper.silver.ast.utility.QuantifiedPermissions.QuantifiedPermissionAssertion
 import viper.silver.verifier.PartialVerificationError
 import viper.silver.verifier.reasons._
-<<<<<<< HEAD
+//<<<<<<< HEAD
 import viper.silicon.Stack
 import viper.silicon.interfaces.{Failure, VerificationResult}
 import viper.silicon.logger.SymbExLogger
-import viper.silicon.logger.records.data.{CondExpRecord, ConsumeRecord}
+import viper.silicon.logger.records.data.{CondExpRecord, ConsumeRecord, ImpliesRecord}
 import viper.silicon.state._
 import viper.silicon.state.terms._
 import viper.silicon.state.terms.predef.`?r`
 import viper.silicon.supporters.Translator
-=======
+import viper.silicon.utils.ast.BigAnd
+/*=======
 import viper.silicon.interfaces.VerificationResult
 import viper.silicon.logger.records.data.{CondExpRecord, ConsumeRecord, ImpliesRecord}
 import viper.silicon.state._
 import viper.silicon.state.terms._
 import viper.silicon.state.terms.predef.`?r`
 import viper.silicon.utils.ast.BigAnd
->>>>>>> upstream/master
+>>>>>>> upstream/master*/
 import viper.silicon.verifier.Verifier
 import viper.silicon.utils
 
@@ -90,27 +91,27 @@ object consumer extends ConsumptionRules {
              (Q: (State, Option[Term], Verifier) => VerificationResult)
              : VerificationResult = {
 
-<<<<<<< HEAD
+//<<<<<<< HEAD
     val consumed = a match {
       case impr @ ast.ImpreciseExp(e) =>
-        consumeR(s, true, s.optimisticHeap, s.h, e.whenExhaling, pve, v)((s1, oh1, h1, snap, v1) => {
+        consumeR(s, true, s.optimisticHeap, s.h, e.whenExhaling, returnSnap, pve, v)((s1, oh1, h1, snap, v1) => {
           val s2 = s1.copy(isImprecise = true, h = Heap(), optimisticHeap = Heap(),
                            partiallyConsumedHeap = s.partiallyConsumedHeap)
           Q(s2, Combine(Unit, snap), v1)})
 
       case _ =>
-        consumeR(s, s.isImprecise, s.optimisticHeap, s.h, a.whenExhaling, pve, v)((s1, oh1, h1, snap, v1) => {
+        consumeR(s, s.isImprecise, s.optimisticHeap, s.h, a.whenExhaling, returnSnap, pve, v)((s1, oh1, h1, snap, v1) => {
           val s2 = s1.copy(h = h1, optimisticHeap = oh1,
                            partiallyConsumedHeap = s.partiallyConsumedHeap)
           Q(s2, snap, v1)})
     }
     consumed
-=======
+/*=======
     consumeR(s, s.h, a.whenExhaling, returnSnap, pve, v)((s1, h1, snap, v1) => {
       val s2 = s1.copy(h = h1,
                        partiallyConsumedHeap = s.partiallyConsumedHeap)
       Q(s2, snap, v1)})
->>>>>>> upstream/master
+>>>>>>> upstream/master*/
   }
 
 
@@ -155,7 +156,7 @@ object consumer extends ConsumptionRules {
       }
     })
 
-<<<<<<< HEAD
+//<<<<<<< HEAD
 //    println("tlcs: " + allTlcs)
 //    println("tlcs result: " + allTlcs.result())
 
@@ -177,9 +178,8 @@ object consumer extends ConsumptionRules {
       })
     }
   }
+//=======
 /*
-    consumeTlcs(s, s.h, allTlcs.result(), allPves.result(), v)((s1, h1, snap1, v1) => {
-=======
     consumeTlcs(s, s.h, allTlcs.result(), returnSnap, allPves.result(), v)((s1, h1, snap1, v1) => {
 >>>>>>> upstream/master
       val s2 = s1.copy(h = h1,
@@ -196,37 +196,42 @@ object consumer extends ConsumptionRules {
                           returnSnap: Boolean,
                           pves: Seq[PartialVerificationError],
                           v: Verifier)
-<<<<<<< HEAD
-                         (Q: (State, Heap, Heap, Term, Verifier) => VerificationResult)
+//<<<<<<< HEAD
+                         (Q: (State, Heap, Heap, Option[Term], Verifier) => VerificationResult)
                          : VerificationResult = {
 
     if (tlcs.isEmpty)
-      Q(s, oh, h, Unit, v)
-=======
+      Q(s, oh, h, if (returnSnap) Some(Unit) else None, v)
+/*=======
                          (Q: (State, Heap, Option[Term], Verifier) => VerificationResult)
                          : VerificationResult = {
 
     if (tlcs.isEmpty)
       Q(s, h, if (returnSnap) Some(Unit) else None, v)
->>>>>>> upstream/master
+>>>>>>> upstream/master*/
     else {
       val a = tlcs.head
       val pve = pves.head
 
 
       if (tlcs.tail.isEmpty)
-<<<<<<< HEAD
-        wrappedConsumeTlc(s, impr, oh, h, a, pve, v)(Q)
+//<<<<<<< HEAD
+        wrappedConsumeTlc(s, impr, oh, h, a, returnSnap, pve, v)(Q)
       else
-        wrappedConsumeTlc(s, impr, oh, h, a, pve, v)((s1, oh1, h1, snap1, v1) =>
-          consumeTlcs(s1, impr, oh1, h1, tlcs.tail, pves.tail, v1)((s2, oh2, h2, snap2, v2) =>
-            Q(s2, oh2, h2, Combine(snap1, snap2), v2)))
+        wrappedConsumeTlc(s, impr, oh, h, a, returnSnap, pve, v)((s1, oh1, h1, snap1, v1) => {
+          consumeTlcs(s1, impr, oh1, h1, tlcs.tail, returnSnap, pves.tail, v1)((s2, oh2, h2, snap2, v2) =>
+            (snap1, snap2) match {
+              case (Some(sn1), Some(sn2)) if returnSnap => Q(s2, oh2, h2, Some(Combine(sn1, sn2)), v2)
+              case (None, None) if !returnSnap => Q(s2, oh2, h2, None, v2)
+              case (_, _) =>  sys.error(s"Consume returned unexpected snapshot: ${(returnSnap, (snap1, snap2))}")
+            })
+        })
     }
   }
 
-  private def consumeR(s: State, impr: Boolean, oh: Heap, h: Heap, a: ast.Exp, pve: PartialVerificationError, v: Verifier)
+  private def consumeR(s: State, impr: Boolean, oh: Heap, h: Heap, a: ast.Exp, returnSnap: Boolean, pve: PartialVerificationError, v: Verifier)
                       (Q: (State, Heap, Heap, Term, Verifier) => VerificationResult)
-=======
+/*=======
         wrappedConsumeTlc(s, h, a, returnSnap, pve, v)(Q)
       else
         wrappedConsumeTlc(s, h, a, returnSnap, pve, v)((s1, h1, snap1, v1) => {
@@ -243,17 +248,17 @@ object consumer extends ConsumptionRules {
 
   private def consumeR(s: State, h: Heap, a: ast.Exp, returnSnap: Boolean, pve: PartialVerificationError, v: Verifier)
                       (Q: (State, Heap, Option[Term], Verifier) => VerificationResult)
->>>>>>> upstream/master
+>>>>>>> upstream/master*/
                       : VerificationResult = {
 
     val tlcs = a.topLevelConjuncts
     val pves = Seq.fill(tlcs.length)(pve)
 
-<<<<<<< HEAD
-    consumeTlcs(s, impr, oh, h, tlcs, pves, v)(Q)
-=======
+//<<<<<<< HEAD
+    consumeTlcs(s, impr, oh, h, tlcs, returnSnap, pves, v)(Q)
+/*=======
     consumeTlcs(s, h, tlcs, returnSnap, pves, v)(Q)
->>>>>>> upstream/master
+>>>>>>> upstream/master*/
   }
 
   /** Wrapper/decorator for consume that injects the following operations:
@@ -268,11 +273,11 @@ object consumer extends ConsumptionRules {
                                   returnSnap: Boolean,
                                   pve: PartialVerificationError,
                                   v: Verifier)
-<<<<<<< HEAD
-                                 (Q: (State, Heap, Heap, Term, Verifier) => VerificationResult)
-=======
+//<<<<<<< HEAD
+                                 (Q: (State, Heap, Heap, Option[Term], Verifier) => VerificationResult)
+/*=======
                                  (Q: (State, Heap, Option[Term], Verifier) => VerificationResult)
->>>>>>> upstream/master
+>>>>>>> upstream/master*/
                                  : VerificationResult = {
 // Do we need to do this stuff on oh? - Jacob
     /* tryOrFail effects the "main" heap s.h, so we temporarily set the consume-heap h to be the
@@ -280,7 +285,7 @@ object consumer extends ConsumptionRules {
      * consume.
      */
     val sInit = s.copy(h = h)
-<<<<<<< HEAD
+//<<<<<<< HEAD
     val s0 = stateConsolidator.consolidate(sInit, v)
     val h0 = s0.h /* h0 is h, but consolidated */
     val s1 = s0.copy(h = s.h)
@@ -288,20 +293,20 @@ object consumer extends ConsumptionRules {
     /* TODO: To remove this cast: Add a type argument to the ConsumeRecord.
      *       Globally the types match, but locally the type system does not know.
      */
-    val sepIdentifier = SymbExLogger.currentLog().openScope(new ConsumeRecord(a, s1, v.decider.pcs))
-    consumeTlc(s1, impr, oh, h0, a, pve, v)((s2, oh2, h2, snap2, v1) => {
-      SymbExLogger.currentLog().closeScope(sepIdentifier)
+    val sepIdentifier = v1.symbExLog.openScope(new ConsumeRecord(a, s1, v.decider.pcs))
+    consumeTlc(s1, impr, oh, h0, a, returnSnap, pve, v)((s2, oh2, h2, snap2, v1) => {
+      v2.symbExLog.closeScope(sepIdentifier)
       Q(s2, oh2, h2, snap2, v1)})
   }
 
-  private def consumeTlc(s: State, impr: Boolean, oh: Heap, h: Heap, a: ast.Exp, pve: PartialVerificationError, v: Verifier)
+  private def consumeTlc(s: State, impr: Boolean, oh: Heap, h: Heap, a: ast.Exp, returnSnap: Boolean, pve: PartialVerificationError, v: Verifier)
                         (Q: (State, Heap, Heap, Term, Verifier) => VerificationResult)
-=======
+/*=======
     executionFlowController.tryOrFail2[Heap, Option[Term]](sInit, v)((s0, v1, QS) => {
-      val h0 = s0.h /* h0 is h, but potentially consolidated */
-      val s1 = s0.copy(h = s.h) /* s1 is s, but the retrying flag might be set */
+      val h0 = s0.h *//* h0 is h, but potentially consolidated */
+      //val s1 = s0.copy(h = s.h) /* s1 is s, but the retrying flag might be set */
 
-      val sepIdentifier = v1.symbExLog.openScope(new ConsumeRecord(a, s1, v.decider.pcs))
+      /*val sepIdentifier = v1.symbExLog.openScope(new ConsumeRecord(a, s1, v.decider.pcs))
 
       consumeTlc(s1, h0, a, returnSnap, pve, v1)((s2, h2, snap2, v2) => {
         v2.symbExLog.closeScope(sepIdentifier)
@@ -311,7 +316,7 @@ object consumer extends ConsumptionRules {
 
   private def consumeTlc(s: State, h: Heap, a: ast.Exp, returnSnap: Boolean, pve: PartialVerificationError, v: Verifier)
                         (Q: (State, Heap, Option[Term], Verifier) => VerificationResult)
->>>>>>> upstream/master
+>>>>>>> upstream/master*/
                         : VerificationResult = {
     
     /* ATTENTION: Expressions such as `perm(...)` must be evaluated in-place,
@@ -328,7 +333,7 @@ object consumer extends ConsumptionRules {
       v.logger.debug("hR = " + s.reserveHeaps.map(v.stateFormatter.format).mkString("", ",\n     ", ""))
 
     val consumed = a match {
-<<<<<<< HEAD
+//<<<<<<< HEAD
 
 /*
       case imp @ ast.Implies(e0, a0) if !a.isPure =>
@@ -363,7 +368,7 @@ object consumer extends ConsumptionRules {
       //
       // set some local variable, sourceCall, so we can continue to access it?
       case ite @ ast.CondExp(e0, a1, a2) =>
-=======
+/*=======
       case imp @ ast.Implies(e0, a0) if !a.isPure && s.moreJoins.id >= JoinMode.Impure.id =>
         val impliesRecord = new ImpliesRecord(imp, s, v.decider.pcs, "consume")
         val uidImplies = v.symbExLog.openScope(impliesRecord)
@@ -390,11 +395,11 @@ object consumer extends ConsumptionRules {
         consumeConditionalTlcMoreJoins(s, h, e0, a1, Some(a2), uidCondExp, returnSnap, pve, v)(Q)
 
       case ite @ ast.CondExp(e0, a1, a2) if !a.isPure =>
->>>>>>> upstream/master
+>>>>>>> upstream/master*/
         val condExpRecord = new CondExpRecord(ite, s, v.decider.pcs, "consume")
         val uidCondExp = v.symbExLog.openScope(condExpRecord)
 
-<<<<<<< HEAD
+//<<<<<<< HEAD
         evalpc(s.copy(isImprecise = impr), e0, pve, v)((s1, t0, v1) => {
           val s2 = s1.copy(isImprecise = s.isImprecise)
       
@@ -429,15 +434,15 @@ object consumer extends ConsumptionRules {
               // that's why it worked before...? the way we do it now is
               // better, maybe
               (s3, v2) => consumeR(s3, impr, oh, h, a1, pve, v2)((s4, oh3, h3, t1, v3) => {
-                SymbExLogger.currentLog().closeScope(uidCondExp)
+                v3.symbExLog.closeScope(uidCondExp)
                 Q(s4, oh3, h3, t1, v3)
               }),
               (s3, v2) => consumeR(s3, impr, oh, h, a2, pve, v2)((s4, oh3, h3, t1, v3) => {
-                SymbExLogger.currentLog().closeScope(uidCondExp)
+                v3.symbExLog.closeScope(uidCondExp)
                 Q(s4, oh3, h3, t1, v3)
               }))
         })
-=======
+/*=======
         eval(s, e0, pve, v)((s1, t0, e0New, v1) =>
           branch(s1, t0, (e0, e0New), v1)(
             (s2, v2) => consumeR(s2, h, a1, returnSnap, pve, v2)((s3, h1, t1, v3) => {
@@ -448,7 +453,7 @@ object consumer extends ConsumptionRules {
               v3.symbExLog.closeScope(uidCondExp)
               Q(s3, h1, t1, v3)
             })))
->>>>>>> upstream/master
+>>>>>>> upstream/master*/
 
       /* TODO: Initial handling of QPs is identical/very similar in consumer
        *       and producer. Try to unify the code.
@@ -582,8 +587,8 @@ object consumer extends ConsumptionRules {
               pve = pve,
               negativePermissionReason = NegativePermission(ePerm),
               notInjectiveReason = sys.error("Quantified wand not injective"), /*ReceiverNotInjective(...)*/
-              insufficientPermissionReason = MagicWandChunkNotFound(wand), /*InsufficientPermission(...)*/
-              v1)((s2, h2, snap, v2) => Q(s2.copy(constrainableARPs = s.constrainableARPs), h2, snap, v2))
+              //insufficientPermissionReason = MagicWandChunkNotFound(wand), /*InsufficientPermission(...)*/
+              /*v1)((s2, h2, snap, v2) => Q(s2.copy(constrainableARPs = s.constrainableARPs), h2, snap, v2))
           case (s1, _, _, _, _, None, v1) => Q(s1.copy(constrainableARPs = s.constrainableARPs), h, if (returnSnap) Some(Unit) else None, v1)
         }
 <<<<<<< HEAD
@@ -717,8 +722,7 @@ object consumer extends ConsumptionRules {
               case false =>
                 createFailure(pve dueTo NegativePermission(perm), v2, s2)}))
 */
-      case ast.PredicateAccessPredicate(locacc: ast.LocationAccess, perm) =>
-=======
+/*=======
           consumeR(s2, h, body, returnSnap, pve, v1)(Q)})
 
       case ast.AccessPredicate(locacc: ast.LocationAccess, perm) =>
@@ -737,8 +741,9 @@ object consumer extends ConsumptionRules {
                 val s5 = s4.copy(partiallyConsumedHeap = Some(h1),
                                  constrainableARPs = s.constrainableARPs)
                 Q(s5, h1, snap1, v4)})})))
->>>>>>> upstream/master
+>>>>>>> upstream/master*/
 
+      case ast.PredicateAccessPredicate(locacc: ast.LocationAccess, perm) =>
        //eval for expression and perm (perm should always be 1)
         evalpc(s.copy(isImprecise = impr), perm, pve, v)((s1, tPerm, v1) =>
           evalLocationAccesspc(s1.copy(isImprecise = impr), locacc, pve, v1)((s2, predName, tArgs, v2) => {
@@ -986,30 +991,10 @@ object consumer extends ConsumptionRules {
 */
 /*
       case _: ast.InhaleExhaleExp =>
-<<<<<<< HEAD
-        Failure(viper.silicon.utils.consistency.createUnexpectedInhaleExhaleExpressionError(a))
+        createFailure(viper.silicon.utils.consistency.createUnexpectedInhaleExhaleExpressionError(a), v, s, "valid AST")
 */
       /* Handle wands */
-
-/*
-      case wand: ast.MagicWand if s.qpMagicWands.contains(MagicWandIdentifier(wand, Verifier.program)) =>
-        val bodyVars = wand.subexpressionsToEvaluate(Verifier.program)
-        val formalVars = bodyVars.indices.toList.map(i => Var(Identifier(s"x$i"), v.symbolConverter.toSort(bodyVars(i).typ)))
-
-        evals(s, bodyVars, _ => pve, v)((s1, tArgs, v1) => {
-          val (relevantChunks, _) =
-            quantifiedChunkSupporter.splitHeap[QuantifiedMagicWandChunk](s1.h, MagicWandIdentifier(wand, Verifier.program))
-          val (smDef1, smCache1) =
-            quantifiedChunkSupporter.summarisingSnapshotMap(
-              s1, wand, formalVars, relevantChunks, v1)
-          v1.decider.assume(PredicateTrigger(MagicWandIdentifier(wand, Verifier.program).toString, smDef1.sm, tArgs))
-
-          val loss = PermTimes(FullPerm(), s1.permissionScalingFactor)
-=======
-        createFailure(viper.silicon.utils.consistency.createUnexpectedInhaleExhaleExpressionError(a), v, s, "valid AST")
-
-      /* Handle wands */
-      case wand: ast.MagicWand if s.qpMagicWands.contains(MagicWandIdentifier(wand, s.program)) =>
+/*      case wand: ast.MagicWand if s.qpMagicWands.contains(MagicWandIdentifier(wand, s.program)) =>
         val bodyVars = wand.subexpressionsToEvaluate(s.program)
         val formalVars = bodyVars.indices.toList.map(i => Var(Identifier(s"x$i"), v.symbolConverter.toSort(bodyVars(i).typ), false))
         val formalVarExps = Option.when(withExp)(bodyVars.indices.toList.map(i => ast.LocalVarDecl(s"x$i", bodyVars(i).typ)()))
@@ -1030,7 +1015,6 @@ object consumer extends ConsumptionRules {
           }
           val loss = s1.permissionScalingFactor
           val lossExp = s1.permissionScalingFactorExp
->>>>>>> upstream/master
           quantifiedChunkSupporter.consumeSingleLocation(
             s1p,
             h,
@@ -1059,7 +1043,7 @@ object consumer extends ConsumptionRules {
 */
       case _ => {
 
-<<<<<<< HEAD
+//<<<<<<< HEAD
         var returnedState: Option[(State, viper.silicon.decider.RecordedPathConditions)] = None
 
         // make sure we map the runtime check from the method call site, if
@@ -1083,7 +1067,7 @@ object consumer extends ConsumptionRules {
               + s"Position: ${(s.methodCallAstNode, s.foldOrUnfoldAstNode, s.loopPosition)}")
         }
 
-        evalAndAssert(s, impr, a, pve, v)((s1, t, v1) => {
+        evalAndAssert(s, impr, a, returnSnap, pve, v)((s1, t, v1) => {
 
           returnedState = Some((s1, v1.decider.pcs.duplicate()))
 
@@ -1127,22 +1111,22 @@ object consumer extends ConsumptionRules {
           case (verificationResult, None) => verificationResult
         }
       }
-=======
+/*=======
       case _ =>
         evalAndAssert(s, a, returnSnap, pve, v)((s1, t, v1) => {
           Q(s1, h, t, v1)
         })
->>>>>>> upstream/master
+>>>>>>> upstream/master*/
     }
 
     consumed
   }
 
-<<<<<<< HEAD
-  private def evalAndAssert(s: State, impr: Boolean, e: ast.Exp, pve: PartialVerificationError, v: Verifier)
-                           (Q: (State, Term, Verifier) => VerificationResult)
+/*<<<<<<< HEAD
+  private def evalAndAssert(s: State, impr: Boolean, e: ast.Exp, returnSnap: Boolean, pve: PartialVerificationError, v: Verifier)
+                           (Q: (State, Option[Term], Verifier) => VerificationResult)
                            : (VerificationResult, Option[Term]) = {
-=======
+=======*/
   private def consumeConditionalTlcMoreJoins(s: State, h: Heap, e0: ast.Exp, a1: ast.Exp, a2: Option[ast.Exp], scopeUid: Int,
                                              returnSnap: Boolean,
                                              pve: PartialVerificationError, v: Verifier)
@@ -1195,10 +1179,10 @@ object consumer extends ConsumptionRules {
   }
 
 
-  private def evalAndAssert(s: State, e: ast.Exp, returnSnap: Boolean, pve: PartialVerificationError, v: Verifier)
+  private def evalAndAssert(s: State, impr: Boolean, e: ast.Exp, returnSnap: Boolean, pve: PartialVerificationError, v: Verifier)
                            (Q: (State, Option[Term], Verifier) => VerificationResult)
-                           : VerificationResult = {
->>>>>>> upstream/master
+                           : (VerificationResult, Option[Term]) = {
+//>>>>>>> upstream/master
 
     /* It is expected that the partially consumed heap (h in the above implementation of
      * `consume`) has already been assigned to `c.partiallyConsumedHeap`.
@@ -1215,7 +1199,7 @@ object consumer extends ConsumptionRules {
                     reserveHeaps = Nil,
                     exhaleExt = false)
 
-<<<<<<< HEAD
+//<<<<<<< HEAD
     val s2 = stateConsolidator.consolidate(s1, v)
 
     var returnValue: Option[(VerificationResult, Option[Term])] = None
@@ -1228,7 +1212,7 @@ object consumer extends ConsumptionRules {
           val s5 = s4.copy(h = s.h,
                            reserveHeaps = s.reserveHeaps,
                            exhaleExt = s.exhaleExt)
-          Q(s5, Unit, v1)
+          Q(s5, Some(Unit), v1)
         case false =>
         //  println("pve " + pve + "\ne " + e + "\nv1 " + v1 + "\ns3 " + s3)
           //println("heap: " + s.h + "\noh: " + s.optimisticHeap)
@@ -1248,7 +1232,7 @@ object consumer extends ConsumptionRules {
       case None =>
         (result, None)
     }
-=======
+/*=======
     executionFlowController.tryOrFail0(s1, v)((s2, v1, QS) => {
       eval(s2, e, pve, v1)((s3, t, eNew, v2) => {
         val termToAssert = t match {
@@ -1274,6 +1258,6 @@ object consumer extends ConsumptionRules {
                        exhaleExt = s.exhaleExt)
       Q(s5, if (returnSnap) Some(Unit) else None, v4)
     })
->>>>>>> upstream/master
+>>>>>>> upstream/master*/
   }
 }
