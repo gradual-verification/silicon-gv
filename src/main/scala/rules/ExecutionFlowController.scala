@@ -6,25 +6,17 @@
 
 package viper.silicon.rules
 
-<<<<<<< HEAD
-import viper.silicon.interfaces._
-import viper.silicon.logger.SymbExLogger
-=======
 import viper.silver.ast
 import viper.silicon.Config.ExhaleMode
 import viper.silicon.interfaces._
->>>>>>> upstream/master
+import viper.silicon.logger.SymbExLogger
 import viper.silicon.logger.records.data.CommentRecord
 import viper.silicon.state.State
 import viper.silicon.verifier.Verifier
 
 trait ExecutionFlowRules extends SymbolicExecutionRules {
   def locallyWithResult[R](s: State, v: Verifier)
-<<<<<<< HEAD
-                          (block: (State, Verifier, (R => VerificationResult)) => VerificationResult)
-=======
                           (block: (State, Verifier, R => VerificationResult) => VerificationResult)
->>>>>>> upstream/master
                           (Q: R => VerificationResult)
                           : VerificationResult
 
@@ -55,20 +47,11 @@ trait ExecutionFlowRules extends SymbolicExecutionRules {
                         (action: (State, Verifier, (State, R1, R2, Verifier) => VerificationResult) => VerificationResult)
                         (Q: (State, R1, R2, Verifier) => VerificationResult)
                         : VerificationResult
-<<<<<<< HEAD
-
-}
-
-object executionFlowController extends ExecutionFlowRules with Immutable {
-  def locallyWithResult[R](s: State, v: Verifier)
-                          (block: (State, Verifier, (R => VerificationResult)) => VerificationResult)
-=======
 }
 
 object executionFlowController extends ExecutionFlowRules {
   def locallyWithResult[R](s: State, v: Verifier)
                           (block: (State, Verifier, R => VerificationResult) => VerificationResult)
->>>>>>> upstream/master
                           (Q: R => VerificationResult)
                           : VerificationResult = {
 
@@ -123,26 +106,12 @@ object executionFlowController extends ExecutionFlowRules {
                                     : VerificationResult = {
 
     var localActionSuccess = false
-<<<<<<< HEAD
-    var compressed = false
-=======
->>>>>>> upstream/master
 
     /* TODO: Consider how to handle situations where the action branches and the first branch
      *       succeeds, i.e. localActionSuccess has been set to true, but the second fails.
      *       Currently, the verification will fail without attempting to remedy the situation,
      *       e.g. by performing a state consolidation.
      */
-<<<<<<< HEAD
-
-    val firstActionResult =
-      action(
-        s,
-        v,
-        (s1, r, v1) => {
-          localActionSuccess = true
-          Q(s1, r, v1)})
-=======
     val firstActionResult = {
       action(
         s.copy(retryLevel = s.retryLevel + 1),
@@ -151,7 +120,6 @@ object executionFlowController extends ExecutionFlowRules {
           localActionSuccess = true
           Q(s1.copy(retryLevel = s.retryLevel), r, v1)})
     }
->>>>>>> upstream/master
 
     val finalActionResult =
       if (   localActionSuccess /* Action succeeded locally */
@@ -159,15 +127,6 @@ object executionFlowController extends ExecutionFlowRules {
                                           * current branch turned out to be infeasible) */
         firstActionResult
       else {
-<<<<<<< HEAD
-        val s0 = stateConsolidator.consolidate(s, v)
-
-        val comLog = new CommentRecord("Retry", s0, v.decider.pcs)
-        val sepIdentifier = SymbExLogger.currentLog().openScope(comLog)
-        action(s0.copy(retrying = true), v, (s1, r, v1) => {
-          SymbExLogger.currentLog().closeScope(sepIdentifier)
-          Q(s1.copy(retrying = false), r, v1)
-=======
         val s0 = v.stateConsolidator(s).consolidate(s, v)
 
         val comLog = new CommentRecord("Retry", s0, v.decider.pcs)
@@ -188,7 +147,6 @@ object executionFlowController extends ExecutionFlowRules {
         action(s0.copy(retrying = true, retryLevel = s.retryLevel, moreCompleteExhale = temporaryMCE), v, (s1, r, v1) => {
           v1.symbExLog.closeScope(sepIdentifier)
           Q(s1.copy(retrying = false, moreCompleteExhale = s0.moreCompleteExhale), r, v1)
->>>>>>> upstream/master
         })
       }
 
@@ -200,11 +158,7 @@ object executionFlowController extends ExecutionFlowRules {
                 (Q: (State, Verifier) => VerificationResult)
                 : VerificationResult =
 
-<<<<<<< HEAD
-      tryOrFailWithResult[scala.Null](s, v)((s1, v1, QS) => action(s1, v1, (s2, v2) => QS(s2, null, v2)))((s2, `null`, v2) => Q(s2, v2))
-=======
       tryOrFailWithResult[scala.Null](s, v)((s1, v1, QS) => action(s1, v1, (s2, v2) => QS(s2, null, v2)))((s2, _, v2) => Q(s2, v2))
->>>>>>> upstream/master
 
   def tryOrFail1[R1](s: State, v: Verifier)
                     (action: (State, Verifier, (State, R1, Verifier) => VerificationResult) => VerificationResult)
@@ -219,8 +173,4 @@ object executionFlowController extends ExecutionFlowRules {
                         : VerificationResult =
 
       tryOrFailWithResult[(R1, R2)](s, v)((s1, v1, QS) => action(s1, v1, (s2, r21, r22, v2) => QS(s2, (r21, r22), v2)))((s2, r, v2) => Q(s2, r._1, r._2, v2))
-<<<<<<< HEAD
-
-=======
->>>>>>> upstream/master
 }

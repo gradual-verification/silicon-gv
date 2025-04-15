@@ -69,11 +69,11 @@ class DefaultMainVerifier(config: Config,
 
   protected val preambleReader = new SMTLib2PreambleReader
 
-  protected val sequencesContributor = new DefaultSequencesContributor(domainTranslator, config)
-  protected val setsContributor = new DefaultSetsContributor(domainTranslator, config)
-  protected val multisetsContributor = new DefaultMultisetsContributor(domainTranslator, config)
-  protected val mapsContributor = new DefaultMapsContributor(domainTranslator, config)
-  protected val domainsContributor = new DefaultDomainsContributor(symbolConverter, domainTranslator)
+//  protected val sequencesContributor = new DefaultSequencesContributor(domainTranslator, config)
+//  protected val setsContributor = new DefaultSetsContributor(domainTranslator, config)
+//  protected val multisetsContributor = new DefaultMultisetsContributor(domainTranslator, config)
+//  protected val mapsContributor = new DefaultMapsContributor(domainTranslator, config)
+//  protected val domainsContributor = new DefaultDomainsContributor(symbolConverter, domainTranslator)
   protected val fieldValueFunctionsContributor = new DefaultFieldValueFunctionsContributor(preambleReader, symbolConverter, termConverter, config)
   protected val predSnapGenerator = new PredicateSnapGenerator(symbolConverter, snapshotSupporter)
   protected val predicateAndWandSnapFunctionsContributor = new DefaultPredicateAndWandSnapFunctionsContributor(preambleReader, termConverter, predSnapGenerator, config)
@@ -84,7 +84,7 @@ class DefaultMainVerifier(config: Config,
 
   private val statefulSubcomponents = List[StatefulComponent](
     uniqueIdCounter,
-    sequencesContributor, setsContributor, multisetsContributor, mapsContributor, domainsContributor,
+    //sequencesContributor, setsContributor, multisetsContributor, mapsContributor, domainsContributor,
     fieldValueFunctionsContributor,
     predSnapGenerator, predicateAndWandSnapFunctionsContributor,
     magicWandSnapFunctionsContributor,
@@ -465,11 +465,11 @@ class DefaultMainVerifier(config: Config,
   /* Prover preamble: After program analysis */
 
   private val analysisOrder: Seq[PreambleContributor[_, _, _]] = Seq(
-    sequencesContributor,
-    setsContributor,
-    multisetsContributor,
-    mapsContributor,
-    domainsContributor,
+    //sequencesContributor,
+    //setsContributor,
+    //multisetsContributor,
+    //mapsContributor,
+    //domainsContributor,
     fieldValueFunctionsContributor,
     predicateAndWandSnapFunctionsContributor,
     magicWandSnapFunctionsContributor,
@@ -478,11 +478,11 @@ class DefaultMainVerifier(config: Config,
   )
 
   private val sortDeclarationOrder: Seq[PreambleContributor[_, _, _]] = Seq(
-    sequencesContributor,
-    setsContributor,
-    multisetsContributor,
-    mapsContributor,
-    domainsContributor,
+    //sequencesContributor,
+    //setsContributor,
+    //multisetsContributor,
+    //mapsContributor,
+    //domainsContributor,
     fieldValueFunctionsContributor,
     predicateAndWandSnapFunctionsContributor,
     magicWandSnapFunctionsContributor,
@@ -491,11 +491,11 @@ class DefaultMainVerifier(config: Config,
   )
 
   private val sortWrapperDeclarationOrder: Seq[PreambleContributor[Sort, _, _]] = Seq(
-    sequencesContributor,
-    setsContributor,
-    multisetsContributor,
-    mapsContributor,
-    domainsContributor,
+    //sequencesContributor,
+    //setsContributor,
+    //multisetsContributor,
+    //mapsContributor,
+    //domainsContributor,
     fieldValueFunctionsContributor,
     predicateAndWandSnapFunctionsContributor,
     magicWandSnapFunctionsContributor,
@@ -509,11 +509,11 @@ class DefaultMainVerifier(config: Config,
      * Multisets depend on sets ($Multiset.fromSet).
      * Maps depend on sets (Map_domain, Map_range, Map_cardinality).
      */
-    setsContributor,
-    multisetsContributor,
-    sequencesContributor,
-    mapsContributor,
-    domainsContributor,
+    //setsContributor,
+    //multisetsContributor,
+    //sequencesContributor,
+    //mapsContributor,
+    //domainsContributor,
     fieldValueFunctionsContributor,
     predicateAndWandSnapFunctionsContributor,
     magicWandSnapFunctionsContributor,
@@ -522,11 +522,11 @@ class DefaultMainVerifier(config: Config,
   )
 
   private val axiomDeclarationOrder: Seq[PreambleContributor[Sort, _, _]] = Seq(
-    sequencesContributor,
-    setsContributor,
-    multisetsContributor,
-    mapsContributor,
-    domainsContributor,
+    //sequencesContributor,
+    //setsContributor,
+    //multisetsContributor,
+    //mapsContributor,
+    //domainsContributor,
     fieldValueFunctionsContributor,
     predicateAndWandSnapFunctionsContributor,
     magicWandSnapFunctionsContributor,
@@ -562,8 +562,8 @@ class DefaultMainVerifier(config: Config,
     symbolDeclarationOrder foreach (component =>
       component.declareSymbolsAfterAnalysis(sink))
 
-    sink.comment("/" * 10 + " Uniqueness assumptions from domains")
-    domainsContributor.emitUniquenessAssumptionsAfterAnalysis(sink)
+    //sink.comment("/" * 10 + " Uniqueness assumptions from domains")
+    //domainsContributor.emitUniquenessAssumptionsAfterAnalysis(sink)
 
     /* Note: The triggers of the axioms of snapshot functions (FVFs and PSFs) mention the
      * corresponding sort wrappers. These axioms therefore need to be emitted after the sort

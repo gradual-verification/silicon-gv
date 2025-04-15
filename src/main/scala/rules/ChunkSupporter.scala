@@ -277,8 +277,10 @@ object chunkSupporter extends ChunkSupportRules {
                             resource: ast.Resource,
                             args: Seq[Term],
                             perms: Term,
-<<<<<<< HEAD
-                            v: Verifier) = {
+                            permsExp: Option[ast.Exp],
+//<<<<<<< HEAD
+                            v: Verifier)
+                            : (ConsumptionResult, State, Heap, Option[NonQuantifiedChunk])= {
 
     val id = ChunkIdentifier(resource, Verifier.program)
 
@@ -336,7 +338,7 @@ object chunkSupporter extends ChunkSupportRules {
             }
             (Incomplete(perms), s, newH2, None)
           }
-=======
+/*=======
                             permsExp: Option[ast.Exp],
                             v: Verifier)
                            : (ConsumptionResult, State, Heap, Option[NonQuantifiedChunk]) = {
@@ -390,7 +392,7 @@ object chunkSupporter extends ChunkSupportRules {
           (Complete(), s, h, None)
         } else {
           (Incomplete(perms, permsExp), s, h, None)
->>>>>>> upstream/master
+>>>>>>> upstream/master*/
         }
       }
 
@@ -472,7 +474,7 @@ object chunkSupporter extends ChunkSupportRules {
                           (Q: (State, Term, Verifier) => VerificationResult)
                           : VerificationResult = {
 
-<<<<<<< HEAD
+//<<<<<<< HEAD
     val id = ChunkIdentifier(resource, Verifier.program)
 
     profilingInfo.incrementTotalConjuncts
@@ -493,11 +495,14 @@ object chunkSupporter extends ChunkSupportRules {
         }
 
       // TODO: should this case be moved to when the chunk cannot be found in the oh?
-      case _ if v.decider.checkSmoke() =>
-
+      case _ if v.decider.checkSmoke(true) =>
         profilingInfo.incrementEliminatedConjuncts
-
-        Success()
+        if (s.isInPackage) {
+          val snap = v.decider.fresh(v.snapshotSupporter.optimalSnapshotSort(resource, s, v), Option.when(withExp)(PUnknown()))
+          Q(s, snap, v)
+        } else {
+          Success() // TODO: Mark branch as dead?
+        }
 
       case _ => {
         findChunk[NonQuantifiedChunk](oh.values, id, args, v) match {
@@ -570,7 +575,7 @@ object chunkSupporter extends ChunkSupportRules {
                     }
 
                   case false =>
-                    createFailure(ve, v, s, true).withLoad(args)
+                    createFailure(ve, v, s, "looking up chunk", true).withLoad(args)
 
                 } match {
                   case (verificationResult, _) => verificationResult
@@ -587,7 +592,7 @@ object chunkSupporter extends ChunkSupportRules {
               }*/
 
               case _ => /* should never reach this case */
-                createFailure(ve, v, s, true).withLoad(args)
+                createFailure(ve, v, s, "looking up chunk", true).withLoad(args)
             }
 
           // this is the evalpc case for consume
@@ -630,7 +635,7 @@ object chunkSupporter extends ChunkSupportRules {
                     Q(s.copy(madeOptimisticAssumptions = true), snap, v)
                   }
 
-                  case false => createFailure(ve, v, s, true).withLoad(args)
+                  case false => createFailure(ve, v, s, "looking up chunk", true).withLoad(args)
 
                 } match {
                   case (verificationResult, _) => verificationResult
@@ -644,7 +649,7 @@ object chunkSupporter extends ChunkSupportRules {
               }*/
 
               case _ => /* should never reach this case */
-                createFailure(ve, v, s, true).withLoad(args)
+                createFailure(ve, v, s, "looking up chunk", true).withLoad(args)
             }
 
           // this is the evalpc case for produce
@@ -671,14 +676,14 @@ object chunkSupporter extends ChunkSupportRules {
               }*/
 
               case _ => /* should never reach this case */
-                createFailure(ve, v, s, true).withLoad(args)
+                createFailure(ve, v, s, "looking up chunk", true).withLoad(args)
             }
 
           case _ =>
-              createFailure(ve, v, s, true).withLoad(args)
+              createFailure(ve, v, s, "looking up chunk", true).withLoad(args)
         }
       }
-=======
+/*=======
     val id = ChunkIdentifier(resource, s.program)
     val findRes = findChunk[NonQuantifiedChunk](h.values, id, args, v)
     findRes match {
@@ -693,7 +698,7 @@ object chunkSupporter extends ChunkSupportRules {
         }
       case _ =>
         createFailure(ve, v, s, "looking up chunk", true)
->>>>>>> upstream/master
+>>>>>>> upstream/master*/
     }
   }
 
