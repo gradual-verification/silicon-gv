@@ -1368,7 +1368,7 @@ object evaluator extends EvaluationRules with Immutable {
 //                          QB(tIn, c5))})
                     val hTotal = s4.h + s4.optimisticHeap
                     val predFramed = chunkSupporter.inHeap(hTotal, hTotal.values, predicate, tArgs, v2)
-
+                    
                     consume(s4, acc, pve, v2)((s5, snap, v4) => {
                       val s5_1 = s5.copy(forFraming = false)
                       val fr6 =
@@ -1385,7 +1385,7 @@ object evaluator extends EvaluationRules with Immutable {
                       val body = predicate.body.get /* Only non-abstract predicates can be unfolded */
                       val s7 = s6.scalePermissionFactor(tPerm)
                       val insg = s7.g + Store(predicate.formalArgs map (_.localVar) zip tArgs)
-                      
+
                       // if-else casing required for setting origin while handling nested origins (outermost unfolding should be origin) - Priyam
                       // edge case check for framing condition not needed in the context of producing unfolding expression
                       val s7a = s7.copy(g = insg, unfoldingAstNode = if (s7.unfoldingAstNode == None) Some(unfolding) else s7.unfoldingAstNode, needConditionFramingUnfold = s7.generateChecks)
@@ -2460,8 +2460,8 @@ object evaluator extends EvaluationRules with Immutable {
           // Get branch origin for brancher.branch
             val branchCondOrigin: Option[CheckPosition] =
               (s1.methodCallAstNode, s1.foldOrUnfoldAstNode, s1.loopPosition, s1.unfoldingAstNode) match {
-                case (None, None, None, _) => None
-                case (Some(methodCallAstNode), None, None, None) =>
+                case (None, None, None, None) => None
+                case (Some(methodCallAstNode), None, None, _) =>
                   Some(CheckPosition.GenericNode(methodCallAstNode))
                 case (None, Some(foldOrUnfoldAstNode), None, _) =>
                   Some(CheckPosition.GenericNode(foldOrUnfoldAstNode))
