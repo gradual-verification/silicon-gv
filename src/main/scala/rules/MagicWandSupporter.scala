@@ -6,29 +6,13 @@
 
 package viper.silicon.rules
 
-<<<<<<< HEAD
-import viper.silver.ast
-import viper.silver.ast.{Exp, Stmt}
-import viper.silver.cfg.Edge
-import viper.silver.cfg.silver.SilverCfg.SilverBlock
-import viper.silver.verifier.PartialVerificationError
-import viper.silicon._
-=======
 import viper.silicon.debugger.DebugExp
 import viper.silicon._
 import viper.silicon.common.collections.immutable.InsertionOrderedSet
->>>>>>> upstream/master
 import viper.silicon.decider.RecordedPathConditions
 import viper.silicon.interfaces._
 import viper.silicon.interfaces.state._
 import viper.silicon.state._
-<<<<<<< HEAD
-import viper.silicon.state.terms.{MagicWandSnapshot, _}
-import viper.silicon.utils.{freshSnap, toSf}
-import viper.silicon.verifier.Verifier
-
-object magicWandSupporter extends SymbolicExecutionRules with Immutable {
-=======
 import viper.silicon.state.terms._
 import viper.silicon.utils.{freshSnap, toSf}
 import viper.silicon.verifier.Verifier
@@ -40,17 +24,11 @@ import viper.silver.parser.PUnknown
 import viper.silver.verifier.PartialVerificationError
 
 object magicWandSupporter extends SymbolicExecutionRules {
->>>>>>> upstream/master
   import consumer._
   import evaluator._
   import producer._
 
-<<<<<<< HEAD
-  def checkWandsAreSelfFraming(s: State, g: Store, oldHeap: Heap, root: ast.Member, v: Verifier): VerificationResult =
-    sys.error("Implementation missing")
-=======
 //  def checkWandsAreSelfFraming(s: State, g: Store, oldHeap: Heap, root: ast.Member, v: Verifier): VerificationResult =
->>>>>>> upstream/master
 //  {
 //    val wands = Visitor.deepCollect(List(root), Nodes.subnodes){case wand: ast.MagicWand => wand}
 //    var result: VerificationResult = Success()
@@ -104,31 +82,9 @@ object magicWandSupporter extends SymbolicExecutionRules {
 //    result
 //  }
 
-<<<<<<< HEAD
-  //TODO: needs to calculate a snapshot that preserves values from the lhs
-  def createChunk(s: State,
-                  wand: ast.MagicWand,
-                  pve: PartialVerificationError,
-                  v: Verifier)
-                  (Q: (State, MagicWandChunk, Verifier) => VerificationResult)
-                  : VerificationResult =
-    createChunk(s, wand, MagicWandSnapshot(freshSnap(sorts.Snap, v), freshSnap(sorts.Snap, v)), pve, v)(Q)
-
-  def createChunk(s: State,
-                  wand: ast.MagicWand,
-                  abstractLhs: Term,
-                  rhsSnapshot: Term,
-                  pve: PartialVerificationError,
-                  v: Verifier)
-                  (Q: (State, MagicWandChunk, Verifier) => VerificationResult)
-                  : VerificationResult =
-    createChunk(s, wand, MagicWandSnapshot(abstractLhs, rhsSnapshot), pve, v)(Q)
-
-=======
   /**
    * Evaluate the wand's arguments and create a [[viper.silicon.state.MagicWandChunk]] out of it.
    */
->>>>>>> upstream/master
   def createChunk(s: State,
                   wand: ast.MagicWand,
                   snap: MagicWandSnapshot,
@@ -136,13 +92,6 @@ object magicWandSupporter extends SymbolicExecutionRules {
                   v: Verifier)
                  (Q: (State, MagicWandChunk, Verifier) => VerificationResult)
                  : VerificationResult = {
-<<<<<<< HEAD
-    evaluateWandArguments(s, wand, pve, v)((s1, ts, v1) =>
-      Q(s1, MagicWandChunk(MagicWandIdentifier(wand, Verifier.program), s1.g.values, ts, snap, FullPerm()), v1)
-    )
-  }
-
-=======
     evaluateWandArguments(s, wand, pve, v)((s1, ts, esNew, v1) =>
       Q(s1, MagicWandChunk(MagicWandIdentifier(wand, s.program), s1.g.values, ts, esNew, snap, FullPerm,
         Option.when(withExp)(ast.FullPerm()(wand.pos, wand.info, wand.errT))), v1)
@@ -180,20 +129,10 @@ object magicWandSupporter extends SymbolicExecutionRules {
    * @param wand Magic Wand instance.
    * @param Q Method whose second argument is used to return the evaluated terms of all expressions.
    */
->>>>>>> upstream/master
   def evaluateWandArguments(s: State,
                             wand: ast.MagicWand,
                             pve: PartialVerificationError,
                             v: Verifier)
-<<<<<<< HEAD
-                           (Q: (State, Seq[Term], Verifier) => VerificationResult)
-                           : VerificationResult = {
-    val s1 = s.copy(exhaleExt = false)
-    val es = wand.subexpressionsToEvaluate(Verifier.program)
-
-    evals(s1, es, _ => pve, v)((s2, ts, v1) => {
-      Q(s2.copy(exhaleExt = s.exhaleExt), ts, v1)
-=======
                            (Q: (State, Seq[Term], Option[Seq[ast.Exp]], Verifier) => VerificationResult)
                            : VerificationResult = {
     val s1 = s.copy(exhaleExt = false)
@@ -201,7 +140,6 @@ object magicWandSupporter extends SymbolicExecutionRules {
 
     evals(s1, es, _ => pve, v)((s2, ts, esNew, v1) => {
       Q(s2.copy(exhaleExt = s.exhaleExt), ts, esNew, v1)
->>>>>>> upstream/master
     })
   }
 
@@ -209,15 +147,6 @@ object magicWandSupporter extends SymbolicExecutionRules {
                               (s: State,
                                hs: Stack[Heap],
                                pLoss: Term,
-<<<<<<< HEAD
-                               failure: Failure,
-                               v: Verifier)
-                              (consumeFunction: (State, Heap, Term, Verifier) => (ConsumptionResult, State, Heap, Option[CH]))
-                              (Q: (State, Stack[Heap], Stack[Option[CH]], Verifier) => VerificationResult)
-                              : VerificationResult = {
-
-    val initialConsumptionResult = ConsumptionResult(pLoss, v, Verifier.config.checkTimeout())
-=======
                                pLossExp: Option[ast.Exp],
                                failure: Failure,
                                qvars: Seq[Var],
@@ -227,7 +156,6 @@ object magicWandSupporter extends SymbolicExecutionRules {
                               : VerificationResult = {
 
     val initialConsumptionResult = ConsumptionResult(pLoss, pLossExp, qvars, v, Verifier.config.checkTimeout())
->>>>>>> upstream/master
       /* TODO: Introduce a dedicated timeout for the permission check performed by ConsumptionResult,
        *       instead of using checkTimeout. Reason: checkTimeout is intended for checks that are
        *       optimisations, e.g. detecting if a chunk provided no permissions or if a branch is
@@ -239,37 +167,21 @@ object magicWandSupporter extends SymbolicExecutionRules {
     val initial = (initialConsumptionResult, s, Stack.empty[Heap], Stack.empty[Option[CH]])
     val (result, s1, heaps, consumedChunks) =
       hs.foldLeft[(ConsumptionResult, State, Stack[Heap], Stack[Option[CH]])](initial)((partialResult, heap) =>
-<<<<<<< HEAD
-        partialResult match  {
-          case (r: Complete, sIn, hps, cchs)  => (r, sIn, heap +: hps, None +: cchs)
-          case (Incomplete(permsNeeded), sIn, hps, cchs) =>
-            val (success, sOut, h, cch) = consumeFunction(sIn, heap, permsNeeded, v)
-=======
         partialResult match {
           case (r: Complete, sIn, hps, cchs)  => (r, sIn, heap +: hps, None +: cchs)
           case (Incomplete(permsNeeded, permsNeededExp), sIn, hps, cchs) =>
             val (success, sOut, h, cch) = consumeFunction(sIn, heap, permsNeeded, permsNeededExp, v)
->>>>>>> upstream/master
             val tEq = (cchs.flatten.lastOption, cch) match {
               /* Equating wand snapshots would indirectly equate the actual left hand sides when they are applied
                * and thus be unsound. Since fractional wands do not exist it is not necessary to equate their
                * snapshots. Also have a look at the comments in the packageWand and applyWand methods.
                */
-<<<<<<< HEAD
-              case (Some(_: MagicWandChunk), Some(_: MagicWandChunk)) => True()
-              case (Some(ch1: NonQuantifiedChunk), Some(ch2: NonQuantifiedChunk)) => ch1.snap === ch2.snap
-              case (Some(ch1: QuantifiedBasicChunk), Some(ch2: QuantifiedBasicChunk)) => ch1.snapshotMap === ch2.snapshotMap
-              case _ => True()
-            }
-            v.decider.assume(tEq)
-=======
               case (Some(_: MagicWandChunk), Some(_: MagicWandChunk)) => True
               case (Some(ch1: NonQuantifiedChunk), Some(ch2: NonQuantifiedChunk)) => ch1.snap === ch2.snap
               case (Some(ch1: QuantifiedBasicChunk), Some(ch2: QuantifiedBasicChunk)) => ch1.snapshotMap === ch2.snapshotMap
               case _ => True
             }
             v.decider.assume(tEq, Option.when(withExp)(DebugExp.createInstance("Snapshots", isInternal_ = true)))
->>>>>>> upstream/master
 
             /* In the future it might be worth to recheck whether the permissions needed, in the case of
              * success being an instance of Incomplete, are zero.
@@ -295,15 +207,6 @@ object magicWandSupporter extends SymbolicExecutionRules {
         assert(heaps.length == hs.length)
         assert(consumedChunks.length == hs.length)
         Q(s1, heaps.reverse, consumedChunks.reverse, v)
-<<<<<<< HEAD
-      case Incomplete(_) => failure
-    }
-  }
-
-//  private var cnt = 0L
-//  private val packageLogger = LoggerFactory.getLogger("package")
-
-=======
       case Incomplete(_, _) => failure
     }
   }
@@ -327,7 +230,6 @@ object magicWandSupporter extends SymbolicExecutionRules {
    * @param Q Continuation-style function that is called with the resulting state and the chunk that was created.
    * @return Result of the overall verification process.
    */
->>>>>>> upstream/master
   def packageWand(state: State,
                   wand: ast.MagicWand,
                   proofScript: ast.Seqn,
@@ -336,44 +238,6 @@ object magicWandSupporter extends SymbolicExecutionRules {
                  (Q: (State, Chunk, Verifier) => VerificationResult)
                  : VerificationResult = {
 
-<<<<<<< HEAD
-    /* TODO: Logging code is very similar to that in HeuristicsSupporter. Unify. */
-
-//    val myId = cnt; cnt += 1
-//    val baseIdent = "  "
-//    var printedHeader = false
-
-//    def lnsay(msg: String, ident: Int = 1) {
-//      val prefix = "\n" + (if (ident == 0) "" else baseIdent)
-//      dosay(prefix, msg, ident - 1)
-//    }
-//
-//    def say(msg: String, ident: Int = 1) {
-//      val prefix = if (ident == 0) "" else baseIdent
-//      dosay(prefix, msg, ident - 1)
-//    }
-//
-//    def dosay(prefix: String, msg: String, ident: Int) {
-//      if (!printedHeader) {
-//        packageLogger.debug(s"\n[packageWand $myId]")
-//        printedHeader = true
-//      }
-//
-//      val messagePrefix = baseIdent * ident
-//      packageLogger.debug(s"$prefix$messagePrefix $msg")
-//    }
-//
-//    say(s"wand = $wand")
-//    say("c.reserveHeaps:")
-//    s.reserveHeaps.map(v.stateFormatter.format).foreach(str => say(str, 2))
-
-    val s = if (state.exhaleExt) state else
-      state.copy(reserveHeaps = Heap() :: state.h :: Nil)
-
-    val stackSize = 3 + s.reserveHeaps.tail.size
-      /* IMPORTANT: Size matches structure of reserveHeaps at [State RHS] below */
-    var results: Seq[(State, Stack[Term], Vector[RecordedPathConditions], Chunk)] = Nil
-=======
     val s = if (state.exhaleExt) state else
       state.copy(reserveHeaps = Heap() :: state.h :: Nil)
 
@@ -384,7 +248,6 @@ object magicWandSupporter extends SymbolicExecutionRules {
     val stackSize = 3 + s.reserveHeaps.tail.size
     // IMPORTANT: Size matches structure of reserveHeaps at [State RHS] below
     var recordedBranches: Seq[(State, Stack[Term], Stack[(Exp, Option[Exp])], (Seq[Term], Option[Seq[DebugExp]]), Chunk)] = Nil
->>>>>>> upstream/master
 
     /* TODO: When parallelising branches, some of the runtime assertions in the code below crash
      *       during some executions - since such crashes are hard to debug, branch parallelisation
@@ -397,64 +260,6 @@ object magicWandSupporter extends SymbolicExecutionRules {
                       recordPcs = true,
                       parallelizeBranches = false)
 
-<<<<<<< HEAD
-    def createWandChunkAndRecordResults(s4: State,
-                                        freshSnapRoot: Var,
-                                        snap: Term,
-                                        v3: Verifier)
-                                       : VerificationResult = {
-
-      def appendToResults(s5: State, ch: Chunk, pcs: RecordedPathConditions, v4: Verifier): Unit = {
-        assert(s5.conservedPcs.nonEmpty, s"Unexpected structure of s5.conservedPcs: ${s5.conservedPcs}")
-
-        var conservedPcs: Vector[RecordedPathConditions] = Vector.empty
-        var conservedPcsStack: Stack[Vector[RecordedPathConditions]] = s5.conservedPcs
-
-        // Do not record further path conditions if the current state is inconsistent.
-        // This is an ad-hoc workaround to mitigate the following problem: producing a wand's LHS
-        // and executing the packaging proof code can introduce definitional path conditions, e.g.
-        // new permission and snapshot maps, which are in general necessary to proceed after the
-        // package statement, e.g. to know which permissions have been consumed.
-        // Since the current implementation doesn't properly differentiate between definitional
-        // and arbitrary path conditions, all path conditions are recorded — which is unsound.
-        // To somewhat improve the situation, such that "non-malevolent" usage of wands works
-        // as expected, we simply check if the current state is known to be inconsistent, and if
-        // it is, we don't record (any further) path conditions.
-        // TODO: Fix this. Might require a substantial redesign of Silicon's path conditions, though.
-
-        if (!v4.decider.checkSmoke()) {
-          conservedPcs = s5.conservedPcs.head :+ pcs
-
-          conservedPcsStack =
-            s5.conservedPcs.tail match {
-              case empty @ Seq() => empty
-              case head +: tail => (head ++ conservedPcs) +: tail
-            }
-        }
-
-        val s6 = s5.copy(conservedPcs = conservedPcsStack, recordPcs = s.recordPcs)
-
-        results :+= (s6, v4.decider.pcs.branchConditions, conservedPcs, ch)
-      }
-
-      val preMark = v3.decider.setPathConditionMark()
-      if (s4.qpMagicWands.contains(MagicWandIdentifier(wand, Verifier.program))) {
-        val bodyVars = wand.subexpressionsToEvaluate(Verifier.program)
-        val formalVars = bodyVars.indices.toList.map(i => Var(Identifier(s"x$i"), v.symbolConverter.toSort(bodyVars(i).typ)))
-        evals(s4, bodyVars, _ => pve, v3)((s5, args, v4) => {
-          val (sm, smValueDef) =
-            quantifiedChunkSupporter.singletonSnapshotMap(s5, wand, args, MagicWandSnapshot(freshSnapRoot, snap), v4)
-          v4.decider.prover.comment("Definitional axioms for singleton-SM's value")
-          v4.decider.assume(smValueDef)
-          val ch = quantifiedChunkSupporter.createSingletonQuantifiedChunk(formalVars, wand, args, FullPerm(), sm)
-          appendToResults(s5, ch, v4.decider.pcs.after(preMark), v4)
-          Success()
-        })
-      } else {
-        magicWandSupporter.createChunk(s4, wand, freshSnapRoot, snap, pve, v3)((s5, ch, v4) => {
-//          say(s"done: create wand chunk: $ch")
-          appendToResults(s5, ch, v4.decider.pcs.after(preMark), v4)
-=======
     def appendToResults(s5: State, ch: Chunk, pcs: RecordedPathConditions, conservedPcs: (Seq[Term], Option[Seq[DebugExp]]), v4: Verifier): Unit = {
       assert(s5.conservedPcs.nonEmpty, s"Unexpected structure of s5.conservedPcs: ${s5.conservedPcs}")
 
@@ -543,23 +348,11 @@ object magicWandSupporter extends SymbolicExecutionRules {
 
           appendToResults(s5, ch, v4.decider.pcs.after(preMark), (pcsQuantified +: pcsWithoutFreshSnapRoot,
             Option.when(withExp)(DebugExp.createInstance("MWSF definition path conditions", pcsQuantified, true) +: pcsWithoutExp.get)) , v4)
->>>>>>> upstream/master
           Success()
         })
       }
     }
 
-<<<<<<< HEAD
-    val r = executionFlowController.locally(sEmp, v)((s1, v1) => {
-      /* Using conservingSnapshotGeneration a snapshot (binary tree) will be
-       * constructed using First/Second datatypes, that preserves the original root.
-       * The leafs of this tree will later appear in the snapshot of the rhs at the
-       * appropriate places. Thus equating freshSnapRoot with the snapshot received
-       * from consuming the lhs when applying the wand preserves values from the lhs
-       * into the rhs.
-       */
-      val freshSnapRoot = freshSnap(sorts.Snap, v1)
-=======
     val tempResult = executionFlowController.locally(sEmp, v)((s1, v1) => {
       /* A snapshot (binary tree) will be constructed using First/Second datatypes,
        * that preserves the original root. The leafs of this tree will later appear
@@ -570,7 +363,6 @@ object magicWandSupporter extends SymbolicExecutionRules {
       val freshSnapRoot = freshSnap(sorts.Snap, v1)
 
       // Produce the wand's LHS.
->>>>>>> upstream/master
       produce(s1.copy(conservingSnapshotGeneration = true), toSf(freshSnapRoot), wand.left, pve, v1)((sLhs, v2) => {
         val proofScriptCfg = proofScript.toCfg()
 
@@ -591,28 +383,6 @@ object magicWandSupporter extends SymbolicExecutionRules {
          * empty, and where the dots represent the heaps belonging to surrounding package/packaging
          * operations. hOps will be populated while processing the RHS of the wand to package.
          * More precisely, each ghost operation (folding, applying, etc.) that is executed
-<<<<<<< HEAD
-         * populates hUsed (by transferring permissions from heaps lower in the stack, and by
-         * adding new chunks, e.g. a folded predicate) during its execution, and afterwards
-         * merges hUsed and hOps, the result of which replaces hOps, and hUsed is replaced by a
-         * new empty heap (see also the final state updates in, e.g. method `applyingWand`
-         * or `unfoldingPredicate` below).
-         */
-        assert(stackSize == s2.reserveHeaps.length)
-
-//        say(s"done: produced LHS ${wand.left}")
-//        say(s"next: consume RHS ${wand.right}")
-        executor.exec(s2, proofScriptCfg, v2)((proofScriptState, proofScriptVerifier) => {
-          consume(proofScriptState.copy(oldHeaps = s2.oldHeaps, reserveCfgs = proofScriptState.reserveCfgs.tail), wand.right, pve, proofScriptVerifier)((s3, snap, v3) => {
-//            say(s"done: consumed RHS ${wand.right}")
-            val s4 = s3.copy(//h = s.h, /* Temporarily */
-                             exhaleExt = false,
-                             oldHeaps = s.oldHeaps)
-//            say(s"next: create wand chunk")
-            createWandChunkAndRecordResults(s4, freshSnapRoot, snap, v3)})})})})
-
-    if (results.isEmpty) {
-=======
          * populates hUsed during its execution. This is done by transferring permissions
          * from heaps lower in the stack, and by adding new chunks, e.g. a folded predicate.
          * Afterwards, it merges hUsed and hOps, which replaces hOps. hUsed is replaced by a
@@ -638,7 +408,6 @@ object magicWandSupporter extends SymbolicExecutionRules {
     })
 
     if (recordedBranches.isEmpty) {
->>>>>>> upstream/master
       // No results mean that packaging the wand resulted in inconsistent states on all paths,
       // and thus, that no wand chunk was created. In order to continue, we create one now.
       // Moreover, we need to set reserveHeaps to structurally match [State RHS] below.
@@ -646,27 +415,6 @@ object magicWandSupporter extends SymbolicExecutionRules {
       createWandChunkAndRecordResults(s1, freshSnap(sorts.Snap, v), freshSnap(sorts.Snap, v), v)
     }
 
-<<<<<<< HEAD
-    results.foldLeft(r)((res, packageOut) => {
-      res && {
-        val state = packageOut._1
-        val branchConditions = packageOut._2
-        val conservedPcs = packageOut._3
-        val magicWandChunk = packageOut._4
-        val s1 = state.copy(reserveHeaps = state.reserveHeaps.drop(3),
-          parallelizeBranches = s.parallelizeBranches /* See comment above */
-          /*branchConditions = c.branchConditions*/)
-        executionFlowController.locally(s1, v)((s2, v1) => {
-          // TODO GRADUAL: we don't support magic wands yet, so a "fake" position here is fine
-          v1.decider.setCurrentBranchCondition(And(branchConditions),
-            ast.NullLit()(),
-            ast.NullLit()(),
-            None)
-          conservedPcs.foreach(pcs => v1.decider.assume(pcs.conditionalized))
-          Q(s2, magicWandChunk, v1)})}})
-  }
-
-=======
     recordedBranches.foldLeft(tempResult)((prevRes, recordedState) => {
       prevRes && {
         val (state, branchConditions, branchConditionsExp, conservedPcs, magicWandChunk) = recordedState
@@ -702,28 +450,12 @@ object magicWandSupporter extends SymbolicExecutionRules {
    * @param Q Continuation-style function that is called with the resulting state and the verification result.
    * @return Result of the overall verification process.
    */
->>>>>>> upstream/master
   def applyWand(s: State,
                 wand: ast.MagicWand,
                 pve: PartialVerificationError,
                 v: Verifier)
                (Q: (State, Verifier) => VerificationResult)
                : VerificationResult = {
-<<<<<<< HEAD
-        consume(s, wand, pve, v)((s1, snap, v1) => {
-          val wandSnap = MagicWandSnapshot(snap)
-          consume(s1, wand.left, pve, v1)((s2, snap, v2) => {
-            /* It is assumed that snap and wandSnap.abstractLhs are structurally the same.
-             * Since a wand can only be applied once, equating the two snapshots is sound.
-             */
-            assert(snap.sort == sorts.Snap, s"expected snapshot but found: $snap")
-            v2.decider.assume(snap === wandSnap.abstractLhs)
-            val s3 = s2.copy(oldHeaps = s1.oldHeaps + (Verifier.MAGIC_WAND_LHS_STATE_LABEL -> magicWandSupporter.getEvalHeap(s1)))
-            produce(s3.copy(conservingSnapshotGeneration = true), toSf(wandSnap.rhsSnapshot), wand.right, pve, v2)((s4, v3) => {
-              val s5 = s4.copy(g = s1.g, conservingSnapshotGeneration = s3.conservingSnapshotGeneration)
-              val s6 = stateConsolidator.consolidate(s5, v3).copy(oldHeaps = s1.oldHeaps)
-              Q(s6, v3)})})})}
-=======
     // Consume the magic wand instance "A --* B".
     consume(s, wand, true, pve, v)((s1, snapWand, v1) => {
       // Consume the wand's LHS "A".
@@ -762,22 +494,15 @@ object magicWandSupporter extends SymbolicExecutionRules {
       })
     })
   }
->>>>>>> upstream/master
 
   def transfer[CH <: Chunk]
               (s: State,
                perms: Term,
-<<<<<<< HEAD
-               failure: Failure,
-               v: Verifier)
-              (consumeFunction: (State, Heap, Term, Verifier) => (ConsumptionResult, State, Heap, Option[CH]))
-=======
                permsExp: Option[ast.Exp],
                failure: Failure,
                qvars: Seq[Var],
                v: Verifier)
               (consumeFunction: (State, Heap, Term, Option[ast.Exp], Verifier) => (ConsumptionResult, State, Heap, Option[CH]))
->>>>>>> upstream/master
               (Q: (State, Option[CH], Verifier) => VerificationResult)
               : VerificationResult = {
     assert(s.recordPcs)
@@ -793,21 +518,13 @@ object magicWandSupporter extends SymbolicExecutionRules {
      */
     val preMark = v.decider.setPathConditionMark()
     executionFlowController.tryOrFail2[Stack[Heap], Stack[Option[CH]]](s, v)((s1, v1, QS) =>
-<<<<<<< HEAD
-      magicWandSupporter.consumeFromMultipleHeaps(s1, s1.reserveHeaps.tail, perms, failure, v1)(consumeFunction)(QS)
-=======
       this.consumeFromMultipleHeaps(s1, s1.reserveHeaps.tail, perms, permsExp, failure, qvars, v1)(consumeFunction)(QS)
->>>>>>> upstream/master
     )((s2, hs2, chs2, v2) => {
       val conservedPcs = s2.conservedPcs.head :+ v2.decider.pcs.after(preMark)
       val s3 = s2.copy(conservedPcs = conservedPcs +: s2.conservedPcs.tail, reserveHeaps = s.reserveHeaps.head +: hs2)
 
       val usedChunks = chs2.flatten
-<<<<<<< HEAD
-      val (fr4, hUsed) = stateConsolidator.merge(s3.functionRecorder, s2.reserveHeaps.head, Heap(usedChunks), v2)
-=======
       val (fr4, hUsed) = v2.stateConsolidator(s2).merge(s3.functionRecorder, s2, s2.reserveHeaps.head, Heap(usedChunks), v2)
->>>>>>> upstream/master
 
       val s4 = s3.copy(functionRecorder = fr4, reserveHeaps = hUsed +: s3.reserveHeaps.tail)
 
@@ -852,11 +569,7 @@ object magicWandSupporter extends SymbolicExecutionRules {
        * is consumed from hOps and permissions for the predicate are added to the state's
        * heap. After a statement is executed those permissions are transferred to hOps.
        */
-<<<<<<< HEAD
-      val (fr, hOpsJoinUsed) = stateConsolidator.merge(newState.functionRecorder, newState.reserveHeaps(1), newState.h, v)
-=======
       val (fr, hOpsJoinUsed) = v.stateConsolidator(newState).merge(newState.functionRecorder, newState, newState.reserveHeaps(1), newState.h, v)
->>>>>>> upstream/master
       newState.copy(functionRecorder = fr, h = Heap(),
           reserveHeaps = Heap() +: hOpsJoinUsed +: newState.reserveHeaps.drop(2))
     } else newState

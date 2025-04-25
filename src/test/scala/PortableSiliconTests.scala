@@ -97,7 +97,6 @@ class PortableSiliconTests extends SilSuite with StatisticalTestSuite {
   override def frontend(verifier: Verifier, files: Seq[Path]): SiliconFrontend = {
     require(files.length == 1, "tests should consist of exactly one file")
 
-<<<<<<< HEAD
     // For Unit-Testing of the Symbolic Execution Logging, the name of the file
     // to be tested must be known, which is why it's passed here to the SymbExLogger-Object.
     // SymbExLogger.reset() cleans the logging object (only relevant for verifying multiple
@@ -106,13 +105,6 @@ class PortableSiliconTests extends SilSuite with StatisticalTestSuite {
     // SymbExLogger.filePath = files.head
     // SymbExLogger.initUnitTestEngine()
 
-    /* If needed, Silicon reads the filename of the program under verification from Verifier.inputFile.
-    When the test suite is executed (sbt test/testOnly), Verifier.inputFile is set here. When Silicon is
-    run from the command line, Verifier.inputFile is set in src/main/scala/Silicon.scala. */
-    viper.silicon.verifier.Verifier.inputFile = Some(files.head)
-
-=======
->>>>>>> upstream/master
     val fe = new SiliconFrontend(NoopReporter)//SiliconFrontendWithUnitTesting()
     fe.init(verifier)
     fe.reset(files.head)

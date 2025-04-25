@@ -1092,29 +1092,6 @@ object Equals extends ((Term, Term) => BooleanTerm) {
     assert(e0.sort == e1.sort,
            s"Expected both operands to be of the same sort, but found ${e0.sort} ($e0) and ${e1.sort} ($e1).")
 
-<<<<<<< HEAD
-    if (e0 == e1)
-      True()
-    else
-      e0.sort match {
-        case sorts.Snap =>
-          (e0, e1) match {
-            case (sw1: SortWrapper, sw2: SortWrapper) if sw1.t.sort != sw2.t.sort =>
-              assert(false, s"Equality '(Snap) $e0 == (Snap) $e1' is not allowed")
-            /* The next few cases are nonsensical and might indicate a bug in Silicon.
-               However, they can also arise on infeasible paths (and preventing them
-               would require potentially expensive prover calls), so treating
-               them as errors is unfortunately not an option.
-             */
-            // case (_: Combine, _: SortWrapper) =>
-            //   assert(false, s"Equality '$e0 == (Snap) $e1' is not allowed")
-            // case (_: SortWrapper, _: Combine) =>
-            //   assert(false, s"Equality '(Snap) $e0 == $e1' is not allowed")
-            // case (Unit, _: Combine) | (_: Combine, Unit) =>
-            //   assert(false, s"Equality '$e0 == $e1' is not allowed")
-            case _ => /* Ok */
-          }
-=======
     // Note that the syntactic simplifications (first two cases) can interfere with triggering
     // if they eliminate potential trigger terms.
     (e0, e1) match {
@@ -1139,7 +1116,6 @@ object Equals extends ((Term, Term) => BooleanTerm) {
               //   assert(false, s"Equality '$e0 == $e1' is not allowed")
               case _ => /* Ok */
             }
->>>>>>> upstream/master
 
             BuiltinEquals(e0, e1)
 
@@ -1817,13 +1793,8 @@ object SetIntersection extends PreciseCondFlyweightFactory[(Term, Term), SetInte
   override def actualCreate(args: (Term, Term)): SetIntersection = new SetIntersection(args._1, args._2)
 }
 
-<<<<<<< HEAD
-class SetSubset(val p0: Term, val p1: Term) extends BooleanTerm
-    with StructuralEqualityBinaryOp[Term] {
-=======
 class SetSubset private[terms] (val p0: Term, val p1: Term) extends BooleanTerm
     with ConditionalFlyweightBinaryOp[SetSubset] {
->>>>>>> upstream/master
   override val op = "⊂"
 }
 

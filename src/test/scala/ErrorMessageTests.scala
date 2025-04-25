@@ -3,28 +3,18 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 //
 // Copyright (c) 2011-2019 ETH Zurich.
-<<<<<<< HEAD
 /*
-package viper.silicon.tests
-
-import org.scalatest.FunSuite
-=======
 
 package viper.silicon.tests
 
 import org.scalatest.funsuite.AnyFunSuite
->>>>>>> upstream/master
 import viper.silver.ast._
 import viper.silver.ast.utility.rewriter._
 import viper.silver.ast.utility._
 import viper.silver.frontend.SilFrontend
 import viper.silver.verifier.errors._
 
-<<<<<<< HEAD
-class ErrorMessageTests extends FunSuite {
-=======
 class ErrorMessageTests extends AnyFunSuite {
->>>>>>> upstream/master
   test("MeetingExample") {
     val filePrefix = "errorMessageTests/misc/"
     val files = Seq("simple")
@@ -40,10 +30,10 @@ class ErrorMessageTests extends AnyFunSuite {
          * `Assertion false ...`, an explicit error-backtransformation is added such that
          * `Assertion false ...` is "backtranslated" to itself, i.e. to `Assertion false ...`.
          */
-        FalseLit()(f.pos, f.info, NodeTrafo(f))
+/*        FalseLit()(f.pos, f.info, NodeTrafo(f))
       case And(_, f: FalseLit) =>
         /* Here, the automatically attached backtranslation function suffices */
-        f
+/*        f
     })
 
     files foreach (executeTest(filePrefix, _, strategy, frontend))
@@ -52,7 +42,7 @@ class ErrorMessageTests extends AnyFunSuite {
   test("WhileToIfGoto") {
     val filePrefix = "errorMessageTests/whileToIfGoto/"
     val files = Seq("simple"/*, "nested"*/)
-    val frontend = tests.instantiateFrontend()
+/*    val frontend = tests.instantiateFrontend()
 
     // Example of how to transform a while loop into if and goto
     // Keeping metadata is awful when creating multiple statements from a single one and we need to think about this case, but at least it is possible
@@ -99,14 +89,8 @@ class ErrorMessageTests extends AnyFunSuite {
 
   test("MethodInlining") {
     // Careful: Don't use old inside postcondition. It is not yet supported. maybe I will update the testcase
-<<<<<<< HEAD
-    // removed test "withfields" bcz had exhale
     val filePrefix = "errorMessageTests/methodInlining/"
-    val files = Seq("simple" , "withArgs", "withArgsNRes")
-=======
-    val filePrefix = "errorMessageTests/methodInlining/"
-    val files = Seq("simple" , "withArgs", "withArgsNRes", "withFields")
->>>>>>> upstream/master
+    val files = Seq("simple" , "withArgs", "withArgsNRes"/*, "withFields" *//*)
     val frontend = tests.instantiateFrontend()
 
     val replaceStrategy = ViperStrategy.Context[Map[Exp, Exp]]({
@@ -118,12 +102,8 @@ class ErrorMessageTests extends AnyFunSuite {
          * node `l` will be reported. To prevent this, we currently need to manually attach an
          * error back-transformer saying that `n` is to be reported.
          */
-        val (pos, info, _) = n.getPrettyMetadata
-<<<<<<< HEAD
-        (c.c(l).meta = ((pos, info, NodeTrafo(n))), c)
-=======
+/*        val (pos, info, _) = n.getPrettyMetadata
         (c.c(l).withMeta(pos, info, NodeTrafo(n)), c)
->>>>>>> upstream/master
 
     }, Map.empty[Exp, Exp])
 
@@ -146,11 +126,7 @@ class ErrorMessageTests extends AnyFunSuite {
         val exPres = mDecl.pres.map(replaceStrategy.execute[Exp](_, context)).map(x => Exhale(x)(x.pos, x.info, preError(m)))
 
         // Create an inhale statement for every postcondition, replace parameters with arguments and replace result parameters with receivers
-<<<<<<< HEAD
-        val replacer2: Map[Exp, Exp] = mDecl.formalReturns.zip(m.targets).map(x => x._1.localVar -> x._2).toMap ++ replacer
-=======
         val replacer2: Map[Exp, Exp] = (mDecl.formalReturns.zip(m.targets).map(x => x._1.localVar -> x._2).toMap ++ replacer).to(Map)
->>>>>>> upstream/master
         val context2 = new PartialContextC[Node, Map[Exp, Exp]](replacer2)
         val inPosts = mDecl.posts.map(replaceStrategy.execute[Exp](_, context2)).map(x => Inhale(x)(x.pos, x.info, postError(x, mDecl)))
 
@@ -182,9 +158,4 @@ class ErrorMessageTests extends AnyFunSuite {
     assert(result, "Files are not equivalent after transformation")
   }
 }
-<<<<<<< HEAD
 */
-=======
-
-
->>>>>>> upstream/master
