@@ -821,8 +821,8 @@ object evaluator extends EvaluationRules with Immutable {
             eval(s1, ePerm, pve, v1)((s2, tPerm, v2) =>
               v2.decider.assert(IsNonNegative(tPerm)) {
                 case true =>
-                  //joiner.join[Term, Term](s2, v2)((s3, v3, QB) => { // removed join functionality for now (Priyam, Sept 2024)
-                    val s4 = s2.incCycleCounter(predicate)
+                  joiner.join[Term, Term](s2, v2)((s3, v3, QB) => {
+                    val s4 = s3.incCycleCounter(predicate)
                                .copy(recordVisited = true,
                                  forFraming = true)
                       /* [2014-12-10 Malte] The commented code should replace the code following
@@ -838,7 +838,7 @@ object evaluator extends EvaluationRules with Immutable {
                     val hTotal = s4.h + s4.optimisticHeap
                     val predFramed = chunkSupporter.inHeap(hTotal, hTotal.values, predicate, tArgs, v2)
 
-                    consume(s4, acc, pve, v2)((s5, snap, v4) => {
+                    consume(s4, acc, pve, v3)((s5, snap, v4) => {
                       val s5_1 = s5.copy(forFraming = false)
                       val fr6 =
                         s5_1.functionRecorder.recordSnapshot(pa, v4.decider.pcs.branchConditions, snap)
@@ -865,7 +865,7 @@ object evaluator extends EvaluationRules with Immutable {
                       produce(s7a, toSf(snap), body, pve, v4)((s8, v5) => {
                         val s9 = s8.copy(g = s7.g,
                                          functionRecorder = s8.functionRecorder.changeDepthBy(-1),
-                                         recordVisited = s2.recordVisited,
+                                         recordVisited = s3.recordVisited,
                                          permissionScalingFactor = s6.permissionScalingFactor,
                                          unfoldingAstNode = s7.unfoldingAstNode, needConditionFramingUnfold = false, generateChecks = s7.generateChecks)
                                    .decCycleCounter(predicate)
@@ -886,7 +886,7 @@ object evaluator extends EvaluationRules with Immutable {
                               Q(s12, eIn1, v6)
                           }
                         })})})
-                  //})(join(v2.symbolConverter.toSort(eIn.typ), "joined_unfolding", s2.relevantQuantifiedVariables, v2))(Q)
+                  })(join(v2.symbolConverter.toSort(eIn.typ), "joined_unfolding", s2.relevantQuantifiedVariables, v2))(Q)
                 case false =>
                   createFailure(pve dueTo NegativePermission(ePerm), v2, s2)}))
         } else {
@@ -1347,14 +1347,15 @@ object evaluator extends EvaluationRules with Immutable {
               eIn) =>
         // val gIns = s.g + Store(predicate.formalArgs map (_.localVar) zip eArgs) // copied from unfold in PredicateSupporter, not sure if needed - Priyam
         val predicate = Verifier.program.findPredicate(predicateName)
+        v.logger.debug(s"unfolding nested expression: ${eIn}")
         //v.logger.debug(s"recursive unfolding depth ${s.cycles(predicate)}")
         if (s.cycles(predicate) < Verifier.config.recursivePredicateUnfoldings()) { // config value is 1
           evalspc(s, eArgs, _ => pve, v, generateChecks)((s1, tArgs, v1) =>
             evalpc(s1, ePerm, pve, v1, generateChecks)((s2, tPerm, v2) =>
               v2.decider.assert(IsNonNegative(tPerm)) {
                 case true =>
-                  //joiner.join[Term, Term](s2, v2)((s3, v3, QB) => { // removed join functionality for now (Priyam, Sept 2024)
-                    val s4 = s2.incCycleCounter(predicate)
+                  joiner.join[Term, Term](s2, v2)((s3, v3, QB) => {
+                    val s4 = s3.incCycleCounter(predicate)
                                .copy(recordVisited = true,
                                  forFraming = true)
                       /* [2014-12-10 Malte] The commented code should replace the code following
@@ -1369,7 +1370,7 @@ object evaluator extends EvaluationRules with Immutable {
                     val hTotal = s4.h + s4.optimisticHeap
                     val predFramed = chunkSupporter.inHeap(hTotal, hTotal.values, predicate, tArgs, v2)
                     
-                    consume(s4, acc, pve, v2)((s5, snap, v4) => {
+                    consume(s4, acc, pve, v3)((s5, snap, v4) => {
                       val s5_1 = s5.copy(forFraming = false)
                       val fr6 =
                         s5_1.functionRecorder.recordSnapshot(pa, v4.decider.pcs.branchConditions, snap)
@@ -1397,7 +1398,7 @@ object evaluator extends EvaluationRules with Immutable {
                       produce(s7a, toSf(snap), body, pve, v4)((s8, v5) => {
                         val s9 = s8.copy(g = s7.g,
                                          functionRecorder = s8.functionRecorder.changeDepthBy(-1),
-                                         recordVisited = s2.recordVisited,
+                                         recordVisited = s3.recordVisited,
                                          permissionScalingFactor = s6.permissionScalingFactor,
                                          unfoldingAstNode = s7.unfoldingAstNode, needConditionFramingUnfold = false, generateChecks = s7.generateChecks)
                                    .decCycleCounter(predicate)
@@ -1411,17 +1412,16 @@ object evaluator extends EvaluationRules with Immutable {
                             case impr @ ast.ImpreciseExp(e) =>
                             // adding consumed predicate to OH when it wasn't statically framed before consume
                               val s12 = if (predFramed) s11a.copy(h = s2.h, optimisticHeap = s2.optimisticHeap) else s11a.copy(h = s2.h, optimisticHeap = s2.optimisticHeap + ch) 
-                              Q(s12, eIn1, v6)
+                              QB(s12, eIn1, v6)
                             case _ =>
                               // keep OH chunks assumed during evaluation of eIn
                               // Also, adding consumed predicate to OH when it wasn't statically framed before consume
                               val s12 = if (predFramed) s11a.copy(h = s2.h, optimisticHeap = s2.optimisticHeap + s11.optimisticHeap) else 
                                                         s11a.copy(h = s2.h, optimisticHeap = s2.optimisticHeap + s11.optimisticHeap + ch)
-                              Q(s12, eIn1, v6)
+                              QB(s12, eIn1, v6)
                           }
                         })})})
-                    // }
-                  //})(join(v2.symbolConverter.toSort(eIn.typ), "joined_unfolding", s2.relevantQuantifiedVariables, v2))(Q)
+                  })(join(v2.symbolConverter.toSort(eIn.typ), "joined_unfolding", s2.relevantQuantifiedVariables, v2))(Q)
                 case false =>
                   createFailure(pve dueTo NegativePermission(ePerm), v2, s2)}))
         } else {

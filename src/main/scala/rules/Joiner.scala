@@ -47,7 +47,7 @@ object joiner extends JoiningRules with Immutable {
          */
         val s4 = s3.copy(g = s1.g,
                          h = s1.h,
-                         optimisticHeap = s1.optimisticHeap,
+                         //optimisticHeap = s1.optimisticHeap,
                          frameArgHeap  = s1.frameArgHeap,
                          //oldHeaps = s1.oldHeaps, - commented out since resetting oldHeaps results in loss of info needed to translate an unfolding expression
                          underJoin = s1.underJoin)
