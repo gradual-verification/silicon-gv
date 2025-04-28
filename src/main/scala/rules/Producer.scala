@@ -13,14 +13,8 @@ import scala.collection.mutable
 import viper.silver.ast
 import viper.silver.ast.utility.QuantifiedPermissions.QuantifiedPermissionAssertion
 import viper.silver.verifier.PartialVerificationError
-<<<<<<< HEAD
-import viper.silicon.interfaces.{Failure, VerificationResult}
-import viper.silicon.logger.SymbExLogger
-import viper.silicon.logger.records.data.{CondExpRecord, ProduceRecord}
-=======
 import viper.silicon.interfaces.{Unreachable, VerificationResult}
 import viper.silicon.logger.records.data.{CondExpRecord, ImpliesRecord, ProduceRecord}
->>>>>>> upstream/master
 import viper.silicon.resources.{FieldID, PredicateID}
 import viper.silicon.state._
 import viper.silicon.state.terms._
@@ -28,11 +22,7 @@ import viper.silicon.state.terms.predef.`?r`
 import viper.silicon.supporters.functions.NoopFunctionRecorder
 import viper.silicon.utils.toSf
 import viper.silicon.verifier.Verifier
-<<<<<<< HEAD
-import viper.silver.verifier.reasons._
-=======
 import viper.silver.verifier.reasons.{NegativePermission, QPAssertionNotInjective}
->>>>>>> upstream/master
 
 trait ProductionRules extends SymbolicExecutionRules {
 
@@ -211,12 +201,8 @@ object producer extends ProductionRules {
                                 v: Verifier)
                                (Q: (State, Verifier) => VerificationResult)
                                : VerificationResult = {
-<<<<<<< HEAD
-    val sepIdentifier = SymbExLogger.currentLog().openScope(new ProduceRecord(a, s, v.decider.pcs))
-=======
 
     val sepIdentifier = v.symbExLog.openScope(new ProduceRecord(a, s, v.decider.pcs))
->>>>>>> upstream/master
     produceTlc(s, sf, a, pve, v)((s1, v1) => {
       v1.symbExLog.closeScope(sepIdentifier)
       Q(s1, v1)})
@@ -237,7 +223,7 @@ object producer extends ProductionRules {
       continuation(if (state.exhaleExt) state.copy(reserveHeaps = state.h +: state.reserveHeaps.drop(1)) else state, verifier)
 
     val produced = a match {
-<<<<<<< HEAD
+//<<<<<<< HEAD
 
       // TODO: figure out how imprecise deals with snapshots - J
       case impr @ ast.ImpreciseExp(e) =>
@@ -279,7 +265,7 @@ object producer extends ProductionRules {
       //
       // IMPORTANT: that field must be unset before 
       case ite @ ast.CondExp(e0, a1, a2) =>
-=======
+/*=======
       case imp @ ast.Implies(e0, a0) if !a.isPure && s.moreJoins.id >= JoinMode.Impure.id =>
         val impliesRecord = new ImpliesRecord(imp, s, v.decider.pcs, "produce")
         val uidImplies = v.symbExLog.openScope(impliesRecord)
@@ -297,7 +283,7 @@ object producer extends ProductionRules {
                 /* TODO: Avoid creating a fresh var (by invoking) `sf` that is not used
                  * otherwise. In order words, only make this assumption if `sf` has
                  * already been used, e.g. in a snapshot equality such as `s0 == (s1, s2)`.
-                 */
+                 *//*
                 v2.symbExLog.closeScope(uidImplies)
                 QB(s2.copy(parallelizeBranches = s1.parallelizeBranches), null, v2)
               })
@@ -328,7 +314,7 @@ object producer extends ProductionRules {
                   /* TODO: Avoid creating a fresh var (by invoking) `sf` that is not used
                    * otherwise. In order words, only make this assumption if `sf` has
                    * already been used, e.g. in a snapshot equality such as `s0 == (s1, s2)`.
-                   */
+                   *//*
                 v2.symbExLog.closeScope(uidImplies)
                 Q(s2, v2)
             }))
@@ -362,15 +348,15 @@ object producer extends ProductionRules {
         )
 
       case ite @ ast.CondExp(e0, a1, a2) if !a.isPure =>
->>>>>>> upstream/master
+>>>>>>> upstream/master*/
         val condExpRecord = new CondExpRecord(ite, s, v.decider.pcs, "produce")
         val uidCondExp = v.symbExLog.openScope(condExpRecord)
 
-<<<<<<< HEAD
+//<<<<<<< HEAD
         val s_1 = s.copy(generateChecks = false, needConditionFramingProduce = true)
         evalpc(s_1, e0, pve, v, false)((s1, t0, v1) => {
           val s1_1 = s.copy(generateChecks = true, needConditionFramingProduce = false)
-=======
+/*=======
         eval(s, e0, pve, v)((s1, t0, e0New, v1) =>
           branch(s1, t0, (e0, e0New), v1)(
             (s2, v2) => produceR(s2, sf, a1, pve, v2)((s3, v3) => {
@@ -381,7 +367,7 @@ object producer extends ProductionRules {
               v3.symbExLog.closeScope(uidCondExp)
               Q(s3, v3)
             })))
->>>>>>> upstream/master
+>>>>>>> upstream/master*/
 
             // val branchPositionAstNode = s.methodCallAstNode match {
             //   case None => {
@@ -407,14 +393,14 @@ object producer extends ProductionRules {
                     + "we want to know if this occurs!")
               }
 
-<<<<<<< HEAD
+//<<<<<<< HEAD
             branch(s1_1, t0, e0, branchPosition, v1)(
               (s2, v2) => produceR(s2, sf, a1, pve, v2)((s3, v3) => {
-                SymbExLogger.currentLog().closeScope(uidCondExp)
+                v3.symbExLog.closeScope(uidCondExp)
                 Q(s3, v3)
               }),
               (s2, v2) => produceR(s2, sf, a2, pve, v2)((s3, v3) => {
-                SymbExLogger.currentLog().closeScope(uidCondExp)
+                v3.symbExLog.closeScope(uidCondExp)
                 Q(s3, v3)
               }))
         })
@@ -713,25 +699,26 @@ object producer extends ProductionRules {
  */
       /* Any regular expressions, i.e. boolean and arithmetic. */
       case _ =>
-        v.decider.assume(sf(sorts.Snap, v) === Unit) /* TODO: See comment for case ast.Implies above */
+        v.decider.assume(sf(sorts.Snap, v) === Unit,
+          Option.when(withExp)(DebugExp.createInstance("Empty snapshot", true))) /* TODO: See comment for case ast.Implies above */
         val s0 = s.copy(generateChecks = false)
         evalpc(s0, a, pve, v, false)((s1, t, v1) => {
           val s2 = s1.copy(generateChecks = true)
-          v1.decider.assume(t)
+          v1.decider.assume(t, Option.when(withExp)(a), aNew)
           Q(s2, v1)})
-=======
+/*=======
 
       case _: ast.InhaleExhaleExp =>
         createFailure(viper.silicon.utils.consistency.createUnexpectedInhaleExhaleExpressionError(a), v, s, "valid AST")
 
-      /* Any regular expressions, i.e. boolean and arithmetic. */
+      /* Any regular expressions, i.e. boolean and arithmetic. *//*
       case _ =>
         v.decider.assume(sf(sorts.Snap, v) === Unit,
           Option.when(withExp)(DebugExp.createInstance("Empty snapshot", true))) /* TODO: See comment for case ast.Implies above */
-        eval(s, a, pve, v)((s1, t, aNew, v1) => {
+        /*eval(s, a, pve, v)((s1, t, aNew, v1) => {
           v1.decider.assume(t, Option.when(withExp)(a), aNew)
           Q(s1, v1)})
->>>>>>> upstream/master
+>>>>>>> upstream/master*/
     }
 
     produced

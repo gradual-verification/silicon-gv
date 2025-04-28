@@ -18,10 +18,6 @@ import viper.silicon.state._
 import viper.silicon.state.State.OldHeaps
 import viper.silicon.state.terms._
 import viper.silicon.interfaces._
-<<<<<<< HEAD
-import viper.silicon.logger.SymbExLogger
-=======
->>>>>>> upstream/master
 import viper.silicon.rules.executionFlowController
 import viper.silicon.verifier.{Verifier, VerifierComponent}
 import viper.silicon.utils.freshSnap
@@ -52,14 +48,9 @@ trait DefaultPredicateVerificationUnitProvider extends VerifierComponent { v: Ve
 
   object predicateSupporter extends PredicateVerificationUnit with StatefulComponent {
     import viper.silicon.rules.producer._
-<<<<<<< HEAD
     import viper.silicon.rules.wellFormedness._
 
-    private var predicateData: Map[ast.Predicate, PredicateData] = Map.empty
-=======
-
     /*private*/ var predicateData: Map[ast.Predicate, PredicateData] = Map.empty
->>>>>>> upstream/master
 
     def data = predicateData
     def units = predicateData.keys.toSeq
@@ -88,34 +79,20 @@ trait DefaultPredicateVerificationUnitProvider extends VerifierComponent { v: Ve
     val axiomsAfterAnalysis: Iterable[Term] = Seq.empty
     def emitAxiomsAfterAnalysis(sink: ProverLike): Unit = ()
 
-<<<<<<< HEAD
-    def updateGlobalStateAfterAnalysis(): Unit = {
-      Verifier.predicateData = predicateData
-    }
-
-=======
->>>>>>> upstream/master
     /* Verification and subsequent preamble contribution */
 
     def verify(sInit: State, predicate: ast.Predicate): Seq[VerificationResult] = {
       logger.debug("\n\n" + "-" * 10 + " PREDICATE " + predicate.name + "-" * 10 + "\n")
       decider.prover.comment("%s %s %s".format("-" * 10, predicate.name, "-" * 10))
 
-<<<<<<< HEAD
-      SymbExLogger.openMemberScope(predicate, null, v.decider.pcs)
-
-      val ins = predicate.formalArgs.map(_.localVar)
-      val s = sInit.copy(isImprecise = false, 
-                         optimisticHeap = Heap(),
-                         g = Store(ins.map(x => (x, decider.fresh(x)))),
-=======
       openSymbExLogger(predicate)
 
       val ins = predicate.formalArgs.map(_.localVar)
       val s = sInit.copy(g = Store(ins.map(x => (x, decider.fresh(x)))),
->>>>>>> upstream/master
                          h = Heap(),
-                         oldHeaps = OldHeaps())
+                         oldHeaps = OldHeaps()
+                         isImprecise = false, 
+                         optimisticHeap = Heap())
       val err = PredicateNotWellformed(predicate)
 
       val result = predicate.body match {
@@ -125,19 +102,11 @@ trait DefaultPredicateVerificationUnitProvider extends VerifierComponent { v: Ve
           /*    locallyXXX {
                 magicWandSupporter.checkWandsAreSelfFraming(σ.γ, σ.h, predicate, c)}
           &&*/  executionFlowController.locally(s, v)((s1, _) => {
-<<<<<<< HEAD
                   wellformed(s1, freshSnap, Seq(body), err, v)((_, _) =>
                     Success())})
       }
 
-      SymbExLogger.closeMemberScope()
-=======
-                  produce(s1, freshSnap, body, err, v)((_, _) =>
-                    Success())})
-      }
-
       symbExLog.closeMemberScope()
->>>>>>> upstream/master
       Seq(result)
     }
 
@@ -153,28 +122,14 @@ trait DefaultPredicateVerificationUnitProvider extends VerifierComponent { v: Ve
     val axiomsAfterVerification: Iterable[Term] = Seq.empty
     def emitAxiomsAfterVerification(sink: ProverLike): Unit = ()
 
-<<<<<<< HEAD
-    def contributeToGlobalStateAfterVerification(): Unit = {
-      Verifier.predicateData = predicateData
-    }
-
-    /* Lifetime */
-
-    def start() {}
-=======
     /* Lifetime */
 
     def start(): Unit = {}
->>>>>>> upstream/master
 
     def reset(): Unit = {
       predicateData = predicateData.empty
     }
 
-<<<<<<< HEAD
-    def stop() {}
-=======
     def stop(): Unit = {}
->>>>>>> upstream/master
   }
 }

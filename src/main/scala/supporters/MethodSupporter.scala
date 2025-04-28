@@ -12,24 +12,14 @@ import viper.silver.components.StatefulComponent
 import viper.silver.verifier.errors._
 import viper.silicon.interfaces._
 import viper.silicon.decider.Decider
-<<<<<<< HEAD
-import viper.silicon.logger.SymbExLogger
-import viper.silicon.logger.records.data.EndRecord
 import viper.silicon.logger.records.data.WellformednessCheckRecord
-import viper.silicon.rules.{consumer, executionFlowController, executor, wellFormedness}
-=======
-import viper.silicon.logger.records.data.WellformednessCheckRecord
-import viper.silicon.rules.{consumer, executionFlowController, executor, producer}
->>>>>>> upstream/master
+import viper.silicon.rules.{consumer, executionFlowController, executor, producer, wellFormedness}
 import viper.silicon.state.{Heap, State, Store}
 import viper.silicon.state.State.OldHeaps
 import viper.silicon.verifier.{Verifier, VerifierComponent}
 import viper.silicon.utils.freshSnap
-<<<<<<< HEAD
-=======
 import viper.silver.reporter.AnnotationWarning
 import viper.silicon.{Map, toMap}
->>>>>>> upstream/master
 
 /* TODO: Consider changing the DefaultMethodVerificationUnitProvider into a SymbolicExecutionRule */
 
@@ -41,13 +31,8 @@ trait DefaultMethodVerificationUnitProvider extends VerifierComponent { v: Verif
 
   object methodSupporter extends MethodVerificationUnit with StatefulComponent {
     import executor._
-<<<<<<< HEAD
-    import consumer._
-    import wellFormedness._
-=======
     import producer._
     import consumer._
->>>>>>> upstream/master
 
     private var _units: Seq[ast.Method] = _
 
@@ -60,9 +45,6 @@ trait DefaultMethodVerificationUnitProvider extends VerifierComponent { v: Verif
     def verify(sInit: State, method: ast.Method): Seq[VerificationResult] = {
       logger.debug("\n\n" + "-" * 10 + " METHOD " + method.name + "-" * 10 + "\n")
       decider.prover.comment("%s %s %s".format("-" * 10, method.name, "-" * 10))
-<<<<<<< HEAD
-      SymbExLogger.openMemberScope(method, null, v.decider.pcs)
-=======
 
       val proverOptions: Map[String, String] = method.info.getUniqueInfo[ast.AnnotationInfo] match {
         case Some(ai) if ai.values.contains("proverArgs") =>
@@ -84,7 +66,6 @@ trait DefaultMethodVerificationUnitProvider extends VerifierComponent { v: Verif
 
       openSymbExLogger(method)
 
->>>>>>> upstream/master
       val pres = method.pres
       val posts = method.posts
 
@@ -100,32 +81,24 @@ trait DefaultMethodVerificationUnitProvider extends VerifierComponent { v: Verif
                     ++ outs.map(x => (x, decider.fresh(x)))
                     ++ method.scopedDecls.collect { case l: ast.LocalVarDecl => l }.map(_.localVar).map(x => (x, decider.fresh(x))))
 
-<<<<<<< HEAD
-      val s = sInit.copy(isImprecise = false,
-                         optimisticHeap = Heap(),
-                         g = g,
-=======
       val s = sInit.copy(g = g,
->>>>>>> upstream/master
+                         isImprecise = false,
+                         optimisticHeap = Heap(),
                          h = Heap(),
                          oldHeaps = OldHeaps(),
                          methodCfg = body)
 
-<<<<<<< HEAD
-
-=======
->>>>>>> upstream/master
       if (Verifier.config.printMethodCFGs()) {
         viper.silicon.common.io.toFile(
           body.toDot,
           new java.io.File(s"${Verifier.config.tempDirectory()}/${method.name}.dot"))
       }
 
-<<<<<<< HEAD
+/*<<<<<<< HEAD
       val result =
         /* Combined the well-formedness check and the execution of the body, which are two separate
          * rules in Smans paper.
-         */
+         *//*
         executionFlowController.locally(s, v)((s1, v1) => {
           wellformed(s1, freshSnap, pres, ContractNotWellformed(viper.silicon.utils.ast.BigAnd(pres)), v1)((s2, v2) => {
             v2.decider.prover.saturate(Verifier.config.z3SaturationTimeouts.afterContract)
@@ -150,21 +123,23 @@ trait DefaultMethodVerificationUnitProvider extends VerifierComponent { v: Verif
                   }) }) }  )})})
 
       SymbExLogger.closeMemberScope()
-=======
+=======*/
       errorsReportedSoFar.set(0)
       val result =
         /* Combined the well-formedness check and the execution of the body, which are two separate
          * rules in Smans' paper.
          */
         executionFlowController.locally(s, v)((s1, v1) => {
-          produces(s1, freshSnap, pres, ContractNotWellformed, v1)((s2, v2) => {
+          wellformed(s1, freshSnap, pres, ContractNotWellformed(viper.silicon.utils.ast.BigAnd(pres)), v1)((s2, v2) => {
             v2.decider.prover.saturate(Verifier.config.proverSaturationTimeouts.afterContract)
             val s2a = s2.copy(oldHeaps = s2.oldHeaps + (Verifier.PRE_STATE_LABEL -> s2.h))
             (  executionFlowController.locally(s2a, v2)((s3, v3) => {
-                  val s4 = s3.copy(h = Heap())
+                  val s4 = s3.copy(h = Heap(),
+                                   isImprecise = false,
+                                   optimisticHeap = Heap())
                   val impLog = new WellformednessCheckRecord(posts, s, v.decider.pcs)
                   val sepIdentifier = symbExLog.openScope(impLog)
-                  produces(s4, freshSnap, posts, ContractNotWellformed, v3)((_, _) => {
+                  wellformed(s4, freshSnap, posts, ContractNotWellformed(viper.silicon.utils.ast.BigAnd(posts)), v3)((_, v4) => {
                     symbExLog.closeScope(sepIdentifier)
                     Success()})})
             && {
@@ -176,26 +151,18 @@ trait DefaultMethodVerificationUnitProvider extends VerifierComponent { v: Verif
       v.decider.resetProverOptions()
 
       symbExLog.closeMemberScope()
->>>>>>> upstream/master
+//>>>>>>> upstream/master
       Seq(result)
     }
 
     /* Lifetime */
 
-<<<<<<< HEAD
-    def start() {}
-=======
     def start(): Unit = {}
->>>>>>> upstream/master
 
     def reset(): Unit = {
       _units = Seq.empty
     }
 
-<<<<<<< HEAD
-    def stop() {}
-=======
     def stop(): Unit = {}
->>>>>>> upstream/master
   }
 }
