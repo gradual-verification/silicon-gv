@@ -63,6 +63,21 @@ trait RecordedPathConditions {
       case _ => equivalentVars
     })
   }
+
+  def getEquivalentExpressions(symbolicFunc: Term): Seq[Term] = {
+    assumptions.foldRight[Seq[Term]](Seq.empty)((term, equivalentVars) => term match {
+      case Implies(term1, term2) =>
+        term2 match {
+          case Equals(t1, t2) if t2 == symbolicFunc =>
+            t1 +: equivalentVars
+          case Equals(t1, t2) if t1 == symbolicFunc =>
+            t2 +: equivalentVars
+          case _ =>
+            equivalentVars
+        }
+      case _ => equivalentVars
+    })
+  }
 }
 
 trait PathConditionStack extends RecordedPathConditions {

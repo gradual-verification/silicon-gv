@@ -144,10 +144,26 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
       // case terms.Second(_)     => None
       // case terms.Combine(_, _) => None
       // }
+      case terms.App(applicable, args) => //sys.error(s"Unable to translate applicable: ${applicable} args: ${args}")
+        tryTranslating(pcs.getEquivalentExpressions(t))
+      // case terms.App(fun, ts) =>
+      //   Some(ast.FuncApp(fun.id.name, ts.flatMap(translate(_)))(NoPosition, NoInfo, typeOfSort(fun.resultSort), NoTrafos))
       case _ => sys.error(s"Unable to translate ${t}")
     }
   }
 
+  private def tryTranslating(ts: Seq[terms.Term]): Option[ast.Exp] = {
+    if (ts.isEmpty) {
+      return None
+    }
+    else {
+      translate(ts(0)) match {
+        case Some(e) => Some(e)
+        case None => if (ts.length == 0) None else tryTranslating(ts.slice(1,ts.length))
+      }
+    }
+  }
+  
   private def selectShortestField(candidateFields: Seq[ast.Exp]): Option[ast.Exp] = {
     if (candidateFields.exists(f => f.isInstanceOf[ast.FieldAccess])) {
       candidateFields.foldRight[Option[ast.Exp]](None)((currentField, shortestField) =>
@@ -209,7 +225,7 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
     // val oldHeapAliases = s.oldHeaps.getOrElse(Verifier.PRE_STATE_LABEL, Heap()).getChunksForValue(variable, lenient) // Priyam - tracking oldHeapAliases here to fix translation for asserting/consuming an unfolding expression's framed part
     val pcsEquivalentVariables: Seq[terms.Term] =
       pcs.getEquivalentVariables(variable, lenient) :+ variable
-    
+        
     pcsEquivalentVariables.foldRight[Seq[ast.Exp]](Seq())(
       (term, candidateResolvedVariables) =>
           if (translatingVars.exists(t => t.toString == term.toString && t.sort == term.sort)) {
