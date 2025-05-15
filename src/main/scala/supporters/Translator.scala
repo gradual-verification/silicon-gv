@@ -184,7 +184,8 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
       // (they should all be equal in length!)
       Some(candidateFields(0))
     } else {
-      sys.error("List of translated variables is empty, aka the Translator has failed translation!")
+      None
+      //sys.error("List of translated variables is empty, aka the Translator has failed translation!")
     }
   }
 
