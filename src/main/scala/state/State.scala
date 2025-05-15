@@ -175,7 +175,7 @@ object State {
 
         s2 match {
           case State(g2, oldStore2, h2, oldHeaps2, // oldStore and oldHeaps shouldn't be checked
-                     isImprecise2, optimisticHeap2,
+                     isImprecise2, optimisticHeap2, // optimisticHeap not checked
                      gatherFrame2, frameArgHeap2,
                      parallelizeBranches2,
                      recordVisited2, visited2,
@@ -202,7 +202,6 @@ object State {
             if (g1 != g2) mismatches += s"g mismatch: ${g1} != ${g2}"
             if (h1 != h2) mismatches += s"heap mismatch: ${h1} != ${h2}"
             if (isImprecise1 != isImprecise2) mismatches += s"isImprecise mismatch: ${isImprecise1} != ${isImprecise2}"
-            // if (optimisticHeap1 != optimisticHeap2) mismatches += s"optimisticHeap mismatch: ${optimisticHeap1.values.mkString("[", ", ", "]")} != ${optimisticHeap2.values.mkString("[", ", ", "]")}"
             if (gatherFrame1 != gatherFrame2) mismatches += s"gatherFrame mismatch: ${gatherFrame1} != ${gatherFrame2}"
             if (frameArgHeap1 != frameArgHeap2) mismatches += s"frameArgHeap mismatch: ${frameArgHeap1} != ${frameArgHeap2}"
             if (parallelizeBranches1 != parallelizeBranches2) mismatches += s"parallelizeBranches mismatch: ${parallelizeBranches1} != ${parallelizeBranches2}"

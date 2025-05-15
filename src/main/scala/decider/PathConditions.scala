@@ -64,6 +64,10 @@ trait RecordedPathConditions {
     })
   }
 
+  // getEquivalentExpressions only safe to use for joined unfolding expressions.
+  // Since joined unfolding symbolic value maps to the same term regardless of branch condition,
+  // for implications in path condition that are relevant to joined unfolding -> we can safely ignore the implication condition
+
   def getEquivalentExpressions(symbolicFunc: Term): Seq[Term] = {
     assumptions.foldRight[Seq[Term]](Seq.empty)((term, equivalentVars) => term match {
       case Implies(term1, term2) =>

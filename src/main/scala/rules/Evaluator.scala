@@ -1347,7 +1347,7 @@ object evaluator extends EvaluationRules with Immutable {
               eIn) =>
         // val gIns = s.g + Store(predicate.formalArgs map (_.localVar) zip eArgs) // copied from unfold in PredicateSupporter, not sure if needed - Priyam
         val predicate = Verifier.program.findPredicate(predicateName)
-        v.logger.debug(s"unfolding nested expression: ${eIn}")
+        // v.logger.debug(s"unfolding nested expression: ${eIn}")
         //v.logger.debug(s"recursive unfolding depth ${s.cycles(predicate)}")
         if (s.cycles(predicate) < Verifier.config.recursivePredicateUnfoldings()) { // config value is 1
           evalspc(s, eArgs, _ => pve, v, generateChecks)((s1, tArgs, v1) =>

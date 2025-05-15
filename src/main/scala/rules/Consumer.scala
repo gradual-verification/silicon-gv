@@ -874,7 +874,7 @@ object consumer extends ConsumptionRules with Immutable {
           Q(s1, oh, h, t, v1)
         }) match {
           case (verificationResult, Some(returnedChecks)) =>
-            println("returnedChecks: " + returnedChecks)
+            // println("returnedChecks: " + returnedChecks)
             returnedState match {
               case Some((s1, pcs)) => {
                 // val g = s1.oldStore match {
