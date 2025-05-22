@@ -60,6 +60,8 @@ object TermDifference {
     case terms.Var(name, sort) => terms.Var(name, sort)
     case terms.SortWrapper(_, _) if excludedTerms.contains("SortWrapper") => expansionPhase(term)
     case terms.SortWrapper(t, sort) => terms.SortWrapper(visitor(expansionPhase, excludedTerms, t), sort)
+    case terms.App(_, _) if excludedTerms.contains("App") => expansionPhase(term)
+    case terms.App(applicable, args) => terms.App(applicable, args.map(arg => visitor(expansionPhase, excludedTerms, arg)))
   }
 
   def eliminateImplications(symbolicValue: terms.Term): terms.Term = symbolicValue match {
