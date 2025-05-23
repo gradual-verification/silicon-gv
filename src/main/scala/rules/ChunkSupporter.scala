@@ -226,9 +226,15 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
       case p: ast.Predicate => {
         /* heap-rem-pred */
         findChunk[NonQuantifiedChunk](h.values, id, args, v) match {
-          case Some(ch) if v.decider.check(ch.perm === perms, Verifier.config.checkTimeout()) && v.decider.check(perms === FullPerm(), Verifier.config.checkTimeout()) =>
-            var newH = h - ch
-            (Complete(), s, newH, Some(ch))
+          case Some(ch) if v.decider.check(perms === FullPerm(), Verifier.config.checkTimeout()) =>
+            val toTake = PermMin(ch.perm, perms)
+            val newChunk = ch.withPerm(PermMinus(ch.perm, toTake))
+            val takenChunk = Some(ch.withPerm(toTake))
+            var newHeap = h - ch
+            if (!v.decider.check(newChunk.perm === NoPerm(), Verifier.config.checkTimeout())) {
+              newHeap = newHeap + newChunk
+            }
+            (ConsumptionResult(PermMinus(perms, toTake), v, 0), s, newHeap, takenChunk)
           case _ =>
             (Incomplete(perms), s, Heap(), None)
         }

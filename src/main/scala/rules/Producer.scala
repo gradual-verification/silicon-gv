@@ -332,29 +332,25 @@ object producer extends ProductionRules with Immutable {
         evalspc(s0, eArgs, _ => pve, v, false)((s1, tArgs, v1) =>
           evalpc(s1, perm, pve, v1, false)((s2, tPerm, v2) => {
             val s2_0 = s2.copy(generateChecks = true)
-            if (chunkSupporter.inHeap(s2_0.h, s2_0.h.values, predicate, tArgs, v2)) {
-              // Actually because it's in the heap, but don't know how to do that yet
-              createFailure(pve dueTo NegativePermission(perm), v2, s2_0) }
-            else {
-              val snap = sf(
-                predicate.body.map(v2.snapshotSupporter.optimalSnapshotSort(_, Verifier.program)._1)
-                            .getOrElse(sorts.Snap), v2)
-              val gain = PermTimes(tPerm, s2_0.permissionScalingFactor)
+            val snap = sf(
+              predicate.body.map(v2.snapshotSupporter.optimalSnapshotSort(_, Verifier.program)._1)
+                          .getOrElse(sorts.Snap), v2)
+            val gain = PermTimes(tPerm, s2_0.permissionScalingFactor)
 /*            if (s2.qpPredicates.contains(predicate)) {
-              val formalArgs = s2.predicateFormalVarMap(predicate)
-              val trigger = (sm: Term) => PredicateTrigger(predicate.name, sm, tArgs)
-              quantifiedChunkSupporter.produceSingleLocation(
-                s2, predicate, formalArgs, tArgs, snap, gain, trigger, v2)(Q)
-            } else {
+            val formalArgs = s2.predicateFormalVarMap(predicate)
+            val trigger = (sm: Term) => PredicateTrigger(predicate.name, sm, tArgs)
+            quantifiedChunkSupporter.produceSingleLocation(
+              s2, predicate, formalArgs, tArgs, snap, gain, trigger, v2)(Q)
+          } else {
 */
-              val snap1 = snap.convert(sorts.Snap)
-              val ch = BasicChunk(PredicateID, BasicChunkIdentifier(predicate.name), tArgs, snap1, gain)
-              chunkSupporter.produce(s2_0, s2_0.h, ch, v2)((s3, h3, v3) => {
-                /* if (Verifier.config.enablePredicateTriggersOnInhale() && s3.functionRecorder == NoopFunctionRecorder) {
-                  v3.decider.assume(App(Verifier.predicateData(predicate).triggerFunction, snap1 +: tArgs))
-                } */
-                Q(s3.copy(h = h3), v3)})
-            }}))
+            val snap1 = snap.convert(sorts.Snap)
+            val ch = BasicChunk(PredicateID, BasicChunkIdentifier(predicate.name), tArgs, snap1, gain)
+            chunkSupporter.produce(s2_0, s2_0.h, ch, v2)((s3, h3, v3) => {
+              /* if (Verifier.config.enablePredicateTriggersOnInhale() && s3.functionRecorder == NoopFunctionRecorder) {
+                v3.decider.assume(App(Verifier.predicateData(predicate).triggerFunction, snap1 +: tArgs))
+              } */
+              Q(s3.copy(h = h3), v3)})
+          }))
 
 /*
       case wand: ast.MagicWand if s.qpMagicWands.contains(MagicWandIdentifier(wand, Verifier.program)) =>
