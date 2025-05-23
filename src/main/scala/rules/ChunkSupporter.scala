@@ -127,7 +127,6 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
       case (Complete(), s2, h2, optCh2) =>
         Q(s2.copy(h = s.h), h2, optCh2.map(_.snap), v)
 
-      // should never reach this case
       case _ if v.decider.checkSmoke() =>
         Success()
 

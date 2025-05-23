@@ -303,14 +303,14 @@ object producer extends ProductionRules with Immutable {
  *      letSupporter.handle[ast.Exp](s, let, pve, v)((s1, g1, body, v1) =>
  *        produceR(s1.copy(g = s1.g + g1), sf, body, pve, v1)(Q))
  */
-      case ast.FieldAccessPredicate(ast.FieldAccess(eRcvr, field), perm) =>
+      case loc @ ast.FieldAccessPredicate(locacc @ ast.FieldAccess(eRcvr, field), perm) =>
         val s0 = s.copy(generateChecks = false)
         evalpc(s0, eRcvr, pve, v, false)((s1, tRcvr, v1) =>
           evalpc(s1, perm, pve, v1, false)((s2, tPerm, v2) => {
             val s2_0 = s2.copy(generateChecks = true)
-            if(chunkSupporter.inHeap(s2_0.h, s2_0.h.values, field, Seq(tRcvr), v2)) {
-              // NEED: Actually because it's in the heap, but don't know how to do that yet
-              createFailure(pve dueTo NegativePermission(perm), v2, s2_0) }
+            if(chunkSupporter.inHeap(s2_0.h, s2_0.h.values, field, Seq(tRcvr), v2) && !v2.decider.checkSmoke()) {
+              createFailure(pve dueTo LocInHeap(locacc), v2, s2_0) 
+            }
             else {
               val snap = sf(v2.symbolConverter.toSort(field.typ), v2)
               val gain = PermTimes(tPerm, s2_0.permissionScalingFactor)
