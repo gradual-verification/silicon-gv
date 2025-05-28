@@ -47,7 +47,7 @@ trait EvaluationRules extends SymbolicExecutionRules {
            : VerificationResult
 
   def evalspc(s: State, es: Seq[ast.Exp], pvef: ast.Exp => PartialVerificationError, v: Verifier, generateChecks: Boolean = true)
-           (Q: (State, List[Term], Verifier) => VerificationResult)
+           (Q: (State, List[Term], Option[List[ast.Exp]], Verifier) => VerificationResult)
            : VerificationResult
 
   def eval(s: State, e: ast.Exp, pve: PartialVerificationError, v: Verifier)
@@ -55,7 +55,7 @@ trait EvaluationRules extends SymbolicExecutionRules {
           : VerificationResult
 
   def evalpc(s: State, e: ast.Exp, pve: PartialVerificationError, v: Verifier, generateChecks: Boolean = true)
-          (Q: (State, Term, Verifier) => VerificationResult)
+          (Q: (State, Term, Option[ast.Exp], Verifier) => VerificationResult)
           : VerificationResult
 
   def evalLocationAccess(s: State,
@@ -70,7 +70,7 @@ trait EvaluationRules extends SymbolicExecutionRules {
                          pve: PartialVerificationError,
                          v: Verifier,
                          generateChecks: Boolean = true)
-                        (Q: (State, String, Seq[Term], Verifier) => VerificationResult)
+                        (Q: (State, String, Seq[Term], Option[Seq[ast.Exp]], Verifier) => VerificationResult)
                         : VerificationResult
 
   def evalQuantified(s: State,
@@ -97,7 +97,7 @@ object evaluator extends EvaluationRules {
     evals2(s, es, Nil, pvef, v)(Q)
 
   def evalspc(s: State, es: Seq[ast.Exp], pvef: ast.Exp => PartialVerificationError, v: Verifier, generateChecks: Boolean = true)
-          (Q: (State, List[Term], Verifier) => VerificationResult)
+          (Q: (State, List[Term], Option[List[ast.Exp]], Verifier) => VerificationResult)
            : VerificationResult =
 
     evals2pc(s, es, Nil, pvef, v, generateChecks)(Q)
@@ -114,7 +114,7 @@ object evaluator extends EvaluationRules {
   }
 
   private def evals2pc(s: State, es: Seq[ast.Exp], ts: List[Term], pvef: ast.Exp => PartialVerificationError, v: Verifier, generateChecks: Boolean)
-                    (Q: (State, List[Term], Verifier) => VerificationResult)
+                    (Q: (State, List[Term], Option[List[ast.Exp]], Verifier) => VerificationResult)
                     : VerificationResult = {
 
     if (es.isEmpty)
@@ -137,7 +137,7 @@ object evaluator extends EvaluationRules {
   }
 
   def evalpc(s: State, e: ast.Exp, pve: PartialVerificationError, v: Verifier, generateChecks: Boolean = true)
-          (Q: (State, Term, Verifier) => VerificationResult)
+          (Q: (State, Term, Option[ast.Exp], Verifier) => VerificationResult)
           : VerificationResult = {
 
     val sepIdentifier = SymbExLogger.currentLog().openScope(new EvaluatePCRecord(e, s, v.decider.pcs))
@@ -199,7 +199,7 @@ object evaluator extends EvaluationRules {
   }
 
   def eval3pc(s: State, e: ast.Exp, pve: PartialVerificationError, v: Verifier, generateChecks: Boolean)
-           (Q: (State, Term, Verifier) => VerificationResult)
+           (Q: (State, Term, Option[ast.Exp], Verifier) => VerificationResult)
            : VerificationResult = {
 
 
@@ -286,7 +286,7 @@ object evaluator extends EvaluationRules {
       case _: ast.WildcardPerm =>
         val (tVar, tConstraints, eVar) = v.decider.freshARP()
         val constraintExp = Option.when(withExp)(DebugExp.createInstance(s"${eVar.get.toString} > none", true))
-        v.decider.assumeDefinition(tConstraints, constraintExp)
+        v.decider.assumeDefinition(tConstraints, constraintExp)*/
         /* TODO: Only record wildcards in State.constrainableARPs that are used in exhale
          *       position. Currently, wildcards used in inhale position (only) may not be removed
          *       from State.constrainableARPs (potentially inefficient, but should be sound).
@@ -373,7 +373,7 @@ object evaluator extends EvaluationRules {
           val (relevantChunks, _) =
             quantifiedChunkSupporter.splitHeap[QuantifiedFieldChunk](s1.h, BasicChunkIdentifier(fa.field.name))
           s1.smCache.get((fa.field, relevantChunks)) match {
-            case Some((fvfDef: SnapshotMapDefinition, totalPermissions)) if !Verifier.config.disableValueMapCaching() =>
+            case Some((fvfDef: SnapshotMapDefinition, totalPermissions)) if !Verifier.config.disableValueMapCaching() =>*/
               /* The next assertion must be made if the FVF definition is taken from the cache;
                * in the other case it is part of quantifiedChunkSupporter.withValue.
                */
@@ -593,8 +593,8 @@ object evaluator extends EvaluationRules {
         val flattened = flattenOperator(oe, {case ast.Or(e0, e1) => Seq(e0, e1)})
         evalSeqShortCircuit(Or, s, flattened, pve, v)(Q)
 
-      /*
-      case implies @ ast.Implies(e0, e1) =>
+      
+      /*case implies @ ast.Implies(e0, e1) =>
 <<<<<<< HEAD
         eval(s, e0, pve, v)((s1, t0, v1) =>
           evalImplies(s1, t0, e1, implies.info == FromShortCircuitingAnd, pve, v1)(Q))
@@ -605,7 +605,7 @@ object evaluator extends EvaluationRules {
             brancher.branch(s2, t0, v2)(
               (s3, v3) => eval(s3, e1, pve, v3)(QB),
               (s3, v3) => eval(s3, e2, pve, v3)(QB))
-          )(entries => {
+          )(entries => {*/
             /* TODO: If branch(...) took orElse-continuations that are executed if a branch is dead, then then
                 comparisons with t0/Not(t0) wouldn't be necessary. */
             /*val (s2, result) = entries match {
@@ -1523,7 +1523,7 @@ object evaluator extends EvaluationRules {
     resultTerm
   }
 
-<<<<<<< HEAD
+//<<<<<<< HEAD
   // eval2pc is copied from eval2, most of the changes are in the field access case
   // Changed all instances of eval to evalpc
   // Commented out eval2's cases for old, labelledold, implies, condition, domain, function, unfolding
@@ -2345,8 +2345,8 @@ object evaluator extends EvaluationRules {
 
     resultTerm
   }
-=======
->>>>>>> upstream/master
+//=======
+//>>>>>>> upstream/master
 
   def evalQuantified(s: State,
                      quant: Quantifier,
@@ -2527,7 +2527,7 @@ object evaluator extends EvaluationRules {
                           pve: PartialVerificationError,
                           v: Verifier,
                           generateChecks: Boolean = true)
-                          (Q: (State, String, Seq[Term], Verifier) => VerificationResult)
+                          (Q: (State, String, Seq[Term], Option[Seq[ast.Exp]], Verifier) => VerificationResult)
                           : VerificationResult = {
 
     locacc match {

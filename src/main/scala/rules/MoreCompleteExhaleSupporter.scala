@@ -20,7 +20,7 @@ import viper.silicon.verifier.Verifier
 import viper.silicon.{MList, MMap}
 import viper.silver.ast
 import viper.silver.parser.PUnknown
-import viper.silver.verifier.VerificationError
+import viper.silver.verifier.{VerificationError, PartialVerificationError}
 
 import scala.collection.mutable.ListBuffer
 

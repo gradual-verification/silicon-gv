@@ -82,7 +82,7 @@ class DefaultStateFormatter extends StateFormatter {
     val filteredPcs = pcs.filterNot {
       case c: BuiltinEquals if c.p0.isInstanceOf[Combine]
         || c.p1.isInstanceOf[Combine] => true
-      case Not(BuiltinEquals(_, Null())) => true
+      case Not(BuiltinEquals(_, Null)) => true
       case _ => false
     }
     if (filteredPcs.isEmpty) "[]" else filteredPcs.mkString("[\"", "\", \"", "\"]")
@@ -94,7 +94,7 @@ class DefaultStateFormatter extends StateFormatter {
     val gStr = toJson(s.g)
     val hStr = toJson(s.h)
     val optHeapStr = toJson(s.optimisticHeap)
-    val gStr = s.oldHeaps.get(Verifier.PRE_STATE_LABEL) match {
+    val gvStr = s.oldHeaps.get(Verifier.PRE_STATE_LABEL) match {
       case Some(o) => toJson(o)
       case _ => "[]"
     }
@@ -103,7 +103,7 @@ class DefaultStateFormatter extends StateFormatter {
        |"store":$gStr,
        |"heap":$hStr,
        | "optHeap":$optHeapStr,
-       | "oldHeap":$gStr,
+       | "oldHeap":$gvStr,
        | "pcs":$pcsStr}""".stripMargin
   }
 

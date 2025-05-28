@@ -72,7 +72,7 @@ object executor extends ExecutionRules {
           val condEdgeRecord = new ConditionalEdgeRecord(ce.condition, s, v.decider.pcs)
           val sepIdentifier = v.symbExLog.openScope(condEdgeRecord)
           val s1 = handleOutEdge(s, edge, v)
-          eval(s1, ce.condition, IfFailed(ce.condition), v)((s2, tCond, condNew, v1) =>
+          eval(s1, ce.condition, IfFailed(ce.condition), v)((s2, tCond, condNew, v1) =>*/
             /* Using branch(...) here ensures that the edge condition is recorded
              * as a branch condition on the pathcondition stack.
              */
@@ -148,6 +148,8 @@ object executor extends ExecutionRules {
 
           exec(s1point5, ue.target, ue.kind, v)(Q)
       }
+    }
+  }
 /*=======
   def handleOutEdge(s: State, edge: SilverEdge, v: Verifier): State = {
     edge.kind match {
@@ -156,7 +158,7 @@ object executor extends ExecutionRules {
         val s1 = s.copy(functionRecorder = fr1, h = h1,
           invariantContexts = s.invariantContexts.tail)
         s1
-      case _ =>
+      case _ =>*/
         /* No need to do anything special. See also the handling of loop heads in exec below. */
         //s
 //>>>>>>> upstream/master
@@ -524,7 +526,7 @@ object executor extends ExecutionRules {
                   phase1data = phase1data :+ (s1point5,
                                               v1.decider.pcs.after(mark),
 /*<<<<<<< HEAD
-                                              InsertionOrderedSet.empty[FunctionDecl] /*v2.decider.freshFunctions*/ /* [BRANCH-PARALLELISATION] *//*)
+                                              InsertionOrderedSet.empty[FunctionDecl]*/ /*v2.decider.freshFunctions*/ /* [BRANCH-PARALLELISATION] *//*)
                   v1.decider.prover.comment("Loop head block: Check well-definedness of edge conditions")
                   edgeConditions.foldLeft(Success(): VerificationResult) {
                     case (fatalResult: FatalResult, _) => fatalResult
@@ -563,7 +565,7 @@ object executor extends ExecutionRules {
 /*<<<<<<< HEAD
                       val s2 = s1.copy(invariantContexts = (s0.isImprecise, sLeftover.isImprecise, sLeftover.h, sLeftover.optimisticHeap) +: s1.invariantContexts)
                       intermediateResult && executionFlowController.locally(s2, v1)((s3, v2) => {
-  //                    v2.decider.declareAndRecordAsFreshFunctions(ff1 -- v2.decider.freshFunctions) /* [BRANCH-PARALLELISATION] */
+  //                    v2.decider.declareAndRecordAsFreshFunctions(ff1 -- v2.decider.freshFunctions) *//* [BRANCH-PARALLELISATION] */
 /*                        v2.decider.assume(pcs.assumptions)
                         v2.decider.prover.saturate(Verifier.config.z3SaturationTimeouts.afterContract)
 =======*/
@@ -928,7 +930,7 @@ object executor extends ExecutionRules {
       // A call havoc_all_R() results in Silicon efficiently havocking all instances of resource R.
 /*=======
 
-      case assert @ ast.Assert(a: ast.FalseLit) if !s.isInPackage =>
+      case assert @ ast.Assert(a: ast.FalseLit) if !s.isInPackage =>*/
         /* "assert false" triggers a smoke check. If successful, we backtrack. *//*
         executionFlowController.tryOrFail0(s.copy(h = magicWandSupporter.getEvalHeap(s)), v)((s1, v1, QS) => {
           if (v1.decider.checkSmoke(true))
@@ -949,7 +951,7 @@ object executor extends ExecutionRules {
 
         if (s.exhaleExt) {
           Predef.assert(s.h.values.isEmpty)
-          Predef.assert(s.reserveHeaps.head.values.isEmpty)
+          Predef.assert(s.reserveHeaps.head.values.isEmpty)*/
 
           /* When exhaleExt is set magicWandSupporter.transfer is used to transfer permissions to
            * hUsed (reserveHeaps.head) instead of consuming them. hUsed is later discarded and replaced
@@ -1287,7 +1289,7 @@ object executor extends ExecutionRules {
           */
 /*<<<<<<< HEAD
          val t = v.decider.fresh(name, v.symbolConverter.toSort(typ))
-         v.decider.assume(t === rhs)
+         v.decider.assume(t === rhs)*/
          /* 2025-01-29 Long:
           * record position where the Var was freshened in freshPositions
           * freshPositions should not contain this Var yet

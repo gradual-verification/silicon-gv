@@ -68,13 +68,13 @@ trait RecordedPathConditions {
   // condition must...? maybe
   def getEquivalentVariables(variable: Term, lenient: Boolean = false): Seq[Term] = {
     assumptions.foldRight[Seq[Term]](Seq.empty)((term, equivalentVars) => term match {
-      case Equals(var1 @ Var(_, _), term2) if term2 == variable =>
+      case Equals(var1 @ Var(_, _, _), term2) if term2 == variable =>
         var1 +: equivalentVars
-      case Equals(term1, var2 @ Var(_, _)) if term1 == variable =>
+      case Equals(term1, var2 @ Var(_, _, _)) if term1 == variable =>
         var2 +: equivalentVars
-      case Equals(var1 @ Var(_, _), term2) if lenient && term2.toString == variable.toString && term2.sort == variable.sort =>
+      case Equals(var1 @ Var(_, _, _), term2) if lenient && term2.toString == variable.toString && term2.sort == variable.sort =>
         var1 +: equivalentVars
-      case Equals(term1, var2 @ Var(_, _)) if lenient && term1.toString == variable.toString && term1.sort == variable.sort =>
+      case Equals(term1, var2 @ Var(_, _, _)) if lenient && term1.toString == variable.toString && term1.sort == variable.sort =>
         var2 +: equivalentVars
       case Equals(term1, term2) if lenient && term1.sort == sorts.Ref && term2.toString == variable.toString && term2.sort == variable.sort =>
         term1 +: equivalentVars
@@ -87,7 +87,7 @@ trait RecordedPathConditions {
 
 trait PathConditionStack extends RecordedPathConditions {
   def setCurrentBranchCondition(condition: Term, 
-    conditionExp: (ast.Exp, Option[ast.Exp])
+    conditionExp: (ast.Exp, Option[ast.Exp]),
     conditionSemanticAstNode: ast.Exp,
     conditionAstNode: ast.Exp,
     conditionOrigin: Option[CheckPosition]): Unit
@@ -121,8 +121,8 @@ private class PathConditionStackLayer
 
   private var _branchCondition: Option[Term] = None
   private var _branchConditionExp: Option[(ast.Exp, Option[ast.Exp])] = None
-  private var _branchConditionSemanticAstNode: Option[Exp] = None
-  private var _branchConditionAstNode: Option[Exp] = None
+  private var _branchConditionSemanticAstNode: Option[ast.Exp] = None
+  private var _branchConditionAstNode: Option[ast.Exp] = None
   private var _branchConditionOrigin: Option[Option[CheckPosition]] = None
   private var _globalAssumptions: InsertionOrderedSet[Term] = InsertionOrderedSet.empty
   private var _nonGlobalAssumptions: InsertionOrderedSet[Term] = InsertionOrderedSet.empty
@@ -136,6 +136,9 @@ private class PathConditionStackLayer
 
   def branchCondition: Option[Term] = _branchCondition
   def branchConditionExp: Option[(ast.Exp, Option[ast.Exp])] = _branchConditionExp
+  def branchConditionSemanticAstNode: Option[ast.Exp] = _branchConditionSemanticAstNode
+  def branchConditionAstNode: Option[ast.Exp] = _branchConditionAstNode
+  def branchConditionOrigin: Option[Option[CheckPosition]] = _branchConditionOrigin
   def globalAssumptions: InsertionOrderedSet[Term] = _globalAssumptions
   def globalDefiningAssumptions: InsertionOrderedSet[Term] = _globalDefiningAssumptions
   def nonGlobalDefiningAssumptions: InsertionOrderedSet[Term] = _nonGlobalDefiningAssumptions
@@ -181,7 +184,7 @@ private class PathConditionStackLayer
     _branchConditionExp = Some(condition)
   }
 
-  def branchConditionSemanticAstNode_=(conditionSemanticAstNode: Exp) {
+  def branchConditionSemanticAstNode_=(conditionSemanticAstNode: ast.Exp) {
 
     assert(_branchConditionSemanticAstNode.isEmpty,
       s"Branch condition position is already set (to ${_branchConditionSemanticAstNode.get}), "
@@ -190,7 +193,7 @@ private class PathConditionStackLayer
     _branchConditionSemanticAstNode = Some(conditionSemanticAstNode)
   }
 
-  def branchConditionAstNode_=(conditionAstNode: Exp) {
+  def branchConditionAstNode_=(conditionAstNode: ast.Exp) {
 
     assert(_branchConditionAstNode.isEmpty,
         s"Branch condition position is already set (to ${_branchConditionAstNode.get}), "
@@ -303,10 +306,10 @@ private trait LayeredPathConditionStackLike {
     layers.flatMap(_.branchConditionExp)
 
   protected def branchConditionsSemanticAstNodes(layers:
-    Stack[PathConditionStackLayer]): Stack[Exp] =
+    Stack[PathConditionStackLayer]): Stack[ast.Exp] =
       layers.flatMap(_.branchConditionSemanticAstNode)
 
-  protected def branchConditionsAstNodes(layers: Stack[PathConditionStackLayer]): Stack[Exp] =
+  protected def branchConditionsAstNodes(layers: Stack[PathConditionStackLayer]): Stack[ast.Exp] =
     layers.flatMap(_.branchConditionAstNode)
 
   protected def branchConditionsOrigins(layers: Stack[PathConditionStackLayer]): Stack[Option[CheckPosition]] =
@@ -638,9 +641,9 @@ private[decider] class LayeredPathConditionStack
 
   override def branchConditionExps: Stack[(ast.Exp, Option[ast.Exp])] = layers.flatMap(_.branchConditionExp)
   
-  def branchConditionsSemanticAstNodes: Stack[Exp] = layers.flatMap(_.branchConditionSemanticAstNode)
+  def branchConditionsSemanticAstNodes: Stack[ast.Exp] = layers.flatMap(_.branchConditionSemanticAstNode)
 
-  def branchConditionsAstNodes: Stack[Exp] = layers.flatMap(_.branchConditionAstNode)
+  def branchConditionsAstNodes: Stack[ast.Exp] = layers.flatMap(_.branchConditionAstNode)
 
   def branchConditionsOrigins: Stack[Option[CheckPosition]] = layers.flatMap(_.branchConditionOrigin)
 

@@ -256,10 +256,12 @@ trait DefaultDeciderProvider extends VerifierComponent { this: Verifier =>
       //symbExLog.closeScope(sepIdentifier)
     }
 
-    def setCurrentBranchCondition(t: Term, 
+    def setCurrentBranchCondition(t: Term,
+      te: (ast.Exp, Option[ast.Exp]),
       semanticAstNode: ast.Exp,
-      te: (ast.Exp, Option[ast.Exp])): Unit = {
-      pathConditions.setCurrentBranchCondition(t, semanticAstNode, te)
+      astNode: ast.Exp,
+      origin: Option[CheckPosition]): Unit = {
+      pathConditions.setCurrentBranchCondition(t, te, semanticAstNode, astNode, origin)
       assume(t, Option.when(te._2.isDefined)(te._1), te._2)
     }
 
@@ -445,9 +447,9 @@ trait DefaultDeciderProvider extends VerifierComponent { this: Verifier =>
 
 
       if (success)
-        SymbExLogger.currentLog().discardSMTQuery()
+        symbExLog.discardSMTQuery()
       else
-        SymbExLogger.currentLog().setSMTQuery(t)
+        symbExLog.setSMTQuery(t)
 
       (Q(success), returnedCheck)
     }

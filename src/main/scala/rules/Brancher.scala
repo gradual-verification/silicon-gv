@@ -9,7 +9,7 @@ package viper.silicon.rules
 import java.util.concurrent._
 import viper.silicon.common.concurrency._
 import viper.silicon.decider.PathConditionStack
-import viper.silicon.interfaces.{Unreachable, VerificationResult, Success, Failure}
+import viper.silicon.interfaces.{Unreachable, VerificationResult, Success, Failure => InterfaceFailure}
 import viper.silicon.logger.SymbExLogger
 import viper.silicon.reporting.condenseToViperResult
 import viper.silicon.state.{State, CheckPosition, runtimeChecks, BranchCond}
@@ -42,7 +42,6 @@ object brancher extends BranchingRules {
   def branch(s: State,
              condition: Term,
              conditionExp: (ast.Exp, Option[ast.Exp]),
-             position: ast.Exp,
              origin: Option[CheckPosition],
              v: Verifier,
              fromShortCircuitingAnd: Boolean = false)
@@ -53,7 +52,6 @@ object brancher extends BranchingRules {
     val negatedCondition = Not(condition)
     val negatedConditionExp = ast.Not(conditionExp._1)(pos = conditionExp._1.pos, info = conditionExp._1.info, ast.NoTrafos)
     val negatedConditionExpNew = conditionExp._2.map(ce => ast.Not(ce)(pos = ce.pos, info = ce.info, ast.NoTrafos))
-    val parallelizeElseBranch = s.parallelizeBranches && !s.underJoin
     val (g, h, oh) = s.oldStore match {
       case Some(store) => (store, s.h + s.oldHeaps(Verifier.PRE_HEAP_LABEL), s.optimisticHeap + s.oldHeaps(Verifier.PRE_OPTHEAP_LABEL))
       case None => (s.g, s.h, s.optimisticHeap)
@@ -161,7 +159,7 @@ object brancher extends BranchingRules {
                 case None => sys.error("Error translating! Exiting safely.")
                 case Some(expr) => expr
               })
-            v1.decider.setCurrentBranchCondition(negatedCondition, (negatedConditionExp, negatedConditionExpNew))
+            v1.decider.setCurrentBranchCondition(negatedCondition, negCond, (negatedConditionExp, negatedConditionExpNew))
 
             var functionsOfElseBranchdDeciderBefore: Set[FunctionDecl] = null
             var nMacrosOfElseBranchDeciderBefore: Int = 0
@@ -216,7 +214,7 @@ object brancher extends BranchingRules {
                 case None => sys.error("Error translating! Exiting safely.")
                 case Some(expr) => expr
               })
-            v1.decider.setCurrentBranchCondition(condition, conditionExp)
+            v1.decider.setCurrentBranchCondition(condition, cond, conditionExp)
 
             fThen(v1.stateConsolidator(s1).consolidateOptionally(s1, v1), v1)
           })
@@ -282,11 +280,13 @@ object brancher extends BranchingRules {
     }
     
     if (s.isImprecise && !fromShortCircuitingAnd) {
+      val position = conditionExp._1
+
       rsThen match {
         case Success() => {
           rsElse match {
             case Success() | Unreachable() => Success()
-            case Failure(m1) => {
+            case InterfaceFailure(m1, _) => {
               /* run-time check for rsThen branch */
               val cond: Exp =
                 (new Translator(s.copy(g = g, h = h, optimisticHeap = oh), v.decider.pcs).translate(condition) match {
@@ -320,11 +320,11 @@ object brancher extends BranchingRules {
         }
         case Unreachable() => {
           rsElse match {
-            case Success() | Failure(_) => rsElse
+            case Success() | InterfaceFailure(_, _) => rsElse
             case Unreachable() => Unreachable()
           }
         }
-        case Failure(m1) => {
+        case InterfaceFailure(m1, _) => {
           rsElse match {
             case Success() => {
               /* run-time check for rsElse branch */
@@ -354,7 +354,7 @@ object brancher extends BranchingRules {
               /* TODO: eventually should warn about failing branch to users - JW */
             }
             case Unreachable() => rsThen
-            case Failure(m2) => rsThen.combine(rsElse, alwaysWaitForOther = parallelizeElseBranch)
+            case InterfaceFailure(m2, _) => rsThen.combine(rsElse, alwaysWaitForOther = parallelizeElseBranch)
           }
         }
       }

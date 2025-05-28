@@ -95,7 +95,7 @@ trait DefaultMethodVerificationUnitProvider extends VerifierComponent { v: Verif
       }
 
 /*<<<<<<< HEAD
-      val result =
+      val result =*/
         /* Combined the well-formedness check and the execution of the body, which are two separate
          * rules in Smans paper.
          *//*

@@ -26,6 +26,8 @@ import viper.silver.ast
 import viper.silver.ast.{Exp, Member}
 import viper.silver.verifier.AbstractError
 
+import java.nio.file.{Files, Path, Paths}
+
 import java.util.concurrent.atomic.AtomicInteger
 import scala.annotation.elidable
 import scala.annotation.elidable._
@@ -207,7 +209,7 @@ case object SymbExLogger {
   }
 
   /** Collection of logged Method/Predicates/Functions. **/
-  var memberList: Seq[SymbLog] = Seq[SymbLog]()
+  var memberList: Seq[MemberSymbExLog] = Seq[MemberSymbExLog]()
   private var uidCounter = 0
 
   var enabled = false
@@ -219,12 +221,24 @@ case object SymbExLogger {
     uid
   }
 
+  def getRecordConfig(d: DataRecord): Option[RecordConfig] = {
+    for (rc <- logConfig.recordConfigs) {
+      if (rc.kind.equals(d.toTypeString)) {
+        rc.value match {
+          case Some(value) => if (value.equals(d.toSimpleString)) return Some(rc)
+          case _ => return Some(rc)
+        }
+      }
+    }
+    None
+  }
+
   private lazy val textLogger = LoggerFactory.getLogger(classOf[SymbExLogger[_]])
 
   /**
     * stores the last SMT solver statistics to calculate the diff
     */
-  private var prevSmtStatistics: Map[String, String] = new Map()
+  private var prevSmtStatistics: Map[String, String] = Map[String, String]()
 
   /** Add a new log for a method, function or predicate (member).
     *
@@ -235,8 +249,11 @@ case object SymbExLogger {
     * @param pcs    Current path conditions.
     */
   @elidable(INFO)
-  def openMemberScope(member: ast.Member, s: State, pcs: PathConditionStack): Unit = {
-    memberList = memberList ++ Seq(new SymbLog(member, s, pcs))
+  def openMemberScope(rootLog: SymbExLogger[MemberSymbExLog], 
+                      logConfig: LogConfig, 
+                      member: ast.Member, 
+                      pcs: PathConditionStack): Unit = {
+    memberList = memberList ++ Seq(new MemberSymbExLog(rootLog, logConfig, member, pcs))
   }
 
   /** Use this method to access the current log, e.g., to access the log of the method
@@ -244,10 +261,10 @@ case object SymbExLogger {
     *
     * @return Returns the current method, predicate or function that is being logged.
     */
-  def currentLog(): SymbLog = {
+  def currentLog(): MemberSymbExLogger = {
     if (enabled)
       memberList.last
-    else NoopSymbLog
+    else NoopMemberSymbExLog
   }
 
   @elidable(INFO)
@@ -285,6 +302,267 @@ case object SymbExLogger {
           s"Could not parse the configuration for the symbolic execution logger at $logConfigPath: " +
           s"${err.getMessage} The default configuration will be used instead.")
         LogConfig.default()
+    }
+  }
+  
+  // This method exists because IntelliJ cannot find SymbLog.main
+  def m(symbLog: MemberSymbExLog): MemberRecord = symbLog.main
+
+  var errors: Seq[AbstractError] = Seq.empty
+
+  // we can have a single global snaps because fresh Vars starting with $t are globally unique
+  val snaps = mutable.Map[Term, BasicChunk]()
+  val freshPositions = mutable.Map[Term, ast.Position]()
+  // while loops are uniquely identified by their invariants, this is needed
+  // to find the position of the while loops for displaying the state when
+  // entering and leaving the loop
+  val whileLoops = mutable.Map[ast.Exp, ast.Stmt]()
+
+  def formatTerm(term: Term): String =
+    term match {
+      case Var(SuffixedIdentifier(prefix, _, _), _, _) if prefix == "$t" =>
+        formatBasicChunk(snaps(term), true)
+      case Var(SuffixedIdentifier(prefix, _, _), _, _) if !prefix.name.contains("$result") && prefix.name.contains("$") =>
+        if (freshPositions.contains(term) && freshPositions(term).isInstanceOf[ast.TranslatedPosition]) {
+          val pos = freshPositions(term).asInstanceOf[ast.TranslatedPosition].pos
+          formatBasicChunk(snaps(term), true) + "@" + pos.line.toString
+        } else {
+          formatBasicChunk(snaps(term), true)
+        }
+      case Var(SuffixedIdentifier(prefix, _, suffix), _, _) =>
+        if (freshPositions.contains(term) && freshPositions(term).isInstanceOf[ast.TranslatedPosition]) {
+          val pos = freshPositions(term).asInstanceOf[ast.TranslatedPosition].pos
+          prefix + "@" + pos.line.toString
+        } else {
+          prefix.name
+        }
+      case SortWrapper(_, _) => formatBasicChunk(snaps(term), true)
+      case Null => "null"
+      case True => "true"
+      case False => "false"
+      case IntLiteral(n) => n.toString
+      case Plus(p0, p1) => "(" + formatTerm(p0) + " + " + formatTerm(p1) + ")"
+      case Minus(p0, p1) => "(" + formatTerm(p0) + " - " + formatTerm(p1) + ")"
+      case Times(p0, p1) => "(" + formatTerm(p0) + " * " + formatTerm(p1) + ")"
+      case Div(p0, p1) => "(" + formatTerm(p0) + " / " + formatTerm(p1) + ")"
+      case Mod(p0, p1) => "(" + formatTerm(p0) + " % " + formatTerm(p1) + ")"
+      case BuiltinEquals(p0, p1) => "(" + formatTerm(p0) + " == " + formatTerm(p1) + ")"
+      case Less(p0, p1) => "(" + formatTerm(p0) + " < " + formatTerm(p1) + ")"
+      case AtMost(p0, p1) => "(" + formatTerm(p0) + " <= " + formatTerm(p1) + ")"
+      case Greater(p0, p1) => "(" + formatTerm(p0) + " > " + formatTerm(p1) + ")"
+      case AtLeast(p0, p1) => "(" + formatTerm(p0) + " >= " + formatTerm(p1) + ")"
+      case Not(p) => "(" + "!" + formatTerm(p) + ")"
+      case Or(ts) => "(" + ts.map(formatTerm).mkString(" || ") + ")"
+      case And(ts) => "(" + ts.map(formatTerm).mkString(" && ") + ")"
+      case Implies(p0, p1) => "(" + formatTerm(p0) + " ==> " + formatTerm(p1) + ")"
+      case _ => "'" + term.toString + "'"
+    }
+
+  def formatBasicChunk(basicChunk: BasicChunk, insideTerm: Boolean): String = {
+    val s = basicChunk.snap match {
+      case Unit => " == " + basicChunk.snap.toString
+      case Null => " == null"
+      case IntLiteral(n) => " == " + n.toString
+      case True => " == true"
+      case False => " == false"
+      case Var(SuffixedIdentifier(prefix, _, _), _, _) if prefix == "$t" => ""
+      case Var(SuffixedIdentifier(prefix, _, _), _, _) if !prefix.name.contains("$result") && prefix.name.contains("$") => ""
+      case Var(SuffixedIdentifier(prefix, _, _), _, _) => " == " + prefix
+      case _ => ""
+    }
+    basicChunk.resourceID match {
+      case FieldID =>
+        val typeAndFieldName = basicChunk.id.name.split("\\$")
+        val fieldName = if (typeAndFieldName.length == 2) {
+          typeAndFieldName.last
+        } else {
+          "?"
+        }
+        val fieldAcc = formatTerm(basicChunk.args.head) + "->" + fieldName
+        if (insideTerm) {
+          fieldAcc + s
+        } else {
+          "acc(" + fieldAcc + ")" + s
+        }
+      case PredicateID =>
+        val argsAsString = basicChunk.args.map(formatTerm).mkString(", ")
+        basicChunk.id.name + "(" + argsAsString + ")" + s
+      case _ => ""
+    }
+  }
+
+  def populateSnaps(chunks: Seq[Chunk]): Unit =
+    for (chunk <- chunks) {
+      chunk match {
+        case basicChunk: BasicChunk =>
+          basicChunk.snap match {
+            case Var(SuffixedIdentifier(prefix, _, _), _, _) if prefix == "$t" =>
+              snaps += basicChunk.snap -> basicChunk
+            case Var(SuffixedIdentifier(prefix, _, _), _, _) if !prefix.name.contains("$result") && prefix.name.contains("$")  =>
+              snaps += basicChunk.snap -> basicChunk
+            case SortWrapper(wrappedTerm, sort) =>
+              snaps += basicChunk.snap -> basicChunk
+            case _ => {}
+          }
+        case _ => {}
+      }
+    }
+
+  def diffChunks(oldChunks: Seq[Chunk], newChunks: Seq[Chunk]): (Seq[Chunk], Seq[Chunk]) = {
+    val consumed = for (chunk <- oldChunks if !newChunks.exists(_ == chunk)) yield chunk
+    val produced = for (chunk <- newChunks if !oldChunks.exists(_ == chunk)) yield chunk
+    (consumed, produced)
+  }
+
+  def formatChunks(chunks: Seq[Chunk]): String = {
+    var result = ""
+    for (chunk <- chunks) {
+      chunk match {
+        case basicChunk: BasicChunk =>
+          result += formatBasicChunk(basicChunk, false) + "; "
+        case _ => { }
+      }
+    }
+    result
+  }
+
+  def formatDiff(oldChunks: Seq[Chunk], newChunks: Seq[Chunk]): (String, String) = {
+    val (consumed, produced) = diffChunks(oldChunks, newChunks)
+    (formatChunks(consumed), formatChunks(produced))
+  }
+
+  def pcVisible(term: Term): Boolean =
+    term match {
+      case App(_, _) => false
+      case Combine(_, _) => false
+      case First(_) => false
+      case Second(_) => false
+      case Var(SuffixedIdentifier(prefix, _, _), _, _) if prefix == "$t" => snaps.isDefinedAt(term)
+      case Var(SuffixedIdentifier(prefix, _, _), _, _) => true
+      case SortWrapper(_, _) => snaps.isDefinedAt(term)
+      case Null => true
+      case True => true
+      case False => true
+      case IntLiteral(n) => true
+      case Plus(p0, p1) => pcVisible(p0) && pcVisible(p1)
+      case Minus(p0, p1) => pcVisible(p0) && pcVisible(p1)
+      case Times(p0, p1) => pcVisible(p0) && pcVisible(p1)
+      case Div(p0, p1) => pcVisible(p0) && pcVisible(p1)
+      case Mod(p0, p1) => pcVisible(p0) && pcVisible(p1)
+      case BuiltinEquals(p0, p1) => pcVisible(p0) && pcVisible(p1)
+      case Less(p0, p1) => pcVisible(p0) && pcVisible(p1)
+      case AtMost(p0, p1) => pcVisible(p0) && pcVisible(p1)
+      case Greater(p0, p1) => pcVisible(p0) && pcVisible(p1)
+      case AtLeast(p0, p1) => pcVisible(p0) && pcVisible(p1)
+      case Not(p) => pcVisible(p)
+      case Or(ts) => ts.map(pcVisible).reduce((x, y) => x && y)
+      case And(ts) => ts.map(pcVisible).reduce((x, y) => x && y)
+      case Implies(p0, p1) => pcVisible(p0) && pcVisible(p1)
+      case _ => true
+    }
+
+  def isNotEquals(term: Term): Boolean =
+    term match {
+      case Not(BuiltinEquals(_, _)) => false
+      case _ => true
+    }
+
+  def formatPcs(oldPcs: InsertionOrderedSet[Term], newPcs: InsertionOrderedSet[Term]): String = {
+    val added = for (pc <- newPcs if !oldPcs.exists(_ == pc)) yield pc
+    added.filter(pcVisible).map(formatTerm).mkString(", ")
+  }
+
+  def formatStore(g: Store): Seq[(String, String)] =
+    g.values.map({ case (v, (term, _)) => (v.name, formatTerm(term)) }).toList
+
+  def populateWhileLoops(stmts: Seq[ast.Stmt]): Unit = {
+    for (stmt <- stmts) {
+      stmt match {
+        case ast.NewStmt(lhs, fields) =>
+        case _: ast.AbstractAssign =>
+        case ast.MethodCall(methodName, args, targets) =>
+        case ast.Exhale(exp) =>
+        case ast.Inhale(exp) =>
+        case ast.Assert(exp) =>
+        case ast.Assume(exp) =>
+        case ast.Fold(acc) =>
+        case ast.Unfold(acc) =>
+        case ast.Package(wand, proofScript) =>
+        case ast.Apply(exp) =>
+        case ast.Seqn(ss, scopedDecls) =>
+          populateWhileLoops(ss)
+        case ast.If(cond, thn, els) =>
+          populateWhileLoops(thn.ss)
+          populateWhileLoops(els.ss)
+        case ast.While(cond, invs, body) =>
+          assert(invs.length == 1)
+          whileLoops += invs.head -> stmt
+        case ast.Label(name, invs) =>
+        case ast.Goto(target) =>
+        case ast.LocalVarDeclStmt(decl) =>
+        case _: ast.ExtensionStmt =>
+      }
+    }
+  }
+
+  def resetMaps(): Unit = {
+    snaps.clear()
+    freshPositions.clear()
+    whileLoops.clear()
+  }
+
+  /** Path to the file that is being executed. Is used for UnitTesting. **/
+  var filePath: Path = _
+
+  /**
+    * Resets the SymbExLogger-object, to make it ready for a new file.
+    * Only needed when several files are verified together (e.g., sbt test).
+    */
+  def reset(): Unit = {
+    memberList = Seq[MemberSymbExLog]()
+    uidCounter = 0
+    filePath = null
+    logConfig = LogConfig.default()
+    prevSmtStatistics = Map()
+  }
+
+  def resetMemberList(): Unit = {
+    memberList = Seq[MemberSymbExLog]()
+    // or reset by calling it from Decider.reset
+    prevSmtStatistics = Map()
+  }
+
+  /**
+    * Calculates diff between `currentStatistics` and the statistics from a previous call.
+    * The difference is calculated if value can be converted to an int or double
+    * @param currentStatistics most recent statistics from the SMT solver
+    * @return map with differences (only containing values that could be converted) and keys with appended "-delta"
+    */
+  def getDeltaSmtStatistics(currentStatistics: Map[String, String]) : Map[String, String] = {
+    val deltaStatistics = currentStatistics map getDelta filter { case (_, value) => value.nonEmpty } map {
+      case (key, Some(value)) => (key + "-delta", value)
+      case other => sys.error(s"Unexpected result pair $other")
+    }
+    // set prevStatistics (i.e. override values with same key or add):
+    prevSmtStatistics = prevSmtStatistics ++ currentStatistics
+    deltaStatistics
+  }
+
+  private def getDelta(pair: (String, String)): (String, Option[String]) = {
+    val curValInt = try Some(pair._2.toInt) catch { case _: NumberFormatException => None }
+    val prevValInt = prevSmtStatistics.get(pair._1) match {
+      case Some(value) => try Some(value.toInt) catch { case _: NumberFormatException => None }
+      case _ => Some(0) // value not found
+    }
+    val curValDouble = try Some(pair._2.toDouble) catch { case _: NumberFormatException => None }
+    val prevValDouble = prevSmtStatistics.get(pair._1) match {
+      case Some(value) => try Some(value.toDouble) catch { case _: NumberFormatException => None }
+      case _ => Some(0.0) // value not found
+    }
+    (curValInt, prevValInt, curValDouble, prevValDouble) match {
+      case (Some(curInt), Some(prevInt), _, _) => (pair._1, Some((curInt - prevInt).toString))
+      case (_, _, Some(curDouble), Some(prevDouble)) => (pair._1, Some((curDouble - prevDouble).toString))
+      case _ => (pair._1, None)
     }
   }
 }
@@ -351,272 +629,10 @@ case class SymbExLog(logConfig: LogConfig) extends SymbExLogger[MemberSymbExLog]
     * Simple string representation of the logs.
     */
   def toSimpleTreeString: String = {
-    if (enabled) {
-      val simpleTreeRenderer = new SimpleTreeRenderer()
-      simpleTreeRenderer.render(memberList)
-    } else ""
+    val simpleTreeRenderer = new SimpleTreeRenderer()
+    simpleTreeRenderer.render(members.values)
   }
 
-  // This method exists because IntelliJ cannot find SymbLog.main
-  def m(symbLog: SymbLog): MemberRecord = symbLog.main
-
-  var errors: Seq[AbstractError] = Seq.empty
-
-  // we can have a single global snaps because fresh Vars starting with $t are globally unique
-  val snaps = mutable.Map[Term, BasicChunk]()
-  val freshPositions = mutable.Map[Term, ast.Position]()
-  // while loops are uniquely identified by their invariants, this is needed
-  // to find the position of the while loops for displaying the state when
-  // entering and leaving the loop
-  val whileLoops = mutable.Map[ast.Exp, ast.Stmt]()
-
-  def formatTerm(term: Term): String =
-    term match {
-      case Var(SuffixedIdentifier(prefix, _, _), _) if prefix == "$t" =>
-        formatBasicChunk(snaps(term), true)
-      case Var(SuffixedIdentifier(prefix, _, _), _) if !prefix.contains("$result") && prefix.contains("$") =>
-        if (freshPositions.contains(term) && freshPositions(term).isInstanceOf[ast.TranslatedPosition]) {
-          val pos = freshPositions(term).asInstanceOf[ast.TranslatedPosition].pos
-          formatBasicChunk(snaps(term), true) + "@" + pos.line.toString
-        } else {
-          formatBasicChunk(snaps(term), true)
-        }
-      case Var(SuffixedIdentifier(prefix, _, suffix), _) =>
-        if (freshPositions.contains(term) && freshPositions(term).isInstanceOf[ast.TranslatedPosition]) {
-          val pos = freshPositions(term).asInstanceOf[ast.TranslatedPosition].pos
-          prefix + "@" + pos.line.toString
-        } else {
-          prefix
-        }
-      case SortWrapper(_, _) => formatBasicChunk(snaps(term), true)
-      case Null() => "null"
-      case True() => "true"
-      case False() => "false"
-      case IntLiteral(n) => n.toString
-      case Plus(p0, p1) => "(" + formatTerm(p0) + " + " + formatTerm(p1) + ")"
-      case Minus(p0, p1) => "(" + formatTerm(p0) + " - " + formatTerm(p1) + ")"
-      case Times(p0, p1) => "(" + formatTerm(p0) + " * " + formatTerm(p1) + ")"
-      case Div(p0, p1) => "(" + formatTerm(p0) + " / " + formatTerm(p1) + ")"
-      case Mod(p0, p1) => "(" + formatTerm(p0) + " % " + formatTerm(p1) + ")"
-      case BuiltinEquals(p0, p1) => "(" + formatTerm(p0) + " == " + formatTerm(p1) + ")"
-      case Less(p0, p1) => "(" + formatTerm(p0) + " < " + formatTerm(p1) + ")"
-      case AtMost(p0, p1) => "(" + formatTerm(p0) + " <= " + formatTerm(p1) + ")"
-      case Greater(p0, p1) => "(" + formatTerm(p0) + " > " + formatTerm(p1) + ")"
-      case AtLeast(p0, p1) => "(" + formatTerm(p0) + " >= " + formatTerm(p1) + ")"
-      case Not(p) => "(" + "!" + formatTerm(p) + ")"
-      case Or(ts) => "(" + ts.map(formatTerm).mkString(" || ") + ")"
-      case And(ts) => "(" + ts.map(formatTerm).mkString(" && ") + ")"
-      case Implies(p0, p1) => "(" + formatTerm(p0) + " ==> " + formatTerm(p1) + ")"
-      case _ => "'" + term.toString + "'"
-    }
-
-  def formatBasicChunk(basicChunk: BasicChunk, insideTerm: Boolean): String = {
-    val s = basicChunk.snap match {
-      case Unit => " == " + basicChunk.snap.toString
-      case Null() => " == null"
-      case IntLiteral(n) => " == " + n.toString
-      case True() => " == true"
-      case False() => " == false"
-      case Var(SuffixedIdentifier(prefix, _, _), _) if prefix == "$t" => ""
-      case Var(SuffixedIdentifier(prefix, _, _), _) if !prefix.contains("$result") && prefix.contains("$") => ""
-      case Var(SuffixedIdentifier(prefix, _, _), _) => " == " + prefix
-      case _ => ""
-    }
-    basicChunk.resourceID match {
-      case FieldID =>
-        val typeAndFieldName = basicChunk.id.name.split("\\$")
-        val fieldName = if (typeAndFieldName.length == 2) {
-          typeAndFieldName.last
-        } else {
-          "?"
-        }
-        val fieldAcc = formatTerm(basicChunk.args.head) + "->" + fieldName
-        if (insideTerm) {
-          fieldAcc + s
-        } else {
-          "acc(" + fieldAcc + ")" + s
-        }
-      case PredicateID =>
-        val argsAsString = basicChunk.args.map(formatTerm).mkString(", ")
-        basicChunk.id.name + "(" + argsAsString + ")" + s
-      case _ => ""
-    }
-  }
-
-  def populateSnaps(chunks: Seq[Chunk]): Unit =
-    for (chunk <- chunks) {
-      chunk match {
-        case basicChunk: BasicChunk =>
-          basicChunk.snap match {
-            case Var(SuffixedIdentifier(prefix, _, _), _) if prefix == "$t" =>
-              snaps += basicChunk.snap -> basicChunk
-            case Var(SuffixedIdentifier(prefix, _, _), _) if !prefix.contains("$result") && prefix.contains("$")  =>
-              snaps += basicChunk.snap -> basicChunk
-            case SortWrapper(wrappedTerm, sort) =>
-              snaps += basicChunk.snap -> basicChunk
-            case _ => {}
-          }
-        case _ => {}
-      }
-    }
-
-  def diffChunks(oldChunks: Seq[Chunk], newChunks: Seq[Chunk]): (Seq[Chunk], Seq[Chunk]) = {
-    val consumed = for (chunk <- oldChunks if !newChunks.exists(_ == chunk)) yield chunk
-    val produced = for (chunk <- newChunks if !oldChunks.exists(_ == chunk)) yield chunk
-    (consumed, produced)
-  }
-
-  def formatChunks(chunks: Seq[Chunk]): String = {
-    var result = ""
-    for (chunk <- chunks) {
-      chunk match {
-        case basicChunk: BasicChunk =>
-          result += formatBasicChunk(basicChunk, false) + "; "
-        case _ => { }
-      }
-    }
-    result
-  }
-
-  def formatDiff(oldChunks: Seq[Chunk], newChunks: Seq[Chunk]): (String, String) = {
-    val (consumed, produced) = diffChunks(oldChunks, newChunks)
-    (formatChunks(consumed), formatChunks(produced))
-  }
-
-  def pcVisible(term: Term): Boolean =
-    term match {
-      case App(_, _) => false
-      case Combine(_, _) => false
-      case First(_) => false
-      case Second(_) => false
-      case Var(SuffixedIdentifier(prefix, _, _), _) if prefix == "$t" => snaps.isDefinedAt(term)
-      case Var(SuffixedIdentifier(prefix, _, _), _) => true
-      case SortWrapper(_, _) => snaps.isDefinedAt(term)
-      case Null() => true
-      case True() => true
-      case False() => true
-      case IntLiteral(n) => true
-      case Plus(p0, p1) => pcVisible(p0) && pcVisible(p1)
-      case Minus(p0, p1) => pcVisible(p0) && pcVisible(p1)
-      case Times(p0, p1) => pcVisible(p0) && pcVisible(p1)
-      case Div(p0, p1) => pcVisible(p0) && pcVisible(p1)
-      case Mod(p0, p1) => pcVisible(p0) && pcVisible(p1)
-      case BuiltinEquals(p0, p1) => pcVisible(p0) && pcVisible(p1)
-      case Less(p0, p1) => pcVisible(p0) && pcVisible(p1)
-      case AtMost(p0, p1) => pcVisible(p0) && pcVisible(p1)
-      case Greater(p0, p1) => pcVisible(p0) && pcVisible(p1)
-      case AtLeast(p0, p1) => pcVisible(p0) && pcVisible(p1)
-      case Not(p) => pcVisible(p)
-      case Or(ts) => ts.map(pcVisible).reduce((x, y) => x && y)
-      case And(ts) => ts.map(pcVisible).reduce((x, y) => x && y)
-      case Implies(p0, p1) => pcVisible(p0) && pcVisible(p1)
-      case _ => true
-    }
-
-  def isNotEquals(term: Term): Boolean =
-    term match {
-      case Not(BuiltinEquals(_, _)) => false
-      case _ => true
-    }
-
-  def formatPcs(oldPcs: InsertionOrderedSet[Term], newPcs: InsertionOrderedSet[Term]): String = {
-    val added = for (pc <- newPcs if !oldPcs.exists(_ == pc)) yield pc
-    added.filter(pcVisible).map(formatTerm).mkString(", ")
-  }
-
-  def formatStore(g: Store): Seq[(String, String)] =
-    g.values.map({ case (v, term) => (v.name, formatTerm(term)) }).toList
-
-  def populateWhileLoops(stmts: Seq[ast.Stmt]): Unit = {
-    for (stmt <- stmts) {
-      stmt match {
-        case ast.NewStmt(lhs, fields) =>
-        case _: ast.AbstractAssign =>
-        case ast.MethodCall(methodName, args, targets) =>
-        case ast.Exhale(exp) =>
-        case ast.Inhale(exp) =>
-        case ast.Assert(exp) =>
-        case ast.Assume(exp) =>
-        case ast.Fold(acc) =>
-        case ast.Unfold(acc) =>
-        case ast.Package(wand, proofScript) =>
-        case ast.Apply(exp) =>
-        case ast.Seqn(ss, scopedDecls) =>
-          populateWhileLoops(ss)
-        case ast.If(cond, thn, els) =>
-          populateWhileLoops(thn.ss)
-          populateWhileLoops(els.ss)
-        case ast.While(cond, invs, body) =>
-          assert(invs.length == 1)
-          whileLoops += invs.head -> stmt
-        case ast.Label(name, invs) =>
-        case ast.Goto(target) =>
-        case ast.LocalVarDeclStmt(decl) =>
-        case _: ast.ExtensionStmt =>
-      }
-    }
-  }
-
-  def resetMaps(): Unit = {
-    snaps.clear()
-    freshPositions.clear()
-    whileLoops.clear()
-  }
-
-  /** Path to the file that is being executed. Is used for UnitTesting. **/
-  var filePath: Path = _
-
-  /**
-    * Resets the SymbExLogger-object, to make it ready for a new file.
-    * Only needed when several files are verified together (e.g., sbt test).
-    */
-  def reset(): Unit = {
-    memberList = Seq[SymbLog]()
-    uidCounter = 0
-    filePath = null
-    logConfig = LogConfig.default()
-    prevSmtStatistics = new Map()
-  }
-
-  def resetMemberList(): Unit = {
-    memberList = Seq[SymbLog]()
-    // or reset by calling it from Decider.reset
-    prevSmtStatistics = new Map()
-  }
-
-  /**
-    * Calculates diff between `currentStatistics` and the statistics from a previous call.
-    * The difference is calculated if value can be converted to an int or double
-    * @param currentStatistics most recent statistics from the SMT solver
-    * @return map with differences (only containing values that could be converted) and keys with appended "-delta"
-    */
-  def getDeltaSmtStatistics(currentStatistics: Map[String, String]) : Map[String, String] = {
-    val deltaStatistics = currentStatistics map getDelta filter { case (_, value) => value.nonEmpty } map {
-      case (key, Some(value)) => (key + "-delta", value)
-      case other => sys.error(s"Unexpected result pair $other")
-    }
-    // set prevStatistics (i.e. override values with same key or add):
-    prevSmtStatistics = prevSmtStatistics ++ currentStatistics
-    deltaStatistics
-  }
-
-  private def getDelta(pair: (String, String)): (String, Option[String]) = {
-    val curValInt = try Some(pair._2.toInt) catch { case _: NumberFormatException => None }
-    val prevValInt = prevSmtStatistics.get(pair._1) match {
-      case Some(value) => try Some(value.toInt) catch { case _: NumberFormatException => None }
-      case _ => Some(0) // value not found
-    }
-    val curValDouble = try Some(pair._2.toDouble) catch { case _: NumberFormatException => None }
-    val prevValDouble = prevSmtStatistics.get(pair._1) match {
-      case Some(value) => try Some(value.toDouble) catch { case _: NumberFormatException => None }
-      case _ => Some(0.0) // value not found
-    }
-    (curValInt, prevValInt, curValDouble, prevValDouble) match {
-      case (Some(curInt), Some(prevInt), _, _) => (pair._1, Some((curInt - prevInt).toString))
-      case (_, _, Some(curDouble), Some(prevDouble)) => (pair._1, Some((curDouble - prevDouble).toString))
-      case _ => (pair._1, None)
-    }
-  }
 }
 
 abstract class MemberSymbExLogger(log: SymbExLogger[_],
