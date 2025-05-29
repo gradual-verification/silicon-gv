@@ -37,8 +37,8 @@ object Store extends StoreFactory[MapBackedStore] {
   def apply(bindings: Iterable[(AbstractLocalVar, (Term, Option[ast.Exp]))]) = new MapBackedStore(toMap(bindings))
 }
 
-final class MapBackedStore private[state] (map: Map[ast.AbstractLocalVar, Term])
-    extends Store with Immutable {
+final class MapBackedStore private[state] (map: Map[ast.AbstractLocalVar, (Term, Option[ast.Exp])])
+    extends Store {
 
   val values = map
 
