@@ -174,7 +174,9 @@ object evaluator extends EvaluationRules with Immutable {
                     reserveHeaps = Nil,
                     exhaleExt = false)
 
-    eval2(s1, e, pve, v)((s2, t, v1) => {
+    val s1a = s1.copy(evalHeapsSet = false)
+
+    eval2(s1a, e, pve, v)((s2, t, v1) => {
       val s3 =
         if (s2.recordPossibleTriggers)
           e match {

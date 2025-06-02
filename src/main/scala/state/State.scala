@@ -197,7 +197,7 @@ object State {
                      predicateSnapMap2, predicateFormalVarMap2, hack2,
                      methodCallAstNode2, foldOrUnfoldAstNode2, loopPosition2, unfoldingAstNode2, forFraming2,
                      generateChecks2, needConditionFramingUnfold2, // needConditionFramingUnfold not checked
-                     needConditionFramingProduce2, madeOptimisticAssumptions2, evalHeapsSet2) => // needConditionFramingProduce not checked
+                     needConditionFramingProduce2, madeOptimisticAssumptions2, evalHeapsSet2) => // needConditionFramingProduce, madeOptimisticAssumptions, evalHeapsSet, not checked
             // only check relevant constructs
             if (g1 != g2) mismatches += s"g mismatch: ${g1} != ${g2}"
             if (h1 != h2) mismatches += s"heap mismatch: ${h1} != ${h2}"
