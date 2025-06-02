@@ -141,10 +141,12 @@ object chunkSupporter extends ChunkSupportRules {
           Q(s1, h, None, v1)
         })
     } else {
-      executionFlowController.tryOrFail2[Heap, Option[Term]](s.copy(h = h), v)((s1, v1, QS) =>
+        val s1 = s.copy(h = h)
+        val v1 = v
+      //executionFlowController.tryOrFail2[Heap, Option[Term]](s.copy(h = h), v)((s1, v1, QS) =>
         if (s1.moreCompleteExhale) {
           moreCompleteExhaleSupporter.consumeComplete(s1, s1.h, resource, args, argsExp, perms, permsExp, returnSnap, ve, v1)((s2, h2, snap2, v2) => {
-            QS(s2.copy(h = s.h), h2, snap2, v2)
+            Q(s2.copy(h = s.h), h2, snap2, v2)
           })
         } else {
           var s1 = s.copy(h = h)
@@ -162,14 +164,14 @@ object chunkSupporter extends ChunkSupportRules {
                   }
                 case _ => None
               }
-              QS(s2.copy(h = s.h), h2, snap, v1)
+              Q(s2.copy(h = s.h), h2, snap, v1)
             case _ if v1.decider.checkSmoke(true) =>
               Success() // TODO: Mark branch as dead?
             case (Incomplete(p, _), s2, h2, None) =>
               Q(s2.copy(h = s.h), h2, None, v)
           }
         }
-      )(Q)
+      //)(Q)
 
 /*  private def consume(s: State,
                       h: Heap,

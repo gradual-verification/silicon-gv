@@ -1694,10 +1694,10 @@ object evaluator extends EvaluationRules {
                     Q(s3, smLookup, newFa, v1)
                 }
               }
-              }})
+            }})
 
       case fa: ast.FieldAccess =>
-        evalpc(s, fa.rcv, pve, v, generateChecks)((s1, tRcvr, eRcvr, v1) => {
+        evalpc(s, fa.rcv, pve, v, generateChecks)((s0, tRcvr, eRcvr, v1) => {
           evalLocationAccesspc(s, fa, pve, v, generateChecks)((s1, _, tArgs, eArgs, v1) => {
             val ve = pve dueTo InsufficientPermission(fa)
             val resource = fa.res(s.program)
@@ -1744,12 +1744,18 @@ object evaluator extends EvaluationRules {
                       v.decider.pcs.branchConditionsAstNodes,
                       v.decider.pcs.branchConditionsOrigins).map(bc => BranchCond(bc._1, bc._2, bc._3)),
                     fa,
-                    s.forFraming)
+                    s0.forFraming)
               }
                 
               val fr = s2.functionRecorder.recordSnapshot(fa, v2.decider.pcs.branchConditions, tSnap)
               val s3 = s2.copy(h = h2, optimisticHeap = oh2, functionRecorder = fr)
-              Q(s3, tSnap, v1)
+              val (debugHeapName, debugLabel) = v2.getDebugOldLabel(s3, fa.pos)
+              val newFa = Option.when(withExp)({
+                if (s3.isEvalInOld) ast.FieldAccess(eArgs.get.head, fa.field)(e.pos, e.info, e.errT)
+                else ast.DebugLabelledOld(ast.FieldAccess(eArgs.get.head, fa.field)(), debugLabel)(e.pos, e.info, e.errT)
+              })
+              val s4 = if (Verifier.config.enableDebugging() && !s3.isEvalInOld) s3.copy(oldHeaps = s3.oldHeaps + (debugHeapName -> magicWandSupporter.getEvalHeap(s3))) else s3
+              Q(s4, tSnap, newFa, v1)
             })
           })
         })
@@ -1821,7 +1827,8 @@ object evaluator extends EvaluationRules {
       case ae @ ast.And(e0, e1) =>
         //val flattened = flattenOperator(ae, {case ast.And(e0, e1) => Seq(e0, e1)})
         //evalSeqShortCircuit(And, s, flattened, pve, v)(Q)
-        evalBinOpPc(s, e0, e1, (t1, t2) => And(t1, t2), pve, v, generateChecks)(Q)
+        evalBinOpPc(s, e0, e1, (t1, t2) => And(t1, t2), pve, v, generateChecks)((s1, t, e0New, e1New, v1) =>
+          Q(s1, t, e0New.map(ast.And(_, e1New.get)(e.pos, e.info, e.errT)), v1))
 
       /* Strict evaluation of OR */
       case ast.Or(e0, e1) if Verifier.config.disableShortCircuitingEvaluations() =>
@@ -1832,7 +1839,8 @@ object evaluator extends EvaluationRules {
       case oe @ ast.Or(e0, e1) =>
         //val flattened = flattenOperator(oe, {case ast.Or(e0, e1) => Seq(e0, e1)})
         //evalSeqShortCircuit(Or, s, flattened, pve, v)(Q)
-        evalBinOpPc(s, e0, e1, (t1, t2) => Or(t1, t2), pve, v, generateChecks)(Q)
+        evalBinOpPc(s, e0, e1, (t1, t2) => Or(t1, t2), pve, v, generateChecks)((s1, t, e0New, e1New, v1) =>
+          Q(s1, t, e0New.map(ast.Or(_, e1New.get)(e.pos, e.info, e.errT)), v1))
 
       
       /*case implies @ ast.Implies(e0, e1) =>
@@ -2818,8 +2826,9 @@ object evaluator extends EvaluationRules {
         // may not return any value (e.g. if es2 contains a field read for which we don't have permission, a smoke
         // check succeeds, then the continuation for evals(es2) is never invoked). This caused issue #842.
         // In this case, we return None.
+        val node = viper.silicon.utils.ast.BigAnd(es1)
         val expPair = (viper.silicon.utils.ast.BigAnd(es1), es1New.map(viper.silicon.utils.ast.BigAnd(_)))
-        v2.decider.setCurrentBranchCondition(bc, expPair)
+        v2.decider.setCurrentBranchCondition(bc, node, expPair)
         var es2AndTriggerTerms: Option[(Seq[Term], Option[Seq[ast.Exp]], Seq[Trigger], (Seq[Term], Seq[Quantification]), Option[(InsertionOrderedSet[DebugExp], InsertionOrderedSet[DebugExp])], Map[ast.Exp, Term])] = None
         var finalState = s3
         val es2AndTriggerResult = evals(s3, es2, _ => pve, v2)((s4, ts2, es2New, v3) => {
@@ -2866,7 +2875,7 @@ object evaluator extends EvaluationRules {
         (s2, v2) => QB(s2, True(), v2))
 =======*/
     joiner.join[(Term, Option[ast.Exp]), (Term, Option[ast.Exp])](s, v)((s1, v1, QB) =>
-      brancher.branch(s1.copy(parallelizeBranches = false), tLhs, eLhs, v1, fromShortCircuitingAnd = fromShortCircuitingAnd)(
+      brancher.branch(s1.copy(parallelizeBranches = false), tLhs, eLhs, None, v1, fromShortCircuitingAnd = fromShortCircuitingAnd)(
         (s2, v2) => eval(s2.copy(parallelizeBranches = s1.parallelizeBranches), eRhs, pve, v2)((s2, tRhs, eRhsNew, v2) => QB(s2, (tRhs, eRhsNew), v2)),
         (s2, v2) => QB(s2.copy(parallelizeBranches = s1.parallelizeBranches), (True, Option.when(withExp)(ast.TrueLit()())), v2))
 //>>>>>>> upstream/master
@@ -2952,11 +2961,11 @@ object evaluator extends EvaluationRules {
 
     locacc match {
       case ast.FieldAccess(eRcvr, field) =>
-        evalpc(s, eRcvr, pve, v, generateChecks)((s1, tRcvr, v1) =>
-          Q(s1, field.name, tRcvr :: Nil, v1))
+        evalpc(s, eRcvr, pve, v, generateChecks)((s1, tRcvr, eRcvr1, v1) =>
+          Q(s1, field.name, tRcvr :: Nil, eRcvr1.map(_ :: Nil), v1))
       case ast.PredicateAccess(eArgs, predicateName) =>
-        evalspc(s, eArgs, _ => pve, v)((s1, tArgs, v1) =>
-          Q(s1, predicateName, tArgs, v1))
+        evalspc(s, eArgs, _ => pve, v)((s1, tArgs, eArgs1, v1) =>
+          Q(s1, predicateName, tArgs, eArgs1, v1))
     }
   }
 
@@ -3001,6 +3010,19 @@ object evaluator extends EvaluationRules {
     eval(s, e0, pve, v)((s1, t0, e0New, v1) =>
       eval(s1, e1, pve, v1)((s2, t1, e1New, v2) =>
         Q(s2, termOp(t0, t1), e0New, e1New, v2)))
+  }
+  
+  private def evalBinOpPc[T <: Term](s: State,
+                                   e0: ast.Exp,
+                                   e1: ast.Exp,
+                                   termOp: ((Term, Term)) => T,
+                                   pve: PartialVerificationError,
+                                   v: Verifier,
+                                   generateChecks: Boolean = true)
+                                  (Q: (State, T, Option[ast.Exp], Option[ast.Exp], Verifier) => VerificationResult)
+                                  : VerificationResult = {
+
+    evalBinOpPc(s, e0, e1, (t0, t1) => termOp((t0, t1)), pve, v, generateChecks)(Q)
   }
 
   //PC version of evalBinOp
@@ -3441,8 +3463,16 @@ object evaluator extends EvaluationRules {
         case `stop` => Q(s1, t0, e0New, v1) // Done, if last expression was true/false for or/and (optimisation)
         case _ =>
           val expPair = if (constructor == Or) (exps.head, e0New) else (ast.Not(exps.head)(), e0New.map(ast.Not(_)()))
+          val branchCondOrigin: Option[CheckPosition] =
+            (s1.methodCallAstNode, s1.foldOrUnfoldAstNode, s1.loopPosition) match {
+              case (None, None, None) => None
+              case (Some(methodCallAstNode), None, None) => Some(CheckPosition.GenericNode(methodCallAstNode))
+              case (None, Some(foldOrUnfoldAstNode), None) => Some(CheckPosition.GenericNode(foldOrUnfoldAstNode))
+              case (None, None, Some(_)) => s1.loopPosition
+              case _ => sys.error("Error: _ match case when setting a branch condition origin!")
+            }
           joiner.join[(Term, Option[ast.Exp]), (Term, Option[ast.Exp])](s1, v1)((s2, v2, QB) =>
-            brancher.branch(s2.copy(parallelizeBranches = false), if (constructor == Or) t0 else Not(t0), expPair, v2, fromShortCircuitingAnd = true)(
+            brancher.branch(s2.copy(parallelizeBranches = false), if (constructor == Or) t0 else Not(t0), expPair, branchCondOrigin, v2, fromShortCircuitingAnd = true)(
               (s3, v3) => QB(s3.copy(parallelizeBranches = s2.parallelizeBranches), (t0, e0New), v3),
               (s3, v3) => evalSeqShortCircuit(constructor, s3.copy(parallelizeBranches = s2.parallelizeBranches), exps.tail, pve, v3)((s2, t2, e2, v2) => QB(s2, (t2, e2), v2)))
 //>>>>>>> upstream/master

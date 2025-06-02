@@ -19,7 +19,8 @@ import viper.silver.verifier.reasons._
 import viper.silver.{ast, cfg}
 import viper.silicon.decider.RecordedPathConditions
 import viper.silicon.interfaces._
-import viper.silicon.logger.records.data.{CommentRecord, ConditionalEdgeRecord, ExecuteRecord, MethodCallRecord}
+import viper.silicon.logger.SymbExLogger
+import viper.silicon.logger.records.data.{CommentRecord, ConditionalEdgeRecord, ExecuteRecord, MethodCallRecord, LoopInRecord, LoopOutRecord, EndRecord}
 import viper.silicon.resources.FieldID
 import viper.silicon.state._
 import viper.silicon.state.terms._
@@ -103,7 +104,7 @@ object executor extends ExecutionRules {
     joinPoint match {
       case Some(jp) if jp == edge.target =>
         // Join point reached, stop following edges.
-        val s1 = handleOutEdge(s, edge, v)
+        val s1 = handleOutEdge(s, originatingBlock, edge, v)
         Q(s1, v)
 
       case _ => edge match {
@@ -122,20 +123,20 @@ object executor extends ExecutionRules {
              */
 
             val s2point5 = s2.copy(loopPosition = None)
-            val positionalCondition = ce.condition match {
+            /*val positionalCondition = ce.condition match {
               case ast.Not(e) => e
               case _ => ce.condition
-            }
+            }*/
 
             // The loop location should be set for this branch, maybe
-            brancher.branch(s2point5, tCond, positionalCondition, s1.loopPosition, v1)(
+            brancher.branch(s2point5, tCond, (ce.condition, condNew), s1.loopPosition, v1)(
               (s3, v3) =>
-                exec(s3, ce.target, ce.kind, v3)((s4, v4) => {
-                  SymbExLogger.currentLog().closeScope(sepIdentifier)
+                exec(s3, ce.target, ce.kind, v3, None)((s4, v4) => {
+                  v4.symbExLog.closeScope(sepIdentifier)
                   Q(s4, v4)
                 }),
-              (_, _) => {
-                SymbExLogger.currentLog().closeScope(sepIdentifier)
+              (_, v3) => {
+                v3.symbExLog.closeScope(sepIdentifier)
                 Unreachable()
               })
           })
@@ -146,7 +147,7 @@ object executor extends ExecutionRules {
           val s1 = handleOutEdge(s, originatingBlock, edge, v)
           val s1point5 = s1.copy(loopPosition = None)
 
-          exec(s1point5, ue.target, ue.kind, v)(Q)
+          exec(s1point5, ue.target, ue.kind, v, None)(Q)
       }
     }
   }
@@ -173,12 +174,12 @@ object executor extends ExecutionRules {
       // out edges lead out of loops (and maybe to another loop)
       // normal edges are between statements (which are not loops)
       case cfg.Kind.Out => {
-        val (fr1, h1) = stateConsolidator.merge(s.functionRecorder, s.h, s.invariantContexts.head._3, v)
-        val (fr2, oh) = stateConsolidator.merge(fr1, s.optimisticHeap, s.invariantContexts.head._4, v)
+        val (fr1, h1) = v.stateConsolidator(s).merge(s.functionRecorder, s, s.h, s.invariantContexts.head._3, v)
+        val (fr2, oh) = v.stateConsolidator(s).merge(fr1, s, s.optimisticHeap, s.invariantContexts.head._4, v)
 
         val potentialCheckPosition: Option[CheckPosition.Loop] = {
           val loopInvariant = originatingBlock match {
-            case cfg.LoopHeadBlock(invs, _) => Some(invs)
+            case cfg.LoopHeadBlock(invs, _, _) => Some(invs)
             case _ => None
           }
 
@@ -215,26 +216,26 @@ object executor extends ExecutionRules {
       Q(s, v)
     } else {
       val isImprecise = originatingBlock match {
-        case cfg.LoopHeadBlock(_, _) => s.invariantContexts.head._1
+        case cfg.LoopHeadBlock(_, _, _) => s.invariantContexts.head._1
         case _ => s.isImprecise
       }
       if (isImprecise) {
-        val uidBranchPoint = if (edges.length > 1) { SymbExLogger.currentLog().insertBranchPoint(edges.length) } else { 0 }
+        val uidBranchPoint = if (edges.length > 1) { v.symbExLog.insertBranchPoint(edges.length) } else { 0 }
         val rsTuple =
         edges.zipWithIndex.foldLeft((Unreachable(): VerificationResult, edges.head: SilverEdge)) { (rs, eTuple) =>
           val (edge, edgeIndex) = eTuple
           if (edges.length > 1) {
             if (edgeIndex != 0) {
-              SymbExLogger.currentLog().switchToNextBranch(uidBranchPoint)
+              v.symbExLog.switchToNextBranch(uidBranchPoint)
             }
-            SymbExLogger.currentLog().markReachable(uidBranchPoint)
+            v.symbExLog.markReachable(uidBranchPoint)
           }
-          val rsEdge = follow(s, originatingBlock, edge, v)(Q)
+          val rsEdge = follow(s, originatingBlock, edge, v, None)(Q)
           rs match {
             case (Success(), prevEdge) => {
               rsEdge match {
                 case Success() | Unreachable() => (Success(), edge)
-                case Failure(m) => {
+                case Failure(m, _) => {
                   edge match {
                     case ce: cfg.ConditionalEdge[ast.Stmt, ast.Exp] => {
                       edge.kind match {
@@ -267,7 +268,7 @@ object executor extends ExecutionRules {
               }
             }
             case (Unreachable(), prevEdge) => (rsEdge, edge)
-            case (Failure(m), prevEdge) => {
+            case (Failure(m, _), prevEdge) => {
               rsEdge match {
                 case Success() => {
                   edge match {
@@ -299,31 +300,31 @@ object executor extends ExecutionRules {
                   }
                 }
                 case Unreachable() => (rs._1, edge)
-                case Failure(_) => (rs._1 && rsEdge, edge)
+                case Failure(_, _) => (rs._1 && rsEdge, edge)
               }
             }
           }
         }
         if (edges.length > 1) {
-          SymbExLogger.currentLog().endBranchPoint(uidBranchPoint)
+          v.symbExLog.endBranchPoint(uidBranchPoint)
         }
         rsTuple._1
       } else {
         // if not imprecise
         if (edges.length == 1) {
-          follow(s, originatingBlock, edges.head, v)(Q)
+          follow(s, originatingBlock, edges.head, v, None)(Q)
         } else {
-          val uidBranchPoint = SymbExLogger.currentLog().insertBranchPoint(edges.length)
+          val uidBranchPoint = v.symbExLog.insertBranchPoint(edges.length)
           val res = edges.zipWithIndex.foldLeft(Success(): VerificationResult) {
             case (fatalResult: FatalResult, _) => fatalResult
             case (_, (edge, edgeIndex)) =>
               if (edgeIndex != 0) {
-                SymbExLogger.currentLog().switchToNextBranch(uidBranchPoint)
+                v.symbExLog.switchToNextBranch(uidBranchPoint)
               }
-              SymbExLogger.currentLog().markReachable(uidBranchPoint)
-              follow(s, originatingBlock, edge, v)(Q)
+              v.symbExLog.markReachable(uidBranchPoint)
+              follow(s, originatingBlock, edge, v, None)(Q)
           }
-          SymbExLogger.currentLog().endBranchPoint(uidBranchPoint)
+          v.symbExLog.endBranchPoint(uidBranchPoint)
           res
         }
       }
@@ -462,7 +463,7 @@ object executor extends ExecutionRules {
              *   - Execute the statements in the loop head block
              *   - Follow the outgoing edges
              */
-            val sepIdentifier = SymbExLogger.currentLog().openScope(
+            val sepIdentifier = v.symbExLog.openScope(
               new LoopInRecord(invs.head, s, v.decider.pcs))
 
             /* Havoc local variables that are assigned to in the loop body */
@@ -480,11 +481,11 @@ object executor extends ExecutionRules {
               /* if the variable cannot be found in freshPositions, it means
                * that it has not been assigned to yet
                */
-              if (SymbExLogger.enabled && SymbExLogger.freshPositions.contains(existingTerm)) {
-                SymbExLogger.freshPositions += freshVar -> SymbExLogger.freshPositions(existingTerm)
+              if (SymbExLogger.enabled && SymbExLogger.freshPositions.contains(existingTerm._1)) {
+                SymbExLogger.freshPositions += freshVar._1 -> SymbExLogger.freshPositions(existingTerm._1)
               }
               map.updated(x, freshVar)
-            } ))
+            }))
             val sBody = s.copy(isImprecise = false,
                                g = gBody,
                                h = Heap(),
@@ -617,7 +618,7 @@ object executor extends ExecutionRules {
                 .distinct
             
             // call eval on the loop condition to get checks for framing it if needed
-            eval(s0, edgeConditions.head, IfFailed(edgeConditions.head), v)((_, _, _) => 
+            eval(s0, edgeConditions.head, IfFailed(edgeConditions.head), v)((_, _, _, _) => 
 /*=======
             consumes(s, invs, false, e => LoopInvariantNotPreserved(e), v)((_, _, _) =>
 >>>>>>> upstream/master*/
@@ -625,20 +626,20 @@ object executor extends ExecutionRules {
             val sepIdentifier = SymbExLogger.currentLog().openScope(
               new LoopOutRecord(invs.head, s0, v.decider.pcs))
             // consume the loop invariant
-            consumes(s0, invs, e => LoopInvariantNotPreserved(e), v)((s1, _, v1) => {
-              SymbExLogger.currentLog().closeScope(sepIdentifier)
+            consumes(s0, invs, false, e => LoopInvariantNotPreserved(e), v)((s1, _, v1) => {
+              v.symbExLog.closeScope(sepIdentifier)
               val sepIdentifier2 = SymbExLogger.currentLog().openScope(
                 new EndRecord(s1, v1.decider.pcs))
-              SymbExLogger.currentLog().closeScope(sepIdentifier2)
+              v.symbExLog.closeScope(sepIdentifier2)
               Success()})
         }
-//<<<<<<< HEAD
+/*<<<<<<< HEAD
 
       case cfg.ConstrainingBlock(vars: Seq[ast.AbstractLocalVar @unchecked], body: SilverCfg) =>
         val arps = vars map (s.g.apply(_).asInstanceOf[Var])
         exec(s.setConstrainable(arps, true), body, v)((s1, v1) =>
           follows(s1.setConstrainable(arps, false), block, magicWandSupporter.getOutEdges(s1, block), Internal(_), v1)(Q))
-//=======
+=======*/
 //>>>>>>> upstream/master
     }
   }
@@ -781,17 +782,17 @@ object executor extends ExecutionRules {
         val pve = AssignmentFailed(ass)
 //<<<<<<< HEAD
 
-        eval(s, eRcvr, pve, v)((s1, tRcvr, v1) =>
-          eval(s1, rhs, pve, v1)((s2, tRhs, v2) => {
-            val fap = ast.FieldAccessPredicate(fa, ast.FullPerm()(ass.pos))(ass.pos)
+        eval(s, eRcvr, pve, v)((s1, tRcvr, eRcvrNew, v1) =>
+          eval(s1, rhs, pve, v1)((s2, tRhs, rhsNew, v2) => {
+            val fap = ast.FieldAccessPredicate(fa, Some(ast.FullPerm()(ass.pos)))(ass.pos)
 
-            consume(s2, fap, pve, v2)((s3, snap, v3) => {
+            consume(s2, fap, false, pve, v2)((s3, snap, v3) => {
 
               // TODO;EXTRA CHECK ISSUE(S): We assume the Ref is !== null here
-              v3.decider.assume(tRcvr !== Null())
-              val tSnap = ssaifyRhs(tRhs, field.name, field.typ, v3, ass.pos)
+              v3.decider.assume(tRcvr !== Null, None)
+              val (tSnap, _) = ssaifyRhs(tRhs, rhs, rhsNew, field.name, field.typ, v3, s3)
               val id = BasicChunkIdentifier(field.name)
-              val newChunk = BasicChunk(FieldID, id, Seq(tRcvr), tSnap, FullPerm())
+              val newChunk = BasicChunk(FieldID, id, Seq(tRcvr), eRcvrNew.map(Seq(_)), tSnap, rhsNew, FullPerm, Option.when(withExp)(ast.FullPerm()(ass.pos, ass.info, ass.errT)))
 
               chunkSupporter.produce(s3, s3.h, newChunk, v3)((s4, h4, v4) => {
               Q(s4.copy(h = h4), v4)})
@@ -885,7 +886,7 @@ object executor extends ExecutionRules {
         a match {
           /* "assert true" triggers a heap compression. */
           case _: ast.TrueLit =>
-            val s1 = stateConsolidator.consolidate(s, v)
+            val s1 = v.stateConsolidator(s).consolidate(s, v)
             Q(s1, v)
 
           /* "assert false" triggers a smoke check. If successful, we backtrack. */
@@ -894,13 +895,13 @@ object executor extends ExecutionRules {
               if (v1.decider.checkSmoke())
                 QS(s1.copy(h = s.h), v1)
               else
-                createFailure(pve dueTo AssertionFalse(a), v1, s1)
+                createFailure(pve dueTo AssertionFalse(a), v1, s1, "")
             })((_, _) => Success())
 
           case _ =>
             if (Verifier.config.disableSubsumption()) {
               //This case resembles what's written in the PhD thesis
-              consume(s, a, pve, v)((s1, snap1, v1) =>
+              consume(s, a, false, pve, v)((s1, snap1, v1) =>
                 wellformed(s1.copy(isImprecise = true), freshSnap, Seq(a), pve, v1)((s2, v2) =>
                   Q(s, v2))
               )
@@ -912,12 +913,12 @@ object executor extends ExecutionRules {
                * hUsed (reserveHeaps.head) instead of consuming them. hUsed is later discarded and replaced
                * by s.h. By copying hUsed to s.h the contained permissions remain available inside the wand.
                */
-              consume(s, a, pve, v)((s1, snap1, v1) => {
+              consume(s, a, false, pve, v)((s1, snap1, v1) => {
                 wellformed(s1.copy(isImprecise = true), freshSnap, Seq(a), pve, v1)((s2, v2) =>
                   Q(s2.copy(isImprecise = s.isImprecise, h = s2.reserveHeaps.head, optimisticHeap = s.optimisticHeap), v2))
               })
             } else {
-              consume(s, a, pve, v)((s1, snap1, v1) => {
+              consume(s, a, false, pve, v)((s1, snap1, v1) => {
                 wellformed(s1.copy(isImprecise = true), freshSnap, Seq(a), pve, v1)((s2, v2) => {
                   val s3 = s2.copy(isImprecise = s.isImprecise, h = s.h, optimisticHeap = s.optimisticHeap, reserveHeaps = s.reserveHeaps)
                   Q(s3, v2)
@@ -1022,20 +1023,24 @@ object executor extends ExecutionRules {
           // TODO: Fix this
           reconstructedPermissions.addMethodCallStatement(call,
             new Translator(s1, v1.decider.pcs).getAccessibilityPredicates,
-            zip3(v1.decider.pcs.branchConditionsOrigins.map(entry => Null()),
+            zip3(v1.decider.pcs.branchConditionsOrigins.map(entry => Null),
               v1.decider.pcs.branchConditionsAstNodes,
               v1.decider.pcs.branchConditionsOrigins))
 
+          val argsWithExp = if (withExp)
+            tArgs zip (eArgsNew.get.map(Some(_)))
+          else
+            tArgs zip Seq.fill(tArgs.size)(None)
           // this is run unconditionally (or so it seems), so we can attach the
           // method call ast node here
           
-          val s2 = s1.copy(g = Store(fargs.zip(tArgs)),
+          val s2 = s1.copy(g = Store(fargs.zip(argsWithExp)),
             oldStore = Some(s1.g),
             oldHeaps = s1.oldHeaps + (Verifier.PRE_HEAP_LABEL -> Heap()) + (Verifier.PRE_OPTHEAP_LABEL -> Heap()),
             recordVisited = true,
             methodCallAstNode = Some(call))
 
-          consumes(s2, meth.pres, _ => pvePre, v1)((s3, _, v2) => {
+          consumes(s2, meth.pres, false, _ => pvePre, v1)((s3, _, v2) => {
             v2.symbExLog.closeScope(preCondId)
 /*=======
           val preCondId = v1.symbExLog.openScope(preCondLog)
@@ -1053,7 +1058,7 @@ object executor extends ExecutionRules {
             val outs = meth.formalReturns.map(_.localVar)
             val gOuts = Store(outs.map(x => (x, v2.decider.fresh(x))).toMap)
 //<<<<<<< HEAD
-            val outOldStore = Store(lhs.zip(outs).map(p => (p._1, gOuts(p._2))).toMap)
+            val outOldStore = Store(lhs.zip(outs).map(p => (p._1, gOuts.values(p._2))).toMap)
             var s4p = s3
 
             if (isEquiImp(meth.pres))
@@ -1069,18 +1074,18 @@ object executor extends ExecutionRules {
               // are done with the method call
               val s6 = s5.copy(oldStore = None, methodCallAstNode = None)
 
-              currentLog.closeScope(postCondId)
+              v3.symbExLog.closeScope(postCondId)
 
-              v3.decider.prover.saturate(Verifier.config.z3SaturationTimeouts.afterContract)
+              v3.decider.prover.saturate(Verifier.config.proverSaturationTimeouts.afterContract)
 
               val gLhs = Store(lhs.zip(outs)
-                .map(p => (p._1, s6.g(p._2))).toMap)
+                .map(p => (p._1, s6.g.values(p._2))).toMap)
 
               val s7 = s6.copy(g = s1.g + gLhs,
                 oldHeaps = s1.oldHeaps,
                 recordVisited = s1.recordVisited)
 
-              currentLog.closeScope(sepIdentifier)
+              v3.symbExLog.closeScope(sepIdentifier)
 
               Q(s7, v3)
             })
@@ -1112,9 +1117,9 @@ object executor extends ExecutionRules {
             v2.decider.assertgv(s2.isImprecise, IsPositive(tPerm)) { //The IsPositive check is redundant
               case true =>
                 val wildcards = s2.constrainableARPs -- s1.constrainableARPs
-                predicateSupporter.fold(s2, predicate, Some(fold), tArgs, tPerm, wildcards, pve, v2)(Q)
+                predicateSupporter.fold(s2, predicate, Some(fold), tArgs, eArgsNew, tPerm, ePermNew, wildcards, pve, v2)(Q)
               case false =>
-                createFailure(pve dueTo NegativePermission(ePerm), v2, s2)
+                createFailure(pve dueTo NegativePermission(ePerm), v2, s2, "")
             } match {
               case (verificationResult, _) => verificationResult
             }
@@ -1167,7 +1172,7 @@ object executor extends ExecutionRules {
                 val wildcards = s2.constrainableARPs -- s1.constrainableARPs
                 predicateSupporter.unfold(s2.copy(smCache = smCache1), predicate, Some(unfold), tArgs, eArgsNew, tPerm, ePermNew, wildcards, pve, v2, pa)(Q)
               case false =>
-                createFailure(pve dueTo NegativePermission(ePerm), v2, s2)
+                createFailure(pve dueTo NegativePermission(ePerm), v2, s2, "")
             } match {
               case (verificationResult, _) => verificationResult
             }
@@ -1261,7 +1266,7 @@ object executor extends ExecutionRules {
       case _: ast.Inhale
            | _: ast.Exhale
            | _: ast.Package
-           | _: ast.Apply => createFailure(createUnexpectedNodeError(stmt,""), v, s)
+           | _: ast.Apply => sys.error(s"Unexpected statement (${stmt.getClass.getName}): $stmt")
     }
 
     executed
@@ -1314,7 +1319,7 @@ object executor extends ExecutionRules {
          v.decider.assumeDefinition(BuiltinEquals(t, rhs), debugExp)
          
          if (SymbExLogger.enabled) {
-           SymbExLogger.freshPositions += t -> pos
+           SymbExLogger.freshPositions += t -> rhsExp.pos
          }
 
          (t, eNew)

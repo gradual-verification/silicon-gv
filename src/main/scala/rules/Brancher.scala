@@ -29,7 +29,6 @@ trait BranchingRules extends SymbolicExecutionRules {
   def branch(s: State,
              condition: Term,
              conditionExp: (ast.Exp, Option[ast.Exp]),
-             position: ast.Exp,
              origin: Option[CheckPosition],
              v: Verifier,
              fromShortCircuitingAnd: Boolean = false)
