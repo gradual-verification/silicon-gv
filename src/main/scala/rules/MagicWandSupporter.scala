@@ -428,7 +428,7 @@ object magicWandSupporter extends SymbolicExecutionRules {
           val exp = viper.silicon.utils.ast.BigAnd(branchConditionsExp.map(_._1))
           val expNew = Option.when(withExp)(viper.silicon.utils.ast.BigAnd(branchConditionsExp.map(_._2.get)))
           // Set the branch conditions
-          v1.decider.setCurrentBranchCondition(And(branchConditions), (exp, expNew))
+          v1.decider.setCurrentBranchCondition(And(branchConditions), ast.NullLit()(), (exp, expNew))
 
           // Recreate all path conditions in the Z3 proof script that we recorded for that branch
           v1.decider.assume(conservedPcs._1, conservedPcs._2)

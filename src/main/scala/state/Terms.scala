@@ -743,13 +743,6 @@ class Quantification private[terms] (val q: Quantifier, /* TODO: Rename */
     body.replace(vars, terms)
   }
 
-  def instantiate(terms: Seq[Term]): Term = {
-    assert(terms.length == vars.length,
-           s"Cannot instantiate a quantifier binding ${vars.length} variables with ${terms.length} terms")
-
-    body.replace(vars, terms)
-  }
-
   lazy val stringRepresentation = s"$q ${vars.mkString(",")} :: $body"
   lazy val stringRepresentationWithTriggers = s"$q ${vars.mkString(",")} :: ${triggers.mkString(",")} $body"
 

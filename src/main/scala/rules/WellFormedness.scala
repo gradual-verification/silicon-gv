@@ -48,7 +48,7 @@ object wellFormedness extends WellFormednessRules {
   }
 
   /** @inheritdoc */
-  def isEquiImp(as: Seq[ast.Exp])
+  def isEquiImp(s: State, as: Seq[ast.Exp])
                : Boolean = {
 
     val allTlcs = mutable.ListBuffer[ast.Exp]()
@@ -58,43 +58,43 @@ object wellFormedness extends WellFormednessRules {
       allTlcs ++= tlcs
     })
 
-    isEquiImpTlcs(allTlcs.result())
+    isEquiImpTlcs(s, allTlcs.result())
   
   }
 
-  private def isEquiImpTlcs(tlcs: Seq[ast.Exp])
+  private def isEquiImpTlcs(s: State, tlcs: Seq[ast.Exp])
                           : Boolean = {
     if (tlcs.isEmpty)
       false 
     else {
       tlcs.foldLeft(false) { (b, a) => 
-        b || isEquiImpTlc(a)
+        b || isEquiImpTlc(s, a)
       }
     }
   }
 
-  private def isEquiImpR(a: ast.Exp)
+  private def isEquiImpR(s: State, a: ast.Exp)
                         : Boolean = {
     val tlcs = a.topLevelConjuncts
     
-    isEquiImpTlcs(tlcs)
+    isEquiImpTlcs(s: State, tlcs)
   }
 
-  private def isEquiImpTlc(a: ast.Exp) 
+  private def isEquiImpTlc(s: State, a: ast.Exp) 
                          : Boolean = {
     a match {
       case impr @ ast.ImpreciseExp(e) => true
       
-      case ite @ ast.CondExp(e0, a1, a2) => isEquiImpR(a1) || isEquiImpR(a2)
+      case ite @ ast.CondExp(e0, a1, a2) => isEquiImpR(s, a1) || isEquiImpR(s, a2)
 
       case ast.PredicateAccessPredicate(ast.PredicateAccess(eArgs, predicateName), perm) =>
         if (visitedPreds.contains(predicateName))
           false
         else {
           visitedPreds = visitedPreds :+ predicateName
-          val predicate = Verifier.program.findPredicate(predicateName)
+          val predicate = s.program.findPredicate(predicateName)
           var res = false
-          res = isEquiImpR(predicate.body.get)     
+          res = isEquiImpR(s, predicate.body.get)     
           visitedPreds = visitedPreds.filter(p => p != predicateName)
           res
         }

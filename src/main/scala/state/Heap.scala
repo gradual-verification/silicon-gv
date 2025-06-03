@@ -36,7 +36,7 @@ final class ListBackedHeap private[state] (chunks: Vector[Chunk])
   def getChunkForValue(value: Term, lenient: Boolean = false): Option[(Term, String)] = {
     chunks.find(chunk => {
       chunk match {
-        case BasicChunk(resourceID, id, args, snap, perm) => {
+        case BasicChunk(resourceID, id, args, _, snap, _, perm, _) => {
           if (snap != value && lenient) {
             snap.toString == value.toString && snap.sort == value.sort
           } else {
@@ -47,14 +47,14 @@ final class ListBackedHeap private[state] (chunks: Vector[Chunk])
       }
     }) match {
       case None => None
-      case Some(BasicChunk(resourceID, id, args, snap, perm)) => Some((args.head, id.toString))
+      case Some(BasicChunk(resourceID, id, args, _, snap, _, perm, _)) => Some((args.head, id.toString))
     }
   }
 
   def getChunksForValue(value: Term, lenient: Boolean = false): Seq[(Term, String)] = {
     chunks.filter(chunk => {
       chunk match {
-        case BasicChunk(resourceID, id, args, snap, perm) => {
+        case BasicChunk(resourceID, id, args, _, snap, _, perm, _) => {
           if (snap != value && lenient) {
             snap.toString == value.toString && snap.sort == value.sort
           } else {
@@ -65,7 +65,7 @@ final class ListBackedHeap private[state] (chunks: Vector[Chunk])
       }
     }).foldLeft(Seq[(Term, String)]()) { (foundChunks, foundChunk) =>
       foundChunk match {
-        case BasicChunk(resourceID, id, args, snap, perm) => foundChunks :+ (args.head, id.toString)
+        case BasicChunk(resourceID, id, args, _, snap, _, perm, _) => foundChunks :+ (args.head, id.toString)
         case _ => foundChunks
       }
     }

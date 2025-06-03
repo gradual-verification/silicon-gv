@@ -556,8 +556,16 @@ object executor extends ExecutionRules {
                 })})
             combine executionFlowController.locally(s, v)((s0, v0) => {
                 v0.decider.prover.comment("Loop head block: Establish invariant")
-                consumes(s0, invs, false, LoopInvariantNotEstablished, v0)((sLeftover, _, v1) => {
+                consumes(s0.copy(loopPosition = Some(CheckPosition.Loop(invs, LoopPosition.Before))), invs, false, LoopInvariantNotEstablished, v0)((sLeftover0, _, v1) => {
 //>>>>>>> upstream/master
+                  var sLeftover1 = sLeftover0
+                  if (isEquiImp(s0, invs))
+                    sLeftover1 = sLeftover0.copy(h = Heap(),
+                      optimisticHeap = Heap(),
+                      isImprecise = true)
+
+                  val sLeftover = sLeftover1.copy(loopPosition = None)
+
                   v1.decider.prover.comment("Loop head block: Execute statements of loop head block (in invariant state)")
 
                   phase1data.foldLeft(Success(): VerificationResult) {
@@ -1061,7 +1069,7 @@ object executor extends ExecutionRules {
             val outOldStore = Store(lhs.zip(outs).map(p => (p._1, gOuts.values(p._2))).toMap)
             var s4p = s3
 
-            if (isEquiImp(meth.pres))
+            if (isEquiImp(s3, meth.pres))
               s4p = s3.copy(h = Heap(),
                 optimisticHeap = Heap(),
                 isImprecise = true)

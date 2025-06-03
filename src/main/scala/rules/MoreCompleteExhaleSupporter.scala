@@ -21,6 +21,7 @@ import viper.silicon.{MList, MMap}
 import viper.silver.ast
 import viper.silver.parser.PUnknown
 import viper.silver.verifier.{VerificationError, PartialVerificationError}
+import viper.silver.verifier.reasons._
 
 import scala.collection.mutable.ListBuffer
 
@@ -212,7 +213,7 @@ object moreCompleteExhaleSupporter extends SymbolicExecutionRules {
     * produced. */
     createFailure(pve dueTo FeatureUnsupported(resource,
       "enableMoreCompleteExhale is an unsupported Silicon-gv configuration at this time."),
-      v, s).withLoad(args)
+      v, s, "")/*.withLoad(args)*/
 
     /*
     val id = ChunkIdentifier(resource, s.program)
