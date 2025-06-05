@@ -110,7 +110,7 @@ class DefaultMainVerifier(config: Config,
     statefulSubcomponents foreach (_.stop())
   }
 
-  def axiomsAfterAnalysis(): Iterable[Term] = this.domainsContributor.axiomsAfterAnalysis
+  def axiomsAfterAnalysis(): Iterable[Term] = List() //this.domainsContributor.axiomsAfterAnalysis
 
   def postConditionAxioms(): Vector[Term] = functionsSupporter.getPostConditionAxioms()
 

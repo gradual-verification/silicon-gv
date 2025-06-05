@@ -50,6 +50,7 @@ trait ChunkSupportRules extends SymbolicExecutionRules {
              resource: ast.Resource,
              runtimeCheckFieldTarget: ast.FieldAccess, 
              args: Seq[Term],
+             argsExp: Option[Seq[ast.Exp]],
              pve: PartialVerificationError,
              ve: VerificationError,
              v: Verifier,

@@ -33,6 +33,7 @@ trait DefaultMethodVerificationUnitProvider extends VerifierComponent { v: Verif
     import executor._
     import producer._
     import consumer._
+    import wellFormedness._
 
     private var _units: Seq[ast.Method] = _
 

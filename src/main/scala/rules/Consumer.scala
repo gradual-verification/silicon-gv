@@ -759,7 +759,7 @@ object consumer extends ConsumptionRules {
               case true =>
                 val resource = locacc.res(s2.program)
                 val loss = PermTimes(tPerm, s2.permissionScalingFactor)
-                val lossExp = permNew.map(p => ast.PermMul(p, s3.permissionScalingFactorExp.get)(p.pos, p.info, p.errT))
+                val lossExp = permNew.map(p => ast.PermMul(p, s2.permissionScalingFactorExp.get)(p.pos, p.info, p.errT))
                 val ve = pve dueTo InsufficientPermission(locacc)
                 val description = s"consume ${a.pos}: $a"
                 var s3 = s2.copy(isImprecise = s.isImprecise)
@@ -850,7 +850,7 @@ object consumer extends ConsumptionRules {
               case true =>
                 val resource = locacc.res(s2.program)
                 val loss = PermTimes(tPerm, s2.permissionScalingFactor)
-                val lossExp = permNew.map(p => ast.PermMul(p, s3.permissionScalingFactorExp.get)(p.pos, p.info, p.errT))
+                val lossExp = permNew.map(p => ast.PermMul(p, s2.permissionScalingFactorExp.get)(p.pos, p.info, p.errT))
                 val ve = pve dueTo InsufficientPermission(locacc)
                 val description = s"consume ${a.pos}: $a"
                 var s3 = s2.copy(isImprecise = s.isImprecise)

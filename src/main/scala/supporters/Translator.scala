@@ -12,9 +12,9 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
   // this is, to some extent, a stub method currently
   def translate(t: terms.Term): Option[ast.Exp] = {
     t match {
-      case terms.Null()        => Some(ast.NullLit()())
-      case terms.False()       => Some(ast.FalseLit()())
-      case terms.True()        => Some(ast.TrueLit()())
+      case terms.Null          => Some(ast.NullLit()())
+      case terms.False         => Some(ast.FalseLit()())
+      case terms.True          => Some(ast.TrueLit()())
       case terms.IntLiteral(i) => Some(ast.IntLit(i)())
       case terms.Plus(t0, t1) =>
         (translate(t0), translate(t1)) match {
@@ -115,7 +115,7 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
           case (Some(e1), Some(e2), Some(e3)) => Some(ast.CondExp(e1, e2, e3)())
           case _                              => None
         }
-      case terms.Var(name, sort) =>
+      case terms.Var(name, sort, b0) =>
         sort match {
           case terms.sorts.Snap => {
             println(
@@ -124,7 +124,7 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
             )
             None
           }
-          case _ => selectShortestField(variableResolver(terms.Var(name, sort)))
+          case _ => selectShortestField(variableResolver(terms.Var(name, sort, b0)))
         }
       case terms.SortWrapper(t, sort) =>
         Some(variableResolver(terms.SortWrapper(t, sort))(0))
@@ -153,8 +153,8 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
           shortestField match {
             case None => Some(currentField)
             case Some(shortestFieldUnwrapped) => {
-              val cfArray = currentField.toString().split('.')
-              val sfArray = shortestFieldUnwrapped.toString().split('.')
+              val cfArray = currentField.toString.split('.')
+              val sfArray = shortestFieldUnwrapped.toString.split('.')
               if (cfArray.length < sfArray.length) {
                 Some(currentField)
               } else {
@@ -173,16 +173,16 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
 
   private def resolveType(variable: terms.Term): ast.Type = {
     variable match {
-      case terms.Var(_, terms.sorts.Int) |
+      case terms.Var(_, terms.sorts.Int, _) |
           terms.SortWrapper(_, terms.sorts.Int) =>
         ast.Int
-      case terms.Var(_, terms.sorts.Bool) |
+      case terms.Var(_, terms.sorts.Bool, _) |
           terms.SortWrapper(_, terms.sorts.Bool) =>
         ast.Bool
-      case terms.Var(_, terms.sorts.Ref) |
+      case terms.Var(_, terms.sorts.Ref, _) |
           terms.SortWrapper(_, terms.sorts.Ref) =>
         ast.Ref
-      case terms.Var(_, terms.sorts.Perm) |
+      case terms.Var(_, terms.sorts.Perm, _) |
           terms.SortWrapper(_, terms.sorts.Perm) =>
         ast.Perm
       case _ => sys.error(s"Unable to match type for ${variable}!")
@@ -345,7 +345,7 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
 
       case term_variable@terms.Var(
       identifier: Identifier,
-      termType
+      termType, b0
       ) => {
 
         // We must check that we have the top level receiver in the symbolic store
@@ -399,7 +399,8 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
             terms.sorts.Ref
           } else {
             termType
-          }
+          },
+          b0
         )
 
         // We need to enable "lenient mode" for the store search

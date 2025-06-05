@@ -55,6 +55,8 @@ object brancher extends BranchingRules {
       case Some(store) => (store, s.h + s.oldHeaps(Verifier.PRE_HEAP_LABEL), s.optimisticHeap + s.oldHeaps(Verifier.PRE_OPTHEAP_LABEL))
       case None => (s.g, s.h, s.optimisticHeap)
     }
+    
+    val position = conditionExp._1
 
     /* Skip path feasibility check if one of the following holds:
      *   (1) the branching is due to the short-circuiting evaluation of a conjunction
@@ -158,7 +160,7 @@ object brancher extends BranchingRules {
                 case None => sys.error("Error translating! Exiting safely.")
                 case Some(expr) => expr
               })
-            v1.decider.setCurrentBranchCondition(negatedCondition, negCond, (negatedConditionExp, negatedConditionExpNew))
+            v1.decider.setCurrentBranchCondition(negatedCondition, (negatedConditionExp, negatedConditionExpNew), negCond, position, origin)
 
             var functionsOfElseBranchdDeciderBefore: Set[FunctionDecl] = null
             var nMacrosOfElseBranchDeciderBefore: Int = 0
@@ -213,7 +215,7 @@ object brancher extends BranchingRules {
                 case None => sys.error("Error translating! Exiting safely.")
                 case Some(expr) => expr
               })
-            v1.decider.setCurrentBranchCondition(condition, cond, conditionExp)
+            v1.decider.setCurrentBranchCondition(condition, conditionExp, cond, position, origin)
 
             fThen(v1.stateConsolidator(s1).consolidateOptionally(s1, v1), v1)
           })
@@ -279,7 +281,6 @@ object brancher extends BranchingRules {
     }
     
     if (s.isImprecise && !fromShortCircuitingAnd) {
-      val position = conditionExp._1
 
       rsThen match {
         case Success() => {

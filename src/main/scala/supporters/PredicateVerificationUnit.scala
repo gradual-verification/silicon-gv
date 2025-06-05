@@ -90,7 +90,7 @@ trait DefaultPredicateVerificationUnitProvider extends VerifierComponent { v: Ve
       val ins = predicate.formalArgs.map(_.localVar)
       val s = sInit.copy(g = Store(ins.map(x => (x, decider.fresh(x)))),
                          h = Heap(),
-                         oldHeaps = OldHeaps()
+                         oldHeaps = OldHeaps(),
                          isImprecise = false, 
                          optimisticHeap = Heap())
       val err = PredicateNotWellformed(predicate)

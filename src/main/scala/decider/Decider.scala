@@ -53,8 +53,10 @@ trait Decider {
   def checkSmoke(isAssert: Boolean = false): Boolean
 
   def setCurrentBranchCondition(t: Term, 
+    te: (ast.Exp, Option[ast.Exp]),
     semanticAstNode: ast.Exp, 
-    te: (ast.Exp, Option[ast.Exp])): Unit
+    astNode: ast.Exp,
+    origin: Option[CheckPosition]): Unit
   def setPathConditionMark(): Mark
 
   def finishDebugSubExp(description : String): Unit

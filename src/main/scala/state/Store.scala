@@ -53,16 +53,16 @@ final class MapBackedStore private[state] (map: Map[ast.AbstractLocalVar, (Term,
   def getKeyForValue(symbolicVariable: terms.Term, lenient: Boolean = false): Option[ast.AbstractLocalVar] = {
     // TODO: clean this up!
     symbolicVariable match {
-      case var1 @ terms.Var(identifier1, sort1) =>
+      case var1 @ terms.Var(identifier1, sort1, _) =>
         map.find({
-          case (k, var2 @ terms.Var(identifier2, sort2)) => {
+          case (k, (var2 @ terms.Var(identifier2, sort2, _), _)) => {
             if (lenient) {
               identifier1.toString == identifier2.toString && sort1 == sort2
             } else {
               var1 == var2
             }
           }
-          case (k, term2) if term2.sort == sorts.Ref => {
+          case (k, (term2, _)) if term2.sort == sorts.Ref => {
             if (lenient) {
               symbolicVariable.toString == term2.toString && sort1 == term2.sort
             } else {

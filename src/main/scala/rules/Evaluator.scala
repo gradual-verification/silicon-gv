@@ -1704,7 +1704,7 @@ object evaluator extends EvaluationRules {
             val addToOh = false
             val s1_0 = s1.copy(madeOptimisticAssumptions = false)
 
-            chunkSupporter.lookup(s1, s1.h, s1.optimisticHeap, addToOh, resource, fa, tArgs, pve, ve, v1, generateChecks)((s2, h2, oh2, tSnap, v2) => {
+            chunkSupporter.lookup(s1, s1.h, s1.optimisticHeap, addToOh, resource, fa, tArgs, eArgs, pve, ve, v1, generateChecks)((s2, h2, oh2, tSnap, v2) => {
 
               if (s2.madeOptimisticAssumptions &&
                   s2.needConditionFramingProduce &&
@@ -2828,7 +2828,7 @@ object evaluator extends EvaluationRules {
         // In this case, we return None.
         val node = viper.silicon.utils.ast.BigAnd(es1)
         val expPair = (viper.silicon.utils.ast.BigAnd(es1), es1New.map(viper.silicon.utils.ast.BigAnd(_)))
-        v2.decider.setCurrentBranchCondition(bc, node, expPair)
+        v2.decider.setCurrentBranchCondition(bc, expPair, node, node, None)
         var es2AndTriggerTerms: Option[(Seq[Term], Option[Seq[ast.Exp]], Seq[Trigger], (Seq[Term], Seq[Quantification]), Option[(InsertionOrderedSet[DebugExp], InsertionOrderedSet[DebugExp])], Map[ast.Exp, Term])] = None
         var finalState = s3
         val es2AndTriggerResult = evals(s3, es2, _ => pve, v2)((s4, ts2, es2New, v3) => {
@@ -3033,7 +3033,7 @@ object evaluator extends EvaluationRules {
                         termOp: (Term, Term) => T,
                         pve: PartialVerificationError,
                         v: Verifier,
-                        generateChecks: Boolean = true)
+                        generateChecks: Boolean)
                        (Q: (State, T, Option[ast.Exp], Option[ast.Exp], Verifier) => VerificationResult)
                        : VerificationResult = {
 

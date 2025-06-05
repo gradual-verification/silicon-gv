@@ -231,9 +231,9 @@ object State {
                      `qpFields1`, `qpPredicates1`, `qpMagicWands1`, `permResources1`, smCache2, pmCache2, `smDomainNeeded1`,
                      `predicateSnapMap1`, `predicateFormalVarMap1`, `retryLevel`, `useHeapTriggers`,
                      moreCompleteExhale2, `moreJoins`,
-                     `methodCallAstNode2`, `foldOrUnfoldAstNode2`, `loopPosition2`, `unfoldingAstNode2`, `forFraming2`,
-                     `generateChecks2`, `needConditionFramingUnfold2`,
-                     `needConditionFramingProduce2`, `madeOptimisticAssumptions2`) =>
+                     `methodCallAstNode1`, `foldOrUnfoldAstNode1`, `loopPosition1`, `forFraming`,
+                     `generateChecks`, `needConditionFramingUnfold`,
+                     `needConditionFramingProduce`, `madeOptimisticAssumptions`) =>
 
             val functionRecorder3 = functionRecorder1.merge(functionRecorder2)
             val triggerExp3 = triggerExp1 && triggerExp2
@@ -344,9 +344,13 @@ object State {
   def merge(s1: State, pc1: RecordedPathConditions, s2: State, pc2: RecordedPathConditions): State = {
     s1 match {
       /* Decompose state s1 */
-      case State(g1, h1, program, member,
-      predicateData, functionData,
+      case State(g1, oldStore1, h1,
+      program, member,
+      predicateData,
+      functionData,
       oldHeaps1,
+      isImprecise, optimisticHeap1,
+      gatherFrame1, frameArgHeap1,
       parallelizeBranches1,
       recordVisited1, visited1,
       methodCfg1, invariantContexts1,
@@ -371,9 +375,12 @@ object State {
 
         /* Decompose state s2: most values must match those of s1 */
         s2 match {
-          case State(g2, h2, `program`, `member`,
+          case State(g2, `oldStore1`, h2, 
+          `program`, `member`,
           `predicateData`, `functionData`,
           oldHeaps2,
+          `isImprecise`, `optimisticHeap1`,
+          `gatherFrame1`, `frameArgHeap1`,
           `parallelizeBranches1`,
           `recordVisited1`, `visited1`,
           `methodCfg1`, invariantContexts2,
@@ -392,9 +399,9 @@ object State {
           `qpFields1`, `qpPredicates1`, `qpMagicWands1`, `permResources1`, smCache2, pmCache2, smDomainNeeded2,
           `predicateSnapMap1`, `predicateFormalVarMap1`, `retryLevel`, `useHeapTriggers`,
           moreCompleteExhale2, `moreJoins`,
-          `methodCallAstNode2`, `foldOrUnfoldAstNode2`, `loopPosition2`, `unfoldingAstNode2`, `forFraming2`,
-          `generateChecks2`, `needConditionFramingUnfold2`,
-          `needConditionFramingProduce2`, `madeOptimisticAssumptions2`) =>
+          `methodCallAstNode1`, `foldOrUnfoldAstNode1`, `loopPosition1`, `forFraming`,
+          `generateChecks`, `needConditionFramingUnfold`,
+          `needConditionFramingProduce`, `madeOptimisticAssumptions`) =>
 
             val functionRecorder3 = functionRecorder1.merge(functionRecorder2)
             val triggerExp3 = triggerExp1 && triggerExp2
@@ -451,7 +458,7 @@ object State {
             assert(invariantContexts1.length == invariantContexts2.length)
             val invariantContexts3 = invariantContexts1
               .zip(invariantContexts2)
-              .map({case (h1, h2) => mergeHeap(h1, conditions1, conditions1Exp, h2, conditions2, conditions2Exp)})
+              .map({case ((b1, c1, h1, oh1), (b2, c2, h2, oh2)) => (b1 && b2, c1 && c2,  mergeHeap(h1, conditions1, conditions1Exp, h2, conditions2, conditions2Exp), mergeHeap(oh1, conditions1, conditions1Exp, oh2, conditions2, conditions2Exp))})
 
             assert(reserveHeaps1.length == reserveHeaps2.length)
             val reserveHeaps3 = reserveHeaps1

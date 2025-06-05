@@ -20,7 +20,7 @@ trait WellFormednessRules extends SymbolicExecutionRules {
                 (Q: (State, Verifier) => VerificationResult)
                 : VerificationResult
   
-  def isEquiImp(as: Seq[ast.Exp])
+  def isEquiImp(s: State, as: Seq[ast.Exp])
                : Boolean
 
   def isIsoImp(as: Seq[ast.Exp])
