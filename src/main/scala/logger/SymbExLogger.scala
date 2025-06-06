@@ -314,7 +314,7 @@ object SymbExLogger {
     term match {
       case Var(SuffixedIdentifier(prefix, _, _), _) if prefix == "$t" =>
         formatBasicChunk(snaps(term), true)
-      case Var(SuffixedIdentifier(prefix, _, _), _) if !prefix.contains("$result") && prefix.contains("$") =>
+      case Var(SuffixedIdentifier(prefix, _, _), _) if !prefix.contains("$result") && !prefix.contains("_result$") && prefix.contains("$") =>
         if (freshPositions.contains(term) && freshPositions(term).isInstanceOf[ast.TranslatedPosition]) {
           val pos = freshPositions(term).asInstanceOf[ast.TranslatedPosition].pos
           formatBasicChunk(snaps(term), true) + "@" + pos.line.toString
