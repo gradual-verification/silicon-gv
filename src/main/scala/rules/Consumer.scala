@@ -339,7 +339,7 @@ object consumer extends ConsumptionRules {
     v.logger.debug("h = " + v.stateFormatter.format(h))
     if (s.reserveHeaps.nonEmpty)
       v.logger.debug("hR = " + s.reserveHeaps.map(v.stateFormatter.format).mkString("", ",\n     ", ""))
-
+    
     val consumed = a match {
 //<<<<<<< HEAD
 
@@ -751,7 +751,8 @@ object consumer extends ConsumptionRules {
                 Q(s5, h1, snap1, v4)})})))
 >>>>>>> upstream/master*/
 
-      case ast.PredicateAccessPredicate(locacc: ast.LocationAccess, Some(perm)) =>
+      case ast.PredicateAccessPredicate(locacc: ast.LocationAccess, perm0) =>
+        val perm = perm0.getOrElse(ast.FullPerm()(ast.NoPosition, ast.NoInfo, ast.NoTrafos))
        //eval for expression and perm (perm should always be 1)
         evalpc(s.copy(isImprecise = impr), perm, pve, v)((s1, tPerm, permNew, v1) =>
           evalLocationAccesspc(s1.copy(isImprecise = impr), locacc, pve, v1)((s2, predName, tArgs, eArgs, v2) => {
@@ -838,9 +839,9 @@ object consumer extends ConsumptionRules {
             }}))
 
 
-      case ast.FieldAccessPredicate(locacc: ast.LocationAccess, Some(perm)) =>
-
-       //eval for expression and perm (perm should always be 1)
+      case ast.FieldAccessPredicate(locacc: ast.LocationAccess, perm0) =>
+        val perm = perm0.getOrElse(ast.FullPerm()(ast.NoPosition, ast.NoInfo, ast.NoTrafos))
+        //eval for expression and perm (perm should always be 1)
         evalpc(s.copy(isImprecise = impr), perm, pve, v)((s1, tPerm, permNew, v1) =>
           evalLocationAccesspc(s1.copy(isImprecise = impr), locacc, pve, v1)((s2, field, tArgs, eArgs, v2) => {
             // is this why we produce a runtime check for != Null? does the
@@ -898,10 +899,9 @@ object consumer extends ConsumptionRules {
                       }
 
                       if (chunkExisted) {
-
                         profilingInfo.incrementEliminatedConjuncts
-                        Q(s5, oh1, h1, snap1, v4)}
-
+                        Q(s5, oh1, h1, snap1, v4)
+                      }
                       else {
 
                         // we don't want to count it if the runtime check
@@ -1222,7 +1222,7 @@ object consumer extends ConsumptionRules {
           val s5 = s4.copy(h = s.h,
                            reserveHeaps = s.reserveHeaps,
                            exhaleExt = s.exhaleExt)
-          Q(s5, Some(Unit), v1)
+          Q(s5, if (returnSnap) Some(Unit) else None, v1)
         case false =>
         //  println("pve " + pve + "\ne " + e + "\nv1 " + v1 + "\ns3 " + s3)
           //println("heap: " + s.h + "\noh: " + s.optimisticHeap)

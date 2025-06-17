@@ -138,16 +138,17 @@ object TermDifference {
   }
 
   // testing transform
-  val makeVar: String => terms.Var = (varName: String) => terms.Var(viper.silicon.state.Identifier(varName), terms.sorts.Int, false)
+  val makeVarInt: String => terms.Var = (varName: String) => terms.Var(viper.silicon.state.Identifier(varName), terms.sorts.Int, false)
+  val makeVarBool: String => terms.Var = (varName: String) => terms.Var(viper.silicon.state.Identifier(varName), terms.sorts.Bool, false)
 
-  val simpleImplicationTerm = terms.Implies(makeVar("x"), makeVar("y"))
+  val simpleImplicationTerm = terms.Implies(makeVarBool("x"), makeVarBool("y"))
 
-  val simpleNegationTerm = terms.Not(makeVar("x"))
+  val simpleNegationTerm = terms.Not(makeVarBool("x"))
 
   val moreComplexNegationTerm = terms.Not(simpleImplicationTerm)
 
   // 3
-  val moreComplexImplicationTerm = terms.Iff(terms.Implies(makeVar("a"), makeVar("e")), moreComplexNegationTerm)
+  val moreComplexImplicationTerm = terms.Iff(terms.Implies(makeVarBool("a"), makeVarBool("e")), moreComplexNegationTerm)
 
   val evenMoreComplexNegationTerm = terms.Not(moreComplexNegationTerm)
 
@@ -156,7 +157,7 @@ object TermDifference {
   // 10
   val termWithIgnoredTerms =
     terms.Iff((
-      terms.Plus((terms.Var(viper.silicon.state.Identifier("k"), terms.sorts.Int, false), makeVar("w"))),
+      terms.Plus((terms.Var(viper.silicon.state.Identifier("k"), terms.sorts.Int, false), makeVarInt("w"))),
       terms.Not(terms.Implies(
         terms.Plus((
           terms.Not(moreComplexImplicationTerm),

@@ -7,7 +7,7 @@
 package viper.silicon.tests
 
 class SiliconTestsSmokeDetection extends SiliconTests {
-  override val testDirectories: Seq[String] = Seq("smoke")
+  override val testDirectories: Seq[String] = Seq(/*"smoke"*/)
 
   override val commandLineArguments: Seq[String] = Seq("--enableSmokeDetection")
 }

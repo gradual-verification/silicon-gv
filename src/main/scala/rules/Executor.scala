@@ -794,16 +794,14 @@ object executor extends ExecutionRules {
           eval(s1, rhs, pve, v1)((s2, tRhs, rhsNew, v2) => {
             val fap = ast.FieldAccessPredicate(fa, Some(ast.FullPerm()(ass.pos)))(ass.pos)
 
-            consume(s2, fap, false, pve, v2)((s3, snap, v3) => {
-
+            consume(s2, fap, true, pve, v2)((s3, snap, v3) => {
               // TODO;EXTRA CHECK ISSUE(S): We assume the Ref is !== null here
               v3.decider.assume(tRcvr !== Null, None)
               val (tSnap, _) = ssaifyRhs(tRhs, rhs, rhsNew, field.name, field.typ, v3, s3)
               val id = BasicChunkIdentifier(field.name)
               val newChunk = BasicChunk(FieldID, id, Seq(tRcvr), eRcvrNew.map(Seq(_)), tSnap, rhsNew, FullPerm, Option.when(withExp)(ast.FullPerm()(ass.pos, ass.info, ass.errT)))
-
               chunkSupporter.produce(s3, s3.h, newChunk, v3)((s4, h4, v4) => {
-              Q(s4.copy(h = h4), v4)})
+                Q(s4.copy(h = h4), v4)})
 /*=======
         eval(s, eRcvr, pve, v)((s1, tRcvr, eRcvrNew, v1) =>
           eval(s1, rhs, pve, v1)((s2, tRhs, rhsNew, v2) => {

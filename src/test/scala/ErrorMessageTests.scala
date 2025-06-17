@@ -23,7 +23,7 @@ class ErrorMessageTests extends AnyFunSuite {
     val strategy = ViperStrategy.Slim({
       case a: Assert =>
         Exhale(a.exp)(a.pos, a.info, ErrTrafo({ case ExhaleFailed(_, r, false) => AssertFailed(a, r) }))
-      case And(f: FalseLit, _) =>
+      case And(f: FalseLit, _) =>*/
         /* If `assert false && e` is replaced by just `assert false`, then the default error
          * backtranslation will translate the message `Assertion false might not hold` back to
          * `Assertion false && e` ...`. Since, without the transformation, Silicon would only report
@@ -31,7 +31,7 @@ class ErrorMessageTests extends AnyFunSuite {
          * `Assertion false ...` is "backtranslated" to itself, i.e. to `Assertion false ...`.
          */
 /*        FalseLit()(f.pos, f.info, NodeTrafo(f))
-      case And(_, f: FalseLit) =>
+      case And(_, f: FalseLit) =>*/
         /* Here, the automatically attached backtranslation function suffices */
 /*        f
     })
@@ -41,8 +41,8 @@ class ErrorMessageTests extends AnyFunSuite {
 
   test("WhileToIfGoto") {
     val filePrefix = "errorMessageTests/whileToIfGoto/"
-    val files = Seq("simple"/*, "nested"*/)
-/*    val frontend = tests.instantiateFrontend()
+    val files = Seq("simple"*//*, "nested"*//*)
+    val frontend = tests.instantiateFrontend()
 
     // Example of how to transform a while loop into if and goto
     // Keeping metadata is awful when creating multiple statements from a single one and we need to think about this case, but at least it is possible
@@ -90,12 +90,12 @@ class ErrorMessageTests extends AnyFunSuite {
   test("MethodInlining") {
     // Careful: Don't use old inside postcondition. It is not yet supported. maybe I will update the testcase
     val filePrefix = "errorMessageTests/methodInlining/"
-    val files = Seq("simple" , "withArgs", "withArgsNRes"/*, "withFields" *//*)
+    val files = Seq("simple" , "withArgs", "withArgsNRes"*//*, "withFields" *//*)
     val frontend = tests.instantiateFrontend()
 
     val replaceStrategy = ViperStrategy.Context[Map[Exp, Exp]]({
       case (l: LocalVar, c) if c.c.contains(l) =>
-        val n = c.c(l)
+        val n = c.c(l)*/
         /* We want to replace formal argument `l` by actual argument `n`, and we want to report
          * `n` in error messages. The AST transformation framework, however, will by default
          * attach an error back-transformer to the replacement node `n` such that the original
