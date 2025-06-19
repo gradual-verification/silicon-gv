@@ -98,7 +98,6 @@ object chunkSupporter extends ChunkSupportRules {
 //<<<<<<< HEAD
              (Q: (State, Heap, Option[Term], Verifier, Boolean) => VerificationResult)
              : VerificationResult = {
-
     consume2(s, h, consolidate, resource, args, argsExp, perms, permsExp, returnSnap, ve, v)((s2, h2, optSnap, v2) =>
       optSnap match {
         case Some(snap) =>
@@ -114,7 +113,8 @@ object chunkSupporter extends ChunkSupportRules {
           val fresh = v2.decider.fresh(sorts.Snap, Option.when(withExp)(PUnknown()))
           val s3 = s2.copy(functionRecorder = s2.functionRecorder.recordFreshSnapshot(fresh.applicable))
           Q(s3, h2, Some(fresh), v2, false)
-        case None => Q(s2, h2, None, v2, false)
+        case None =>
+          Q(s2, h2, None, v2, false)
       })
   }
   

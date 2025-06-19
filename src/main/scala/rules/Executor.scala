@@ -556,7 +556,7 @@ object executor extends ExecutionRules {
                 })})
             combine executionFlowController.locally(s, v)((s0, v0) => {
                 v0.decider.prover.comment("Loop head block: Establish invariant")
-                consumes(s0.copy(loopPosition = Some(CheckPosition.Loop(invs, LoopPosition.Before))), invs, false, LoopInvariantNotEstablished, v0)((sLeftover0, _, v1) => {
+                consumes(s0.copy(loopPosition = Some(CheckPosition.Loop(invs, LoopPosition.Before))), invs, true, LoopInvariantNotEstablished, v0)((sLeftover0, _, v1) => {
 //>>>>>>> upstream/master
                   var sLeftover1 = sLeftover0
                   if (isEquiImp(s0, invs))
@@ -634,7 +634,7 @@ object executor extends ExecutionRules {
             val sepIdentifier = SymbExLogger.currentLog().openScope(
               new LoopOutRecord(invs.head, s0, v.decider.pcs))
             // consume the loop invariant
-            consumes(s0, invs, false, e => LoopInvariantNotPreserved(e), v)((s1, _, v1) => {
+            consumes(s0, invs, true, e => LoopInvariantNotPreserved(e), v)((s1, _, v1) => {
               v.symbExLog.closeScope(sepIdentifier)
               val sepIdentifier2 = SymbExLogger.currentLog().openScope(
                 new EndRecord(s1, v1.decider.pcs))
@@ -881,7 +881,7 @@ object executor extends ExecutionRules {
 
       case assert @ ast.Assert(a) if Verifier.config.disableSubsumption() =>
         val r =
-          consume(s, a, false, AssertFailed(assert), v)((_, _, _) =>
+          consume(s, a, true, AssertFailed(assert), v)((_, _, _) =>
             Success())
 
         r combine Q(s, v)
@@ -907,7 +907,7 @@ object executor extends ExecutionRules {
           case _ =>
             if (Verifier.config.disableSubsumption()) {
               //This case resembles what's written in the PhD thesis
-              consume(s, a, false, pve, v)((s1, snap1, v1) =>
+              consume(s, a, true, pve, v)((s1, snap1, v1) =>
                 wellformed(s1.copy(isImprecise = true), freshSnap, Seq(a), pve, v1)((s2, v2) =>
                   Q(s, v2))
               )
@@ -919,12 +919,12 @@ object executor extends ExecutionRules {
                * hUsed (reserveHeaps.head) instead of consuming them. hUsed is later discarded and replaced
                * by s.h. By copying hUsed to s.h the contained permissions remain available inside the wand.
                */
-              consume(s, a, false, pve, v)((s1, snap1, v1) => {
+              consume(s, a, true, pve, v)((s1, snap1, v1) => {
                 wellformed(s1.copy(isImprecise = true), freshSnap, Seq(a), pve, v1)((s2, v2) =>
                   Q(s2.copy(isImprecise = s.isImprecise, h = s2.reserveHeaps.head, optimisticHeap = s.optimisticHeap), v2))
               })
             } else {
-              consume(s, a, false, pve, v)((s1, snap1, v1) => {
+              consume(s, a, true, pve, v)((s1, snap1, v1) => {
                 wellformed(s1.copy(isImprecise = true), freshSnap, Seq(a), pve, v1)((s2, v2) => {
                   val s3 = s2.copy(isImprecise = s.isImprecise, h = s.h, optimisticHeap = s.optimisticHeap, reserveHeaps = s.reserveHeaps)
                   Q(s3, v2)
@@ -1046,7 +1046,7 @@ object executor extends ExecutionRules {
             recordVisited = true,
             methodCallAstNode = Some(call))
 
-          consumes(s2, meth.pres, false, _ => pvePre, v1)((s3, _, v2) => {
+          consumes(s2, meth.pres, true, _ => pvePre, v1)((s3, _, v2) => {
             v2.symbExLog.closeScope(preCondId)
 /*=======
           val preCondId = v1.symbExLog.openScope(preCondLog)

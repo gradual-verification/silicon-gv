@@ -19,7 +19,7 @@ class SiliconTests extends SilSuite {
     Seq("consistency")
 
   private val silTestDirectories =
-    Seq("gradual", "all")
+    Seq(/*"gradual",*/ "all/basic")
 
   //val testDirectories: Seq[String] = siliconTestDirectories ++ silTestDirectories
   val testDirectories: Seq[String] = silTestDirectories

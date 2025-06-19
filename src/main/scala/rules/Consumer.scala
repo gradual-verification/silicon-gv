@@ -411,44 +411,44 @@ object consumer extends ConsumptionRules {
         evalpc(s.copy(isImprecise = impr), e0, pve, v)((s1, t0, e0New, v1) => {
           val s2 = s1.copy(isImprecise = s.isImprecise)
       
-            // what was happening here...?
-            // we were unsetting the position in the state at the beginning of
-            // consumeTlc, but we were not able to attach it to the branching info
-            //
-            // we weren't seeing it at this point, where we were matching on it to see if
-            // it was None
-            //
-            // this has been changed since that point, but we should figure out what the
-            // issue was... it is commit with the message "Buggy changes to track branch positions
-            // for method call sites"
-            val branchPosition: Option[CheckPosition] =
-              (s.methodCallAstNode, s.foldOrUnfoldAstNode, s.loopPosition) match {
-                case (None, None, None) => None
-                case (Some(methodCallAstNode), None, None) => Some(CheckPosition.GenericNode(methodCallAstNode))
-                case (None, Some(foldOrUnfoldAstNode), None) => Some(CheckPosition.GenericNode(foldOrUnfoldAstNode))
-                case (None, None, Some(_)) => s.loopPosition
-                case _ => {
-                  sys.error("This should not happen, at least until we support "
-                    + "unfoldings, maybe! We don't deal with this case at the "
-                    + "moment because we want to know if this happens!")
-                }
+          // what was happening here...?
+          // we were unsetting the position in the state at the beginning of
+          // consumeTlc, but we were not able to attach it to the branching info
+          //
+          // we weren't seeing it at this point, where we were matching on it to see if
+          // it was None
+          //
+          // this has been changed since that point, but we should figure out what the
+          // issue was... it is commit with the message "Buggy changes to track branch positions
+          // for method call sites"
+          val branchPosition: Option[CheckPosition] =
+            (s.methodCallAstNode, s.foldOrUnfoldAstNode, s.loopPosition) match {
+              case (None, None, None) => None
+              case (Some(methodCallAstNode), None, None) => Some(CheckPosition.GenericNode(methodCallAstNode))
+              case (None, Some(foldOrUnfoldAstNode), None) => Some(CheckPosition.GenericNode(foldOrUnfoldAstNode))
+              case (None, None, Some(_)) => s.loopPosition
+              case _ => {
+                sys.error("This should not happen, at least until we support "
+                  + "unfoldings, maybe! We don't deal with this case at the "
+                  + "moment because we want to know if this happens!")
               }
+            }
 
-            branch(s2, t0, (e0, e0New), branchPosition, v1)(
-              // the things in the branch (the then and else contents) may reach
-              // the final case of consumeTlc, where we unset the method
-              // callsite ast node
-              //
-              // that's why it worked before...? the way we do it now is
-              // better, maybe
-              (s3, v2) => consumeR(s3, impr, oh, h, a1, returnSnap, pve, v2)((s4, oh3, h3, t1, v3) => {
-                v3.symbExLog.closeScope(uidCondExp)
-                Q(s4, oh3, h3, t1, v3)
-              }),
-              (s3, v2) => consumeR(s3, impr, oh, h, a2, returnSnap, pve, v2)((s4, oh3, h3, t1, v3) => {
-                v3.symbExLog.closeScope(uidCondExp)
-                Q(s4, oh3, h3, t1, v3)
-              }))
+          branch(s2, t0, (e0, e0New), branchPosition, v1)(
+            // the things in the branch (the then and else contents) may reach
+            // the final case of consumeTlc, where we unset the method
+            // callsite ast node
+            //
+            // that's why it worked before...? the way we do it now is
+            // better, maybe
+            (s3, v2) => consumeR(s3, impr, oh, h, a1, returnSnap, pve, v2)((s4, oh3, h3, t1, v3) => {
+              v3.symbExLog.closeScope(uidCondExp)
+              Q(s4, oh3, h3, t1, v3)
+            }),
+            (s3, v2) => consumeR(s3, impr, oh, h, a2, returnSnap, pve, v2)((s4, oh3, h3, t1, v3) => {
+              v3.symbExLog.closeScope(uidCondExp)
+              Q(s4, oh3, h3, t1, v3)
+            }))
         })
 /*=======
         eval(s, e0, pve, v)((s1, t0, e0New, v1) =>
@@ -753,7 +753,7 @@ object consumer extends ConsumptionRules {
 
       case ast.PredicateAccessPredicate(locacc: ast.LocationAccess, perm0) =>
         val perm = perm0.getOrElse(ast.FullPerm()(ast.NoPosition, ast.NoInfo, ast.NoTrafos))
-       //eval for expression and perm (perm should always be 1)
+        //eval for expression and perm (perm should always be 1)
         evalpc(s.copy(isImprecise = impr), perm, pve, v)((s1, tPerm, permNew, v1) =>
           evalLocationAccesspc(s1.copy(isImprecise = impr), locacc, pve, v1)((s2, predName, tArgs, eArgs, v2) => {
             v2.decider.assertgv(s.isImprecise, perms.IsPositive(tPerm)) {
@@ -770,7 +770,7 @@ object consumer extends ConsumptionRules {
                   profilingInfo.incrementTotalConjuncts
 
                   if (s4.isImprecise) {
-                    chunkSupporter.consume(s4, oh, false, resource, tArgs, eArgs, loss, lossExp, returnSnap, ve, v3, description)((s5, oh1, snap2, v4, chunkExisted1) => {
+                    chunkSupporter.consume(s4, oh, true, resource, tArgs, eArgs, loss, lossExp, returnSnap, ve, v3, description)((s5, oh1, snap2, v4, chunkExisted1) => {
                       
                       if (!chunkExisted && !chunkExisted1) {
                         
@@ -808,28 +808,26 @@ object consumer extends ConsumptionRules {
                         
                         profilingInfo.incrementEliminatedConjuncts
 
-                        Q(s5, oh1, h1, snap1, v4)}
-
+                        Q(s5, oh1, h1, snap1, v4)
+                      }
                       else {
 
                         if (chunkExisted1) {
                           profilingInfo.incrementEliminatedConjuncts
                         }
 
-                        Q(s5, oh1, h1, snap2, v4)}})}
-
+                        Q(s5, oh1, h1, snap2, v4)}})
+                  }
                   else if (chunkExisted) {
 
                     profilingInfo.incrementEliminatedConjuncts
 
-                    Q(s4, oh, h1, snap1, v3)}
-
+                    Q(s4, oh, h1, snap1, v3)
+                  }
                   else {
-
-                    createFailure(pve dueTo InsufficientPermission(locacc), v3, s4, "")}})
-
+                    createFailure(pve dueTo InsufficientPermission(locacc), v3, s4, "")
+                  }})
               case false =>
-
                 createFailure(pve dueTo InsufficientPermission(locacc), v2, s2, "")
 
             } match {
@@ -862,7 +860,7 @@ object consumer extends ConsumptionRules {
 
                   // don't know if this should be s3 or s4 - J
                   if (s4.isImprecise) {
-                    chunkSupporter.consume(s4, oh, false, resource, tArgs, eArgs, loss, lossExp, returnSnap, ve, v3, description)((s5, oh1, snap2, v4, chunkExisted1) => {
+                    chunkSupporter.consume(s4, oh, true, resource, tArgs, eArgs, loss, lossExp, returnSnap, ve, v3, description)((s5, oh1, snap2, v4, chunkExisted1) => {
                       
                       if (!chunkExisted && !chunkExisted1) {
 

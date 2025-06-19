@@ -236,7 +236,7 @@ object predicateSupporter extends PredicateSupportRules {
 
           if (s4.isImprecise) {
             // and then we attempt to consume it from the optimistic heap
-            chunkSupporter.consume(s4, s4.optimisticHeap, false, predicate, tArgs, eArgs, s4.permissionScalingFactor, s1.permissionScalingFactorExp, false, ve, v1, description)((s5, oh1, snap2, v2, chunkExisted1) => {
+            chunkSupporter.consume(s4, s4.optimisticHeap, true, predicate, tArgs, eArgs, s4.permissionScalingFactor, s1.permissionScalingFactorExp, false, ve, v1, description)((s5, oh1, snap2, v2, chunkExisted1) => {
               if (!chunkExisted && !chunkExisted1) {
 
                 val runtimeCheckAstNode =
