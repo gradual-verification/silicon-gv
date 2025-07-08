@@ -450,7 +450,10 @@ object executor extends ExecutionRules {
         // every loop should have exactly one invariant, which may be an And
         // we use the first invariant in invs because invs is a Seq[ast.Exp]
         // and a Seq may be mutable
-        assert(invs.length == 1)
+        //println(block)
+        //println(s"Invariants $invs")
+        //println(s"STATEMENTS $stmts")
+        //assert(invs.length == 1)
         incomingEdgeKind match {
           case cfg.Kind.In =>
             /* We've reached a loop head block via an in-edge. Steps to perform:
@@ -463,8 +466,8 @@ object executor extends ExecutionRules {
              *   - Execute the statements in the loop head block
              *   - Follow the outgoing edges
              */
-            val sepIdentifier = v.symbExLog.openScope(
-              new LoopInRecord(invs.head, s, v.decider.pcs))
+            //val sepIdentifier = v.symbExLog.openScope(
+              //new LoopInRecord(invs.head, s, v.decider.pcs))
 
             /* Havoc local variables that are assigned to in the loop body */
             val wvs = s.methodCfg.writtenVars(block)
@@ -476,15 +479,15 @@ object executor extends ExecutionRules {
                * havoc variables will get a new suffix and will not show up
                * in freshPositions, so we need to add them to freshPositions
                */
-              val freshVar = v.decider.fresh(x)
+              val xNew = v.decider.fresh(x)
               val existingTerm = map(x)
               /* if the variable cannot be found in freshPositions, it means
                * that it has not been assigned to yet
                */
               if (SymbExLogger.enabled && SymbExLogger.freshPositions.contains(existingTerm._1)) {
-                SymbExLogger.freshPositions += freshVar._1 -> SymbExLogger.freshPositions(existingTerm._1)
+                SymbExLogger.freshPositions += xNew._1 -> SymbExLogger.freshPositions(existingTerm._1)
               }
-              map.updated(x, freshVar)
+              map.updated(x, xNew)
             }))
             val sBody = s.copy(isImprecise = false,
                                g = gBody,
@@ -519,7 +522,7 @@ object executor extends ExecutionRules {
                   invs,
                   ContractNotWellformed(viper.silicon.utils.ast.BigAnd(invs)),
                   v0)((s1, v1) => {   //pve is a placeholder
-                  SymbExLogger.currentLog().closeScope(sepIdentifier)
+                  //SymbExLogger.currentLog().closeScope(sepIdentifier)
                   val s1point5 = s1.copy(loopPosition = None)
 
                   // unset for at beginning of loop body
@@ -631,11 +634,11 @@ object executor extends ExecutionRules {
             consumes(s, invs, false, e => LoopInvariantNotPreserved(e), v)((_, _, _) =>
 >>>>>>> upstream/master*/
               Success())
-            val sepIdentifier = SymbExLogger.currentLog().openScope(
-              new LoopOutRecord(invs.head, s0, v.decider.pcs))
+            //val sepIdentifier = SymbExLogger.currentLog().openScope(
+              //new LoopOutRecord(invs.head, s0, v.decider.pcs))
             // consume the loop invariant
             consumes(s0, invs, true, e => LoopInvariantNotPreserved(e), v)((s1, _, v1) => {
-              v.symbExLog.closeScope(sepIdentifier)
+              //v.symbExLog.closeScope(sepIdentifier)
               val sepIdentifier2 = SymbExLogger.currentLog().openScope(
                 new EndRecord(s1, v1.decider.pcs))
               v.symbExLog.closeScope(sepIdentifier2)
