@@ -319,7 +319,12 @@ object SymbExLogger {
           val pos = freshPositions(term).asInstanceOf[ast.TranslatedPosition].pos
           formatBasicChunk(snaps(term), true) + "@" + pos.line.toString
         } else {
-          formatBasicChunk(snaps(term), true)
+          // temporary fix so that imprecise formulae do not crash
+          if (snaps.isDefinedAt(term)) {
+            formatBasicChunk(snaps(term), true)
+          } else {
+            "!!!" + term.toString + "!!!" + snaps.keys.toString() + "!!!"
+          }
         }
       case Var(SuffixedIdentifier(prefix, _, suffix), _) =>
         if (freshPositions.contains(term) && freshPositions(term).isInstanceOf[ast.TranslatedPosition]) {
@@ -406,19 +411,15 @@ object SymbExLogger {
     (consumed, produced)
   }
 
-  def formatChunks(chunks: Seq[Chunk]): String = {
-    var result = ""
-    for (chunk <- chunks) {
-      chunk match {
-        case basicChunk: BasicChunk =>
-          result += formatBasicChunk(basicChunk, false) + "; "
-        case _ => { }
-      }
-    }
-    result
+  def formatChunks(chunks: Seq[Chunk]): Seq[String] = {
+    chunks.map(_ match {
+      case basicChunk: BasicChunk =>
+        formatBasicChunk(basicChunk, false) + "; "
+      case _ => "\u22A5; "
+    })
   }
 
-  def formatDiff(oldChunks: Seq[Chunk], newChunks: Seq[Chunk]): (String, String) = {
+  def formatChunksDiff(oldChunks: Seq[Chunk], newChunks: Seq[Chunk]): (Seq[String], Seq[String]) = {
     val (consumed, produced) = diffChunks(oldChunks, newChunks)
     (formatChunks(consumed), formatChunks(produced))
   }
@@ -459,9 +460,9 @@ object SymbExLogger {
       case _ => true
     }
 
-  def formatPcs(oldPcs: InsertionOrderedSet[Term], newPcs: InsertionOrderedSet[Term]): String = {
+  def formatPcs(oldPcs: InsertionOrderedSet[Term], newPcs: InsertionOrderedSet[Term]): Seq[String] = {
     val added = for (pc <- newPcs if !oldPcs.exists(_ == pc)) yield pc
-    added.filter(pcVisible).map(formatTerm).mkString(", ")
+    added.filter(pcVisible).map(formatTerm(_) + "; ").toSeq
   }
 
   def formatStore(g: Store): Seq[(String, String)] =
