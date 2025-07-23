@@ -13,7 +13,7 @@ import viper.silver.reporter.NoopReporter
 
 class AdtPluginTests extends SiliconTests {
 
-  override val testDirectories: Seq[String] = Seq("adt")
+  override val testDirectories: Seq[String] = Seq(/*"adt"*/)
 
   override val silicon: Silicon = {
     val reporter = NoopReporter

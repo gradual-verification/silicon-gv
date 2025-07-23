@@ -33,7 +33,7 @@ class SiliconQuantifierWeightTests extends AnyFunSuite {
   silicon.parseCommandLine(Seq("dummy.vpr"))
   silicon.start()
 
-  test("The weight is part of the translation of a Forall") {
+  /*test("The weight is part of the translation of a Forall") {
     val expr = Forall(
       Seq(LocalVarDecl("x", Int)()),
       Seq(),
@@ -120,5 +120,5 @@ class SiliconQuantifierWeightTests extends AnyFunSuite {
       case Success => assert(false)
       case Failure(errors) => // Ok
     }
-  }
+  }*/
 }

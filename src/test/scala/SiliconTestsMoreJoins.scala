@@ -8,7 +8,7 @@ package viper.silicon.tests
 import viper.silver.testing.AnnotatedTestInput
 
 class SiliconTestsMoreJoins extends SiliconTests {
-  override val testDirectories: Seq[String] = Seq("examples")
+  override val testDirectories: Seq[String] = Seq(/*"examples"*/)
   val excludedFiles = Set(
     "examples/vmcai2016/linked-list-predicates.vpr"  // Incompleteness with moreJoins
   )

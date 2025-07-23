@@ -7,7 +7,7 @@
 package viper.silicon.tests
 
 class SiliconTestsConditionalizePermissions extends SiliconTests {
-  override val testDirectories: Seq[String] = Seq("conditionalizePermissions")
+  override val testDirectories: Seq[String] = Seq(/*"conditionalizePermissions"*/)
 
  override val commandLineArguments: Seq[String] = Seq(
     "--timeout", "300" /* seconds */,

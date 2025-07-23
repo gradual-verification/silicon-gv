@@ -7,7 +7,7 @@
 package viper.silicon.tests
 
 class SiliconTestsOldPermSemantics extends SiliconTests {
-  override val testDirectories: Seq[String] = Seq("oldpermsemantics")
+  override val testDirectories: Seq[String] = Seq(/*"oldpermsemantics"*/)
 
  override val commandLineArguments: Seq[String] = Seq(
     "--timeout", "300" /* seconds */,

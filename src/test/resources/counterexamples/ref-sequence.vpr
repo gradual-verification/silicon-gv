@@ -1,6 +1,9 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
 
+//:: IgnoreFile(/silicon/issue/233/)
+// Issue: Seq keyword
+
 field seq: Seq[Int]
 
 method foo(x: Ref) returns (value: Int)

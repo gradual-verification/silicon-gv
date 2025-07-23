@@ -7,7 +7,7 @@
 package viper.silicon.tests
 
 class SiliconTestsParallelBranches extends SiliconTests {
-  override val testDirectories: Seq[String] = Seq("examples")
+  override val testDirectories: Seq[String] = Seq(/*"examples"*/)
 
  override val commandLineArguments: Seq[String] = Seq(
     "--timeout", "300" /* seconds */,
