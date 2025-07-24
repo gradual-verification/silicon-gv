@@ -7,7 +7,6 @@
 package viper.silicon.logger
 
 import java.nio.file.{Files, Path, Paths}
-
 import spray.json._
 import LogConfigProtocol._
 import com.typesafe.scalalogging.Logger
@@ -30,6 +29,7 @@ import viper.silver.verifier.AbstractError
 
 import scala.annotation.elidable
 import scala.annotation.elidable._
+import scala.collection.concurrent.TrieMap
 import scala.collection.mutable
 import scala.util.{Failure, Success, Try}
 
@@ -302,13 +302,14 @@ object SymbExLogger {
 
   var errors: Seq[AbstractError] = Seq.empty
 
+  // TrieMaps are thread-safe
   // we can have a single global snaps because fresh Vars starting with $t are globally unique
-  val snaps = mutable.Map[Term, BasicChunk]()
-  val freshPositions = mutable.Map[Term, ast.Position]()
+  val snaps: mutable.Map[Term, BasicChunk] = TrieMap[Term, BasicChunk]()
+  val freshPositions: mutable.Map[Term, ast.Position] = TrieMap[Term, ast.Position]()
   // while loops are uniquely identified by their invariants, this is needed
   // to find the position of the while loops for displaying the state when
   // entering and leaving the loop
-  val whileLoops = mutable.Map[ast.Exp, ast.Stmt]()
+  val whileLoops: mutable.Map[ast.Exp, ast.Stmt] = TrieMap[ast.Exp, ast.Stmt]()
 
   def formatTerm(term: Term): String =
     term match {
