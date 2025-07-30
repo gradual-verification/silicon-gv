@@ -137,6 +137,8 @@ object State {
   type OldHeaps = Map[String, Heap]
   val OldHeaps = Map
 
+  val empty: State = State()
+
   def merge(s1: State, s2: State): State = {
     /* TODO: Instead of aborting with a pattern mismatch, all mismatches
      *       should be detected first (and accumulated), and afterwards a meaningful

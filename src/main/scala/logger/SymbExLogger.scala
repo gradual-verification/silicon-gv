@@ -314,15 +314,15 @@ object SymbExLogger {
   def formatTerm(term: Term): String =
     term match {
       case Var(SuffixedIdentifier(prefix, _, _), _) if prefix == "$t" =>
-        formatBasicChunk(snaps(term), true)
+        formatBasicChunk(snaps(term), insideTerm = true)
       case Var(SuffixedIdentifier(prefix, _, _), _) if !prefix.contains("$result") && !prefix.contains("_result$") && prefix.contains("$") =>
         if (freshPositions.contains(term) && freshPositions(term).isInstanceOf[ast.TranslatedPosition]) {
           val pos = freshPositions(term).asInstanceOf[ast.TranslatedPosition].pos
-          formatBasicChunk(snaps(term), true) + "@" + pos.line.toString
+          formatBasicChunk(snaps(term), insideTerm = true) + "@" + pos.line.toString
         } else {
           // temporary fix so that imprecise formulae do not crash
           if (snaps.isDefinedAt(term)) {
-            formatBasicChunk(snaps(term), true)
+            formatBasicChunk(snaps(term), insideTerm = true)
           } else {
             "!!!" + term.toString + "!!!" + snaps.keys.toString() + "!!!"
           }
@@ -334,7 +334,7 @@ object SymbExLogger {
         } else {
           prefix
         }
-      case SortWrapper(_, _) => formatBasicChunk(snaps(term), true)
+      case SortWrapper(_, _) => formatBasicChunk(snaps(term), insideTerm = true)
       case Null() => "null"
       case True() => "true"
       case False() => "false"
@@ -407,17 +407,17 @@ object SymbExLogger {
     }
 
   def diffChunks(oldChunks: Seq[Chunk], newChunks: Seq[Chunk]): (Seq[Chunk], Seq[Chunk]) = {
-    val consumed = for (chunk <- oldChunks if !newChunks.exists(_ == chunk)) yield chunk
-    val produced = for (chunk <- newChunks if !oldChunks.exists(_ == chunk)) yield chunk
+    val consumed = for (chunk <- oldChunks if !newChunks.contains(chunk)) yield chunk
+    val produced = for (chunk <- newChunks if !oldChunks.contains(chunk)) yield chunk
     (consumed, produced)
   }
 
   def formatChunks(chunks: Seq[Chunk]): Seq[String] = {
-    chunks.map(_ match {
+    chunks.map {
       case basicChunk: BasicChunk =>
-        formatBasicChunk(basicChunk, false) + "; "
+        formatBasicChunk(basicChunk, insideTerm = false) + "; "
       case _ => "\u22A5; "
-    })
+    }
   }
 
   def formatChunksDiff(oldChunks: Seq[Chunk], newChunks: Seq[Chunk]): (Seq[String], Seq[String]) = {
@@ -425,7 +425,7 @@ object SymbExLogger {
     (formatChunks(consumed), formatChunks(produced))
   }
 
-  def pcVisible(term: Term): Boolean =
+  def isPCVisible(term: Term): Boolean =
     term match {
       case App(_, _) => false
       case Combine(_, _) => false
@@ -437,21 +437,21 @@ object SymbExLogger {
       case Null() => true
       case True() => true
       case False() => true
-      case IntLiteral(n) => true
-      case Plus(p0, p1) => pcVisible(p0) && pcVisible(p1)
-      case Minus(p0, p1) => pcVisible(p0) && pcVisible(p1)
-      case Times(p0, p1) => pcVisible(p0) && pcVisible(p1)
-      case Div(p0, p1) => pcVisible(p0) && pcVisible(p1)
-      case Mod(p0, p1) => pcVisible(p0) && pcVisible(p1)
-      case BuiltinEquals(p0, p1) => pcVisible(p0) && pcVisible(p1)
-      case Less(p0, p1) => pcVisible(p0) && pcVisible(p1)
-      case AtMost(p0, p1) => pcVisible(p0) && pcVisible(p1)
-      case Greater(p0, p1) => pcVisible(p0) && pcVisible(p1)
-      case AtLeast(p0, p1) => pcVisible(p0) && pcVisible(p1)
-      case Not(p) => pcVisible(p)
-      case Or(ts) => ts.map(pcVisible).reduce((x, y) => x && y)
-      case And(ts) => ts.map(pcVisible).reduce((x, y) => x && y)
-      case Implies(p0, p1) => pcVisible(p0) && pcVisible(p1)
+      case IntLiteral(_) => true
+      case Plus(p0, p1) => isPCVisible(p0) && isPCVisible(p1)
+      case Minus(p0, p1) => isPCVisible(p0) && isPCVisible(p1)
+      case Times(p0, p1) => isPCVisible(p0) && isPCVisible(p1)
+      case Div(p0, p1) => isPCVisible(p0) && isPCVisible(p1)
+      case Mod(p0, p1) => isPCVisible(p0) && isPCVisible(p1)
+      case BuiltinEquals(p0, p1) => isPCVisible(p0) && isPCVisible(p1)
+      case Less(p0, p1) => isPCVisible(p0) && isPCVisible(p1)
+      case AtMost(p0, p1) => isPCVisible(p0) && isPCVisible(p1)
+      case Greater(p0, p1) => isPCVisible(p0) && isPCVisible(p1)
+      case AtLeast(p0, p1) => isPCVisible(p0) && isPCVisible(p1)
+      case Not(p) => isPCVisible(p)
+      case Or(ts) => ts.map(isPCVisible).reduce((x, y) => x && y)
+      case And(ts) => ts.map(isPCVisible).reduce((x, y) => x && y)
+      case Implies(p0, p1) => isPCVisible(p0) && isPCVisible(p1)
       case _ => true
     }
 
@@ -461,9 +461,9 @@ object SymbExLogger {
       case _ => true
     }
 
-  def formatPcs(oldPcs: InsertionOrderedSet[Term], newPcs: InsertionOrderedSet[Term]): Seq[String] = {
-    val added = for (pc <- newPcs if !oldPcs.exists(_ == pc)) yield pc
-    added.filter(pcVisible).map(formatTerm(_) + "; ").toSeq
+  def formatPCs(oldPCs: InsertionOrderedSet[Term], newPCs: InsertionOrderedSet[Term]): Seq[String] = {
+    val added = for (aPC <- newPCs if !oldPCs.contains(aPC)) yield aPC
+    added.filter(isPCVisible).map(formatTerm(_) + "; ").toSeq
   }
 
   def formatStore(g: Store): Seq[(String, String)] =
