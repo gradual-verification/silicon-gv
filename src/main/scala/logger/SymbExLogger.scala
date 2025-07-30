@@ -349,6 +349,7 @@ object SymbExLogger {
       case AtMost(p0, p1) => "(" + formatTerm(p0) + " <= " + formatTerm(p1) + ")"
       case Greater(p0, p1) => "(" + formatTerm(p0) + " > " + formatTerm(p1) + ")"
       case AtLeast(p0, p1) => "(" + formatTerm(p0) + " >= " + formatTerm(p1) + ")"
+      case Not(BuiltinEquals(p0, p1)) => "(" + formatTerm(p0) + " != " + formatTerm(p1) + ")" // syntactic sugar for !=
       case Not(p) => "(" + "!" + formatTerm(p) + ")"
       case Or(ts) => "(" + ts.map(formatTerm).mkString(" || ") + ")"
       case And(ts) => "(" + ts.map(formatTerm).mkString(" && ") + ")"

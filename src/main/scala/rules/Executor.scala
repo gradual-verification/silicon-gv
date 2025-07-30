@@ -583,6 +583,10 @@ object executor extends ExecutionRules with Immutable {
       case ast.NewStmt(x, fields) =>
         val tRcvr = v.decider.fresh(x)
         v.decider.assume(tRcvr !== Null())
+        if (SymbExLogger.enabled) {
+          // record the position where new struct was allocated and assigned
+          SymbExLogger.freshPositions += tRcvr -> x.pos
+        }
         val newChunks = fields map (field => {
           val p = FullPerm()
           val snap = v.decider.fresh(field.name, v.symbolConverter.toSort(field.typ))
