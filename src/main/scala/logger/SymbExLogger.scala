@@ -324,7 +324,8 @@ object SymbExLogger {
           if (snaps.isDefinedAt(term)) {
             formatBasicChunk(snaps(term), insideTerm = true)
           } else {
-            "!!!" + term.toString + "!!!" + snaps.keys.toString() + "!!!"
+            // TODO: caused by imprecise formula
+            "\uD83D\uDC09" + term.toString + "\uD83D\uDC09" // HIC SUNT DRACONES
           }
         }
       case Var(SuffixedIdentifier(prefix, _, suffix), _) =>
@@ -335,6 +336,7 @@ object SymbExLogger {
           prefix
         }
       case SortWrapper(_, _) => formatBasicChunk(snaps(term), insideTerm = true)
+      case Unit => "UNIT"
       case Null() => "null"
       case True() => "true"
       case False() => "false"
@@ -354,19 +356,19 @@ object SymbExLogger {
       case Or(ts) => "(" + ts.map(formatTerm).mkString(" || ") + ")"
       case And(ts) => "(" + ts.map(formatTerm).mkString(" && ") + ")"
       case Implies(p0, p1) => "(" + formatTerm(p0) + " ==> " + formatTerm(p1) + ")"
-      case _ => "'" + term.toString + "'"
+      case _ => "\uD83E\uDD81" + term.toString + "\uD83E\uDD81" // HIC SUNT LEONES
     }
 
   def formatBasicChunk(basicChunk: BasicChunk, insideTerm: Boolean): String = {
     val s = basicChunk.snap match {
-      case Unit => " == " + basicChunk.snap.toString
+      case Unit => " == UNIT"
       case Null() => " == null"
       case IntLiteral(n) => " == " + n.toString
       case True() => " == true"
       case False() => " == false"
       case Var(SuffixedIdentifier(prefix, _, _), _) if prefix == "$t" => ""
       case Var(SuffixedIdentifier(prefix, _, _), _) if !prefix.contains("$result") && prefix.contains("$") => ""
-      case Var(SuffixedIdentifier(prefix, _, _), _) => " == " + prefix
+      case Var(SuffixedIdentifier(prefix, _, _), _) => "\u8B8A\u6578" + prefix
       case _ => ""
     }
     basicChunk.resourceID match {
@@ -380,8 +382,10 @@ object SymbExLogger {
         val fieldAcc = formatTerm(basicChunk.args.head) + "->" + fieldName
         if (insideTerm) {
           fieldAcc + s
+        } else if (s == "") {
+          "acc(" + fieldAcc + ")"
         } else {
-          "acc(" + fieldAcc + ")" + s
+          "acc(" + fieldAcc + ") && " + fieldAcc + s
         }
       case PredicateID =>
         val argsAsString = basicChunk.args.map(formatTerm).mkString(", ")
@@ -456,19 +460,10 @@ object SymbExLogger {
       case _ => true
     }
 
-  def isNotEquals(term: Term): Boolean =
-    term match {
-      case Not(BuiltinEquals(_, _)) => false
-      case _ => true
-    }
-
   def formatPCs(oldPCs: InsertionOrderedSet[Term], newPCs: InsertionOrderedSet[Term]): Seq[String] = {
     val added = for (aPC <- newPCs if !oldPCs.contains(aPC)) yield aPC
     added.filter(isPCVisible).map(formatTerm(_) + "; ").toSeq
   }
-
-  def formatStore(g: Store): Seq[(String, String)] =
-    g.values.map({ case (v, term) => (v.name, formatTerm(term)) }).toList
 
   def populateWhileLoops(stmts: Seq[ast.Stmt]): Unit = {
     for (stmt <- stmts) {
