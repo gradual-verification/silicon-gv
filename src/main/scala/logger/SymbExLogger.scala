@@ -465,6 +465,9 @@ object SymbExLogger {
     added.filter(isPCVisible).map(formatTerm(_) + "; ").toSeq
   }
 
+  def formatStore(g: Store): Seq[(String, String)] =
+    g.values.map({ case (v, term) => (v.name, formatTerm(term)) }).toList
+
   def populateWhileLoops(stmts: Seq[ast.Stmt]): Unit = {
     for (stmt <- stmts) {
       stmt match {
