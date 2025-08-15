@@ -436,7 +436,7 @@ object executor extends ExecutionRules with Immutable {
             consumes(s0, invs, e => LoopInvariantNotPreserved(e), v)((s1, _, v1) => {
               SymbExLogger.currentLog().closeScope(sepIdentifier)
               val sepIdentifier2 = SymbExLogger.currentLog().openScope(
-                new EndRecord(s1, v1.decider.pcs))
+                new LoopExitRecord(invs.head, s1, v1.decider.pcs))
               SymbExLogger.currentLog().closeScope(sepIdentifier2)
               Success()})
         }
