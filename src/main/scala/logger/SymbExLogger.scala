@@ -417,6 +417,13 @@ object SymbExLogger {
     (consumed, produced)
   }
 
+  def diffChunks3(oldChunks: Seq[Chunk], newChunks: Seq[Chunk]): (Seq[Chunk], Seq[Chunk], Seq[Chunk]) = {
+    val consumed = for (chunk <- oldChunks if !newChunks.contains(chunk)) yield chunk
+    val produced = for (chunk <- newChunks if !oldChunks.contains(chunk)) yield chunk
+    val extant = for (chunk <- newChunks if !produced.contains(chunk)) yield chunk
+    (consumed, extant, produced)
+  }
+
   def formatChunks(chunks: Seq[Chunk]): Seq[String] = {
     chunks.map {
       case basicChunk: BasicChunk =>
@@ -428,6 +435,11 @@ object SymbExLogger {
   def formatChunksDiff(oldChunks: Seq[Chunk], newChunks: Seq[Chunk]): (Seq[String], Seq[String]) = {
     val (consumed, produced) = diffChunks(oldChunks, newChunks)
     (formatChunks(consumed), formatChunks(produced))
+  }
+
+  def formatChunksDiff3(oldChunks: Seq[Chunk], newChunks: Seq[Chunk]): (Seq[String], Seq[String], Seq[String]) = {
+    val (consumed, extant, produced) = diffChunks3(oldChunks, newChunks)
+    (formatChunks(consumed), formatChunks(extant), formatChunks(produced))
   }
 
   def isPCVisible(term: Term): Boolean =
@@ -465,6 +477,11 @@ object SymbExLogger {
     added.filter(isPCVisible).map(formatTerm(_) + "; ").toSeq
   }
 
+  def formatPCsDiff2(oldPCs: InsertionOrderedSet[Term], newPCs: InsertionOrderedSet[Term]): (Seq[String], Seq[String]) = {
+    val added = for (aPC <- newPCs if !oldPCs.contains(aPC)) yield aPC
+    val extant = for (aPC <- newPCs if !added.contains(aPC)) yield aPC
+    (extant.filter(isPCVisible).map(formatTerm(_) + "; ").toSeq, added.filter(isPCVisible).map(formatTerm(_) + "; ").toSeq)
+  }
   def formatStore(g: Store): Seq[(String, String)] =
     g.values.map({ case (v, term) => (v.name, formatTerm(term)) }).toList
 
