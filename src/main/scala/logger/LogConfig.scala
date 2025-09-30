@@ -22,7 +22,6 @@ object LogConfig {
       RecordConfig("end", None),
       RecordConfig("execute", None),
       RecordConfig("error", None),
-      RecordConfig("loop exit", None),
       RecordConfig("loop in", None),
       RecordConfig("loop out", None),
       RecordConfig("method call", None),
