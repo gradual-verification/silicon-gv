@@ -379,17 +379,44 @@ object SymbExLogger {
         } else {
           "?"
         }
-        val fieldAcc = formatTerm(basicChunk.args.head) + "->" + fieldName
+        val pointer = formatTerm(basicChunk.args.head)
+        val fieldAcc = pointer + "->" + fieldName
         if (insideTerm) {
           fieldAcc + s
-        } else if (s == "") {
-          "acc(" + fieldAcc + ")"
         } else {
-          "acc(" + fieldAcc + ") && " + fieldAcc + s
+          pointer + "->\u25A0"
         }
       case PredicateID =>
         val argsAsString = basicChunk.args.map(formatTerm).mkString(", ")
         basicChunk.id.name + "(" + argsAsString + ")" + s
+      case _ => ""
+    }
+  }
+
+  // TODO: remove relevant code from formatBasicChunk
+  def formatFieldChunkWithSnap(basicChunk: BasicChunk): String = {
+    val s = basicChunk.snap match {
+      case Unit => " == UNIT"
+      case Null() => " == null"
+      case IntLiteral(n) => " == " + n.toString
+      case True() => " == true"
+      case False() => " == false"
+      case Var(SuffixedIdentifier(prefix, _, _), _) if prefix == "$t" => ""
+      case Var(SuffixedIdentifier(prefix, _, _), _) if !prefix.contains("$result") && prefix.contains("$") => ""
+      case Var(SuffixedIdentifier(prefix, _, _), _) => "\u8B8A\u6578" + prefix
+      case _ => ""
+    }
+    basicChunk.resourceID match {
+      case FieldID =>
+        val typeAndFieldName = basicChunk.id.name.split("\\$")
+        val fieldName = if (typeAndFieldName.length == 2) {
+          typeAndFieldName.last
+        } else {
+          "?"
+        }
+        val pointer = formatTerm(basicChunk.args.head)
+        val fieldAcc = pointer + "->" + fieldName
+        fieldAcc + s
       case _ => ""
     }
   }
@@ -411,17 +438,33 @@ object SymbExLogger {
       }
     }
 
-  def diffChunks(oldChunks: Seq[Chunk], newChunks: Seq[Chunk]): (Seq[Chunk], Seq[Chunk]) = {
-    val consumed = for (chunk <- oldChunks if !newChunks.contains(chunk)) yield chunk
-    val produced = for (chunk <- newChunks if !oldChunks.contains(chunk)) yield chunk
-    (consumed, produced)
+  def partitionChunks(chunks: Seq[Chunk]): (Seq[Chunk], Seq[Chunk]) = {
+    chunks.partition(_ match {
+      case basicChunk: BasicChunk =>
+        basicChunk.resourceID match {
+          case FieldID => true
+          case _ => false
+        }
+      case _ => false
+    })
   }
 
-  def diffChunks3(oldChunks: Seq[Chunk], newChunks: Seq[Chunk]): (Seq[Chunk], Seq[Chunk], Seq[Chunk]) = {
-    val consumed = for (chunk <- oldChunks if !newChunks.contains(chunk)) yield chunk
-    val produced = for (chunk <- newChunks if !oldChunks.contains(chunk)) yield chunk
-    val extant = for (chunk <- newChunks if !produced.contains(chunk)) yield chunk
-    (consumed, extant, produced)
+  def filterFieldChunksWithSnap(chunks: Seq[Chunk]): Seq[Chunk] = {
+    chunks.filter(_ match {
+      case basicChunk: BasicChunk =>
+        basicChunk.resourceID match {
+          case FieldID => basicChunk.snap match {
+            case Unit => true
+            case Null() => true
+            case IntLiteral(n) => true
+            case True() => true
+            case False() => true
+            case _ => false
+          }
+          case _ => false
+        }
+      case _ => false
+    })
   }
 
   def formatChunks(chunks: Seq[Chunk]): Seq[String] = {
@@ -432,14 +475,16 @@ object SymbExLogger {
     }
   }
 
-  def formatChunksDiff(oldChunks: Seq[Chunk], newChunks: Seq[Chunk]): (Seq[String], Seq[String]) = {
-    val (consumed, produced) = diffChunks(oldChunks, newChunks)
-    (formatChunks(consumed), formatChunks(produced))
+  def formatFieldChunksWithSnap(chunks: Seq[Chunk]): Seq[String] = {
+    chunks.map {
+      case basicChunk: BasicChunk =>
+        formatFieldChunkWithSnap(basicChunk) + "; "
+      case _ => "\u22A5; "
+    }
   }
 
-  def formatChunksDiff3(oldChunks: Seq[Chunk], newChunks: Seq[Chunk]): (Seq[String], Seq[String], Seq[String]) = {
-    val (consumed, extant, produced) = diffChunks3(oldChunks, newChunks)
-    (formatChunks(consumed), formatChunks(extant), formatChunks(produced))
+  def formatChunksUniqueHack(chunks: Seq[Chunk]): Seq[String] = {
+    formatChunks(chunks).toSet.toSeq
   }
 
   def isPCVisible(term: Term): Boolean =
@@ -476,14 +521,6 @@ object SymbExLogger {
     val added = for (aPC <- newPCs if !oldPCs.contains(aPC)) yield aPC
     added.filter(isPCVisible).map(formatTerm(_) + "; ").toSeq
   }
-
-  def formatPCsDiff2(oldPCs: InsertionOrderedSet[Term], newPCs: InsertionOrderedSet[Term]): (Seq[String], Seq[String]) = {
-    val added = for (aPC <- newPCs if !oldPCs.contains(aPC)) yield aPC
-    val extant = for (aPC <- newPCs if !added.contains(aPC)) yield aPC
-    (extant.filter(isPCVisible).map(formatTerm(_) + "; ").toSeq, added.filter(isPCVisible).map(formatTerm(_) + "; ").toSeq)
-  }
-  def formatStore(g: Store): Seq[(String, String)] =
-    g.values.map({ case (v, term) => (v.name, formatTerm(term)) }).toList
 
   def populateWhileLoops(stmts: Seq[ast.Stmt]): Unit = {
     for (stmt <- stmts) {
