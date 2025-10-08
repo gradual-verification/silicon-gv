@@ -18,6 +18,9 @@ trait SymbolicExecutionRules extends Immutable {
   protected def createFailure(ve: VerificationError, v: Verifier, s: State, generateNewModel: Boolean = false): Failure = {
     val sepIdentifier = SymbExLogger.currentLog().openScope(
       new ErrorRecord(ve, s, v.decider.pcs))
+    if (SymbExLogger.enabled) {
+      SymbExLogger.populateSnaps(s.h.values.toSeq)
+    }
     SymbExLogger.currentLog().closeScope(sepIdentifier)
     var ceTrafo: Option[CounterexampleTransformer] = None
     val res = ve match {

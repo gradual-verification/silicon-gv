@@ -306,6 +306,9 @@ object executor extends ExecutionRules with Immutable {
              */
             val sepIdentifier = SymbExLogger.currentLog().openScope(
               new LoopInRecord(invs.head, s, v.decider.pcs))
+            if (SymbExLogger.enabled) {
+              SymbExLogger.populateSnaps(s.h.values.toSeq)
+            }
 
             /* Havoc local variables that are assigned to in the loop body */
             val wvs = s.methodCfg.writtenVars(block)
@@ -313,21 +316,9 @@ object executor extends ExecutionRules with Immutable {
 
             val gBody = Store(wvs.foldLeft(s.g.values)((map, x) => {
               /* 2025-01-29 Long:
-               * havoc variables will get a new suffix and will not show up
-               * in freshPositions, so we need to add them to freshPositions
+               * havoc variables will get a new suffix
                */
               val freshVar = v.decider.fresh(x)
-              val existingTerm = map.get(x)
-              /* if the variable cannot be found in freshPositions, it means
-               * that it has not been assigned to yet
-               */
-              existingTerm match {
-                case Some(term) =>
-                  if (SymbExLogger.enabled && SymbExLogger.freshPositions.contains(term)) {
-                    SymbExLogger.freshPositions += freshVar -> SymbExLogger.freshPositions(term)
-                  }
-                case None =>
-              }
               map.updated(x, freshVar)
             } ))
             val sBody = s.copy(isImprecise = false,
@@ -432,6 +423,9 @@ object executor extends ExecutionRules with Immutable {
               Success())
             val sepIdentifier = SymbExLogger.currentLog().openScope(
               new LoopOutRecord(invs.head, s0, v.decider.pcs))
+            if (SymbExLogger.enabled) {
+              SymbExLogger.populateSnaps(s0.h.values.toSeq)
+            }
             // consume the loop invariant
             consumes(s0, invs, e => LoopInvariantNotPreserved(e), v)((_, _, _) => {
               SymbExLogger.currentLog().closeScope(sepIdentifier)
@@ -459,6 +453,9 @@ object executor extends ExecutionRules with Immutable {
           (Q: (State, Verifier) => VerificationResult)
           : VerificationResult = {
     val sepIdentifier = SymbExLogger.currentLog().openScope(new ExecuteRecord(stmt, s, v.decider.pcs))
+    if (SymbExLogger.enabled) {
+      SymbExLogger.populateSnaps(s.h.values.toSeq)
+    }
     exec2(s, stmt, v)((s1, v1) => {
       SymbExLogger.currentLog().closeScope(sepIdentifier)
       Q(s1, v1)})
@@ -581,8 +578,8 @@ object executor extends ExecutionRules with Immutable {
         val tRcvr = v.decider.fresh(x)
         v.decider.assume(tRcvr !== Null())
         if (SymbExLogger.enabled) {
-          // record the position where new struct was allocated and assigned
-          SymbExLogger.freshPositions += tRcvr -> x.pos
+          // record where new struct was allocated and assigned
+          SymbExLogger.freshTerms += tRcvr -> tRcvr
         }
         val newChunks = fields map (field => {
           val p = FullPerm()
@@ -903,11 +900,11 @@ object executor extends ExecutionRules with Immutable {
          val t = v.decider.fresh(name, v.symbolConverter.toSort(typ))
          v.decider.assume(t === rhs)
          /* 2025-01-29 Long:
-          * record position where the Var was freshened in freshPositions
-          * freshPositions should not contain this Var yet
+          * record rhs where the Var was freshened in freshTerms
+          * freshTerms should not contain this Var yet
           */
          if (SymbExLogger.enabled) {
-           SymbExLogger.freshPositions += t -> pos
+           SymbExLogger.freshTerms += t -> rhs
          }
 
          t
