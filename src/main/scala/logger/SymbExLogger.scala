@@ -302,28 +302,49 @@ object SymbExLogger {
 
   var errors: Seq[AbstractError] = Seq.empty
 
+  // Alethiometer debugger has the following further restrictions
+  // - Parameters to methods cannot be re-assigned
+  // - Method calls must occur in a separate assignment statement
+
   // TrieMaps are thread-safe
   // we can have a single global snaps because fresh Vars starting with $t are globally unique
   val snaps: mutable.Map[Term, BasicChunk] = TrieMap[Term, BasicChunk]()
   val freshTerms: mutable.Map[Term, Term] = TrieMap[Term, Term]()
+  val ignoreSet: mutable.Map[Term, Boolean] = TrieMap[Term, Boolean]()
   // while loops are uniquely identified by their invariants, this is needed
   // to find the position of the while loops for displaying the state when
   // entering and leaving the loop
   val whileLoops: mutable.Map[ast.Exp, ast.Stmt] = TrieMap[ast.Exp, ast.Stmt]()
 
-  def isOldField(term: Term): Boolean =
-    term match {
-      case Var(SuffixedIdentifier(prefix, _, _), _) if prefix == "$t" => true
-      case SortWrapper(_, _) => true
-      case _ => false
+  def arePrefixesEqual(term1: Term, term2: Term): Boolean = {
+    (term1, term2) match {
+      case (Var(SuffixedIdentifier(prefix1, _, _), _), Var(SuffixedIdentifier(prefix2, _, _), _)) => prefix1 == prefix2
+      case (_, _) => false
     }
+  }
+
+  // this is inefficient because it iterates through snaps every time
+  // this should be sound, but may cause superfluous old(...) in edge cases
+  def isFieldReassigned(basicChunk: BasicChunk): Boolean = {
+    if (basicChunk.resourceID == FieldID) {
+      // check if there is a different basic chunk in snaps with
+      // the same field id and the same variable name
+      snaps.values.exists((x: BasicChunk) => x.id == basicChunk.id && arePrefixesEqual(x.args(0), basicChunk.args(0)) && x != basicChunk)
+    } else {
+      false
+    }
+  }
 
   def formatTerm(term: Term, g: Store, h: Heap): String =
     term match {
       case Var(SuffixedIdentifier(prefix, _, _), _) if prefix == "$t" =>
         // field of a struct if the permission came in the precondition
-        "old(" + formatBasicChunk(snaps(term), g, h, insideTerm = true) + ")"
-      case Var(SuffixedIdentifier(prefix, _, suffix), _) if !prefix.contains("$result") && !prefix.contains("_result$") && prefix.contains("$") =>
+        if (isFieldReassigned(snaps(term))) {
+          "old(" + formatBasicChunk(snaps(term), g, h, insideTerm = true) + ")"
+        } else {
+          formatBasicChunk(snaps(term), g, h, insideTerm = true)
+        }
+      case Var(SuffixedIdentifier(prefix, _, _), _) if !prefix.contains("$result") && !prefix.contains("_result$") && prefix.contains("$") =>
         // field of a struct if it has been re-assigned
         if (freshTerms.contains(term)) {
           if (h.getChunksForValue(term).length > 0) {
@@ -337,23 +358,24 @@ object SymbExLogger {
           }
         } else {
           // temporary fix so that imprecise formulae do not crash
-          if (snaps.isDefinedAt(term)) {
+          if (snaps.contains(term)) {
             "\uD83D\uDC05" + formatBasicChunk(snaps(term), g, h, insideTerm = true) + "\uD83D\uDC05" // HIC SUNT TIGRES
           } else {
             // TODO: caused by imprecise formula
             "\uD83D\uDC09" + term.toString + "\uD83D\uDC09" // HIC SUNT DRACONES
           }
         }
-      case Var(SuffixedIdentifier(prefix, _, suffix), _) =>
+      case Var(SuffixedIdentifier(prefix, _, _), _) =>
         // variable access
         if (freshTerms.contains(term)) {
+          // variable has been assigned to
           if (g.getKeyForValue(term).isDefined) {
             // the variable referred to is the latest version in the store,
             // refer to it by name
             prefix
           } else {
-            // the variable referred to is not the latest version,
-            // retrieve its definition
+            // the variable referred to is not the latest version, retrieve
+            // its definition
             formatTerm(freshTerms(term), g, h)
           }
         } else {
@@ -362,7 +384,11 @@ object SymbExLogger {
         }
       case SortWrapper(_, _) =>
         // field of a struct if the permission was unfolded from a predicate
-        "old(" + formatBasicChunk(snaps(term), g, h, insideTerm = true) + ")"
+        if (isFieldReassigned(snaps(term))) {
+          "old(" + formatBasicChunk(snaps(term), g, h, insideTerm = true) + ")"
+        } else {
+          formatBasicChunk(snaps(term), g, h, insideTerm = true)
+        }
       case Unit => "UNIT"
       case Null() => "null"
       case True() => "true"
@@ -516,37 +542,42 @@ object SymbExLogger {
     formatChunks(chunks, g, h).toSet.toSeq
   }
 
-  def isPCVisible(term: Term, g: Store, h: Heap): Boolean =
-    term match {
-      case App(_, _) => false
-      case Combine(_, _) => false
-      case First(_) => false
-      case Second(_) => false
-      case Var(SuffixedIdentifier(prefix, _, _), _) if prefix == "$t" => snaps.isDefinedAt(term)
-      case Var(SuffixedIdentifier(prefix, _, _), _) => true
-      case SortWrapper(_, _) => snaps.isDefinedAt(term)
-      case Null() => true
-      case True() => true
-      case False() => true
-      case IntLiteral(_) => true
-      case Plus(p0, p1) => isPCVisible(p0, g, h) && isPCVisible(p1, g, h)
-      case Minus(p0, p1) => isPCVisible(p0, g, h) && isPCVisible(p1, g, h)
-      case Times(p0, p1) => isPCVisible(p0, g, h) && isPCVisible(p1, g, h)
-      case Div(p0, p1) => isPCVisible(p0, g, h) && isPCVisible(p1, g, h)
-      case Mod(p0, p1) => isPCVisible(p0, g, h) && isPCVisible(p1, g, h)
-      case BuiltinEquals(p0, p1) =>
-        // if latest version of variable or field access does not appear in PC, do not display it
-        (g.getKeyForValue(p0).isDefined || h.getChunksForValue(p0).length > 0) && isPCVisible(p1, g, h)
-      case Less(p0, p1) => isPCVisible(p0, g, h) && isPCVisible(p1, g, h)
-      case AtMost(p0, p1) => isPCVisible(p0, g, h) && isPCVisible(p1, g, h)
-      case Greater(p0, p1) => isPCVisible(p0, g, h) && isPCVisible(p1, g, h)
-      case AtLeast(p0, p1) => isPCVisible(p0, g, h) && isPCVisible(p1, g, h)
-      case Not(p) => isPCVisible(p, g, h)
-      case Or(ts) => ts.map(isPCVisible(_, g, h)).reduce((x, y) => x && y)
-      case And(ts) => ts.map(isPCVisible(_, g, h)).reduce((x, y) => x && y)
-      case Implies(p0, p1) => isPCVisible(p0, g, h) && isPCVisible(p1, g, h)
-      case _ => true
+  def isPCVisible(term: Term, g: Store, h: Heap): Boolean = {
+    if (ignoreSet.contains(term)) {
+      false
+    } else {
+      term match {
+        case App(_, _) => false
+        case Combine(_, _) => false
+        case First(_) => false
+        case Second(_) => false
+        case Var(SuffixedIdentifier(prefix, _, _), _) if prefix == "$t" => snaps.contains(term)
+        case Var(SuffixedIdentifier(prefix, _, _), _) => true
+        case SortWrapper(_, _) => snaps.contains(term)
+        case Null() => true
+        case True() => true
+        case False() => true
+        case IntLiteral(_) => true
+        case Plus(p0, p1) => isPCVisible(p0, g, h) && isPCVisible(p1, g, h)
+        case Minus(p0, p1) => isPCVisible(p0, g, h) && isPCVisible(p1, g, h)
+        case Times(p0, p1) => isPCVisible(p0, g, h) && isPCVisible(p1, g, h)
+        case Div(p0, p1) => isPCVisible(p0, g, h) && isPCVisible(p1, g, h)
+        case Mod(p0, p1) => isPCVisible(p0, g, h) && isPCVisible(p1, g, h)
+        case BuiltinEquals(p0, p1) =>
+          // if latest version of variable or field access does not appear in PC, do not display it
+          (g.getKeyForValue(p0).isDefined || h.getChunksForValue(p0).length > 0) && isPCVisible(p1, g, h)
+        case Less(p0, p1) => isPCVisible(p0, g, h) && isPCVisible(p1, g, h)
+        case AtMost(p0, p1) => isPCVisible(p0, g, h) && isPCVisible(p1, g, h)
+        case Greater(p0, p1) => isPCVisible(p0, g, h) && isPCVisible(p1, g, h)
+        case AtLeast(p0, p1) => isPCVisible(p0, g, h) && isPCVisible(p1, g, h)
+        case Not(p) => isPCVisible(p, g, h)
+        case Or(ts) => ts.map(isPCVisible(_, g, h)).reduce((x, y) => x && y)
+        case And(ts) => ts.map(isPCVisible(_, g, h)).reduce((x, y) => x && y)
+        case Implies(p0, p1) => isPCVisible(p0, g, h) && isPCVisible(p1, g, h)
+        case _ => true
+      }
     }
+  }
 
   def formatPCs(currentPCs: InsertionOrderedSet[Term], g: Store, h: Heap): Seq[String] = {
     currentPCs.filter(isPCVisible(_, g, h)).map(formatTerm(_, g, h) + "; ").toSeq
@@ -585,6 +616,7 @@ object SymbExLogger {
   def resetMaps(): Unit = {
     snaps.clear()
     freshTerms.clear()
+    ignoreSet.clear()
     whileLoops.clear()
   }
 

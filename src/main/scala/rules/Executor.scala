@@ -494,11 +494,14 @@ object executor extends ExecutionRules with Immutable {
       case ast.LocalVarDeclStmt(decl) =>
         val x = decl.localVar
         val t = v.decider.fresh(x.name, v.symbolConverter.toSort(x.typ))
+        if (SymbExLogger.enabled) {
+          SymbExLogger.ignoreSet += t -> true
+        }
         Q(s.copy(g = s.g + (x -> t)), v)
 
       case ass @ ast.LocalVarAssign(x, rhs) =>
         eval(s, rhs, AssignmentFailed(ass), v)((s1, tRhs, v1) => {
-          val t = ssaifyRhs(tRhs, x.name, x.typ, v, ass.pos)
+          val t = ssaifyRhs(tRhs, x.name, x.typ, v)
           Q(s1.copy(g = s1.g + (x, t)), v1)
         })
 
@@ -564,7 +567,7 @@ object executor extends ExecutionRules with Immutable {
 
               // TODO;EXTRA CHECK ISSUE(S): We assume the Ref is !== null here
               v3.decider.assume(tRcvr !== Null())
-              val tSnap = ssaifyRhs(tRhs, field.name, field.typ, v3, ass.pos)
+              val tSnap = ssaifyRhs(tRhs, field.name, field.typ, v3)
               val id = BasicChunkIdentifier(field.name)
               val newChunk = BasicChunk(FieldID, id, Seq(tRcvr), tSnap, FullPerm())
 
@@ -577,10 +580,6 @@ object executor extends ExecutionRules with Immutable {
       case ast.NewStmt(x, fields) =>
         val tRcvr = v.decider.fresh(x)
         v.decider.assume(tRcvr !== Null())
-        if (SymbExLogger.enabled) {
-          // record where new struct was allocated and assigned
-          SymbExLogger.freshTerms += tRcvr -> tRcvr
-        }
         val newChunks = fields map (field => {
           val p = FullPerm()
           val snap = v.decider.fresh(field.name, v.symbolConverter.toSort(field.typ))
@@ -594,6 +593,9 @@ object executor extends ExecutionRules with Immutable {
           }
         })
         val ts = viper.silicon.state.utils.computeReferenceDisjointnesses(s, tRcvr)
+        for (t <- ts) {
+          SymbExLogger.ignoreSet += t -> true
+        }
         val s1 = s.copy(g = s.g + (x, tRcvr), h = s.h + Heap(newChunks))
         v.decider.assume(ts)
         Q(s1, v)
@@ -877,7 +879,7 @@ object executor extends ExecutionRules with Immutable {
     executed
   }
 
-   private def ssaifyRhs(rhs: Term, name: String, typ: ast.Type, v: Verifier, pos: ast.Position): Term = {
+   private def ssaifyRhs(rhs: Term, name: String, typ: ast.Type, v: Verifier): Term = {
      rhs match {
        /* 2025-01-29 Long:
         * The following line used to be
