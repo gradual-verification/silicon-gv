@@ -19,7 +19,7 @@ trait SymbolicExecutionRules extends Immutable {
     val sepIdentifier = SymbExLogger.currentLog().openScope(
       new ErrorRecord(ve, s, v.decider.pcs))
     if (SymbExLogger.enabled) {
-      SymbExLogger.populateSnaps(s.h.values.toSeq)
+      SymbExLogger.populateSnaps(s.h.values.toSeq, s)
     }
     SymbExLogger.currentLog().closeScope(sepIdentifier)
     var ceTrafo: Option[CounterexampleTransformer] = None

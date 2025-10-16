@@ -98,7 +98,7 @@ trait DefaultMethodVerificationUnitProvider extends VerifierComponent { v: Verif
                   exec(s3, body, v3)((s4, v4) => {
                     val sepIdentifier = SymbExLogger.currentLog().openScope(new EndRecord(s4, v4.decider.pcs))
                     if (SymbExLogger.enabled) {
-                      SymbExLogger.populateSnaps(s4.h.values.toSeq)
+                      SymbExLogger.populateSnaps(s4.h.values.toSeq, s4)
                     }
                     consumes(s4, posts, postViolated, v4)((s5, _, v5) => {
                       SymbExLogger.currentLog().closeScope(sepIdentifier)

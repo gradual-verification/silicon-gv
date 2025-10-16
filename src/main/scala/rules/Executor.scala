@@ -307,7 +307,7 @@ object executor extends ExecutionRules with Immutable {
             val sepIdentifier = SymbExLogger.currentLog().openScope(
               new LoopInRecord(invs.head, s, v.decider.pcs))
             if (SymbExLogger.enabled) {
-              SymbExLogger.populateSnaps(s.h.values.toSeq)
+              SymbExLogger.populateSnaps(s.h.values.toSeq, s)
             }
 
             /* Havoc local variables that are assigned to in the loop body */
@@ -424,7 +424,7 @@ object executor extends ExecutionRules with Immutable {
             val sepIdentifier = SymbExLogger.currentLog().openScope(
               new LoopOutRecord(invs.head, s0, v.decider.pcs))
             if (SymbExLogger.enabled) {
-              SymbExLogger.populateSnaps(s0.h.values.toSeq)
+              SymbExLogger.populateSnaps(s0.h.values.toSeq, s0)
             }
             // consume the loop invariant
             consumes(s0, invs, e => LoopInvariantNotPreserved(e), v)((_, _, _) => {
@@ -454,7 +454,7 @@ object executor extends ExecutionRules with Immutable {
           : VerificationResult = {
     val sepIdentifier = SymbExLogger.currentLog().openScope(new ExecuteRecord(stmt, s, v.decider.pcs))
     if (SymbExLogger.enabled) {
-      SymbExLogger.populateSnaps(s.h.values.toSeq)
+      SymbExLogger.populateSnaps(s.h.values.toSeq, s)
     }
     exec2(s, stmt, v)((s1, v1) => {
       SymbExLogger.currentLog().closeScope(sepIdentifier)
