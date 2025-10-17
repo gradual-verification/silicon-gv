@@ -346,9 +346,9 @@ object SymbExLogger {
       case Var(SuffixedIdentifier(prefix, _, _), _) if prefix == "$t" =>
         // field of a struct if the permission came in the precondition
         if (isFieldReassigned(snapsFor(state)(term), state)) {
-          if (state.invariantContexts.nonEmpty) {
+          if (state.invariantContexts.nonEmpty) { // in a loop, value before entering loop
             "in(" + formatBasicChunk(snapsFor(state)(term), state, insideTerm = true) + ")"
-          } else {
+          } else { // outside of loop
             "old(" + formatBasicChunk(snapsFor(state)(term), state, insideTerm = true) + ")"
           }
         } else {
@@ -390,14 +390,26 @@ object SymbExLogger {
           }
         } else {
           // variable has not been assigned to yet
-          prefix
+          if (state.g.getKeyForValue(term).isDefined) {
+            // the variable referred to is the latest version in the store,
+            // refer to it by name
+            prefix
+          } else {
+            // the variable referred to is not the latest version, retrieve
+            // its definition
+            if (state.invariantContexts.nonEmpty) { // in a loop, value before entering loop
+              "in(" + prefix + ")"
+            } else { // outside of loop
+              "old(" + prefix + ")"
+            }
+          }
         }
       case SortWrapper(_, _) =>
         // field of a struct if the permission was unfolded from a predicate
         if (isFieldReassigned(snapsFor(state)(term), state)) {
-          if (state.invariantContexts.nonEmpty) {
+          if (state.invariantContexts.nonEmpty) { // in a loop; value before entering loop
             "in(" + formatBasicChunk(snapsFor(state)(term), state, insideTerm = true) + ")"
-          } else {
+          } else { // outside of loop
             "old(" + formatBasicChunk(snapsFor(state)(term), state, insideTerm = true) + ")"
           }
         } else {
