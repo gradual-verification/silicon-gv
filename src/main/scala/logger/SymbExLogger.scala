@@ -596,7 +596,8 @@ object SymbExLogger {
         case Mod(p0, p1) => isPCVisible(p0, state) && isPCVisible(p1, state)
         case BuiltinEquals(p0, p1) =>
           // if latest version of variable or field access does not appear in PC, do not display it
-          (state.g.getKeyForValue(p0).isDefined || state.h.getChunksForValue(p0).length > 0) && isPCVisible(p1, state)
+          (state.g.getKeyForValue(p0).isDefined || state.h.getChunksForValue(p0).length > 0) && isPCVisible(p1, state) ||
+            isPCVisible(p0, state) && (state.g.getKeyForValue(p1).isDefined || state.h.getChunksForValue(p1).length > 0)
         case Less(p0, p1) => isPCVisible(p0, state) && isPCVisible(p1, state)
         case AtMost(p0, p1) => isPCVisible(p0, state) && isPCVisible(p1, state)
         case Greater(p0, p1) => isPCVisible(p0, state) && isPCVisible(p1, state)
