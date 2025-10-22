@@ -879,39 +879,37 @@ object executor extends ExecutionRules with Immutable {
     executed
   }
 
-   private def ssaifyRhs(rhs: Term, name: String, typ: ast.Type, v: Verifier): Term = {
-     rhs match {
-       /* 2025-01-29 Long:
-        * The following line used to be
-        * case _: Var | _: Literal =>
-        */
-       case _: Literal =>
-         rhs
+  private def ssaifyRhs(rhs: Term, name: String, typ: ast.Type, v: Verifier): Term = {
+    /* 2025-10-22 Long:
+    rhs match {
+      case _: Var | _: Literal =>
+        rhs
+      case _ =>
+        ...
+      } */
 
-       case _  =>
-         /* 2018-06-05 Malte:
-          *   This case was previously guarded by the condition
-          *     rhs.existsDefined {
-          *       case t if v.triggerGenerator.isForbiddenInTrigger(t) => true
-          *     }
-          *   and followed by a catch-all case in which rhs was returned.
-          *   However, reducing the number of fresh symbols does not appear to improve
-          *   performance; instead, it can cause an exponential blow-up in term size, as
-          *   reported by Silicon issue #328.
-          */
-         val t = v.decider.fresh(name, v.symbolConverter.toSort(typ))
-         v.decider.assume(t === rhs)
-         /* 2025-01-29 Long:
-          * record rhs where the Var was freshened in freshTerms
-          * freshTerms should not contain this Var yet
-          */
-         if (SymbExLogger.enabled) {
-           SymbExLogger.freshTerms += t -> rhs
-         }
+    /* 2018-06-05 Malte:
+     *   This case was previously guarded by the condition
+     *     rhs.existsDefined {
+     *       case t if v.triggerGenerator.isForbiddenInTrigger(t) => true
+     *     }
+     *   and followed by a catch-all case in which rhs was returned.
+     *   However, reducing the number of fresh symbols does not appear to improve
+     *   performance; instead, it can cause an exponential blow-up in term size, as
+     *   reported by Silicon issue #328.
+     */
+    val t = v.decider.fresh(name, v.symbolConverter.toSort(typ))
+    v.decider.assume(t === rhs)
+    /* 2025-01-29 Long:
+     * record rhs where the Var was freshened in freshTerms
+     * freshTerms should not contain this Var yet
+     */
+    if (SymbExLogger.enabled) {
+      SymbExLogger.freshTerms += t -> rhs
+    }
 
-         t
-     }
-   }
+    t
+  }
 
   private val hack407_method_name_prefix = "___silicon_hack407_havoc_all_"
 
