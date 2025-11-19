@@ -347,12 +347,12 @@ object SymbExLogger {
         // field of a struct if the permission came in the precondition
         if (isFieldReassigned(snapsFor(state)(term), state)) {
           if (state.invariantContexts.nonEmpty) { // in a loop, value before entering loop
-            "in(" + formatBasicChunk(snapsFor(state)(term), state, insideTerm = true) + ")"
+            "in(" + formatBasicChunk(snapsFor(state)(term), state) + ")"
           } else { // outside of loop
-            "old(" + formatBasicChunk(snapsFor(state)(term), state, insideTerm = true) + ")"
+            "old(" + formatBasicChunk(snapsFor(state)(term), state) + ")"
           }
         } else {
-          formatBasicChunk(snapsFor(state)(term), state, insideTerm = true)
+          formatBasicChunk(snapsFor(state)(term), state)
         }
       case Var(SuffixedIdentifier(prefix, _, _), _) if !prefix.contains("$result") && !prefix.contains("_result$") && prefix.contains("$") =>
         // field of a struct if it has been re-assigned
@@ -360,18 +360,18 @@ object SymbExLogger {
           if (state.h.getChunksForValue(term).length > 0) {
             // permission for said field of struct exists in heap,
             // refer to it by name
-            formatBasicChunk(snapsFor(state)(term), state, insideTerm = true)
+            formatBasicChunk(snapsFor(state)(term), state)
           } else {
             // permission for said field of struct does not exist in heap,
             // retrieve its definition
             formatTerm(freshTerms(term), state)
           }
         } else {
-          // temporary fix so that imprecise formulae do not crash
           if (snapsFor(state).contains(term)) {
-            "\uD83D\uDC05" + formatBasicChunk(snapsFor(state)(term), state, insideTerm = true) + "\uD83D\uDC05" // HIC SUNT TIGRES
+            // chunk was assumed optimistically in an imprecise state
+            formatBasicChunk(snapsFor(state)(term), state)
           } else {
-            // TODO: caused by imprecise formula
+            // this should never happen but keep it just in case
             "\uD83D\uDC09" + term.toString + "\uD83D\uDC09" // HIC SUNT DRACONES
           }
         }
@@ -408,12 +408,12 @@ object SymbExLogger {
         // field of a struct if the permission was unfolded from a predicate
         if (isFieldReassigned(snapsFor(state)(term), state)) {
           if (state.invariantContexts.nonEmpty) { // in a loop; value before entering loop
-            "in(" + formatBasicChunk(snapsFor(state)(term), state, insideTerm = true) + ")"
+            "in(" + formatBasicChunk(snapsFor(state)(term), state) + ")"
           } else { // outside of loop
-            "old(" + formatBasicChunk(snapsFor(state)(term), state, insideTerm = true) + ")"
+            "old(" + formatBasicChunk(snapsFor(state)(term), state) + ")"
           }
         } else {
-          formatBasicChunk(snapsFor(state)(term), state, insideTerm = true)
+          formatBasicChunk(snapsFor(state)(term), state)
         }
       case Unit => "UNIT"
       case Null() => "null"
@@ -438,7 +438,7 @@ object SymbExLogger {
       case _ => "\uD83E\uDD81" + term.toString + "\uD83E\uDD81" // HIC SUNT LEONES
     }
 
-  def formatBasicChunk(basicChunk: BasicChunk, state: State, insideTerm: Boolean): String = {
+  def formatBasicChunk(basicChunk: BasicChunk, state: State): String = {
     val s = basicChunk.snap match {
       case Unit => " == UNIT"
       case Null() => " == null"
@@ -458,46 +458,11 @@ object SymbExLogger {
         } else {
           "?"
         }
-        val pointer = formatTerm(basicChunk.args.head, state)
-        val fieldAcc = pointer + "->" + fieldName
-        if (insideTerm) {
-          // if inside term, show permissions to individual fields
-          fieldAcc + s
-        } else {
-          // show that we have permissions to all fields of struct
-          pointer + "->\uD83D\uDD11"
-        }
+        val fieldAcc = formatTerm(basicChunk.args.head, state) + "->" + fieldName
+        fieldAcc + s
       case PredicateID =>
         val argsAsString = basicChunk.args.map(formatTerm(_, state)).mkString(", ")
         basicChunk.id.name + "(" + argsAsString + ")" + s
-      case _ => ""
-    }
-  }
-
-  // TODO: remove relevant code from formatBasicChunk
-  def formatFieldChunkWithSnap(basicChunk: BasicChunk, state: State): String = {
-    val s = basicChunk.snap match {
-      case Unit => " == UNIT"
-      case Null() => " == null"
-      case IntLiteral(n) => " == " + n.toString
-      case True() => " == true"
-      case False() => " == false"
-      case Var(SuffixedIdentifier(prefix, _, _), _) if prefix == "$t" => ""
-      case Var(SuffixedIdentifier(prefix, _, _), _) if !prefix.contains("$result") && prefix.contains("$") => ""
-      case Var(SuffixedIdentifier(prefix, _, _), _) => "\u8B8A\u6578" + prefix
-      case _ => ""
-    }
-    basicChunk.resourceID match {
-      case FieldID =>
-        val typeAndFieldName = basicChunk.id.name.split("\\$")
-        val fieldName = if (typeAndFieldName.length == 2) {
-          typeAndFieldName.last
-        } else {
-          "?"
-        }
-        val pointer = formatTerm(basicChunk.args.head, state)
-        val fieldAcc = pointer + "->" + fieldName
-        fieldAcc + s
       case _ => ""
     }
   }
@@ -535,42 +500,12 @@ object SymbExLogger {
     })
   }
 
-  def filterFieldChunksWithSnap(chunks: Seq[Chunk]): Seq[Chunk] = {
-    chunks.filter(_ match {
-      case basicChunk: BasicChunk =>
-        basicChunk.resourceID match {
-          case FieldID => basicChunk.snap match {
-            case Unit => true
-            case Null() => true
-            case IntLiteral(n) => true
-            case True() => true
-            case False() => true
-            case _ => false
-          }
-          case _ => false
-        }
-      case _ => false
-    })
-  }
-
   def formatChunks(chunks: Seq[Chunk], state: State): Seq[String] = {
     chunks.map {
       case basicChunk: BasicChunk =>
-        formatBasicChunk(basicChunk, state, insideTerm = false) + "; "
+        formatBasicChunk(basicChunk, state) + "; "
       case _ => "\u22A5; "
     }
-  }
-
-  def formatFieldChunksWithSnap(chunks: Seq[Chunk], state: State): Seq[String] = {
-    chunks.map {
-      case basicChunk: BasicChunk =>
-        formatFieldChunkWithSnap(basicChunk, state) + "; "
-      case _ => "\u22A5; "
-    }
-  }
-
-  def formatChunksUniqueHack(chunks: Seq[Chunk], state: State): Seq[String] = {
-    formatChunks(chunks, state).toSet.toSeq
   }
 
   def isPCVisible(term: Term, state: State): Boolean = {

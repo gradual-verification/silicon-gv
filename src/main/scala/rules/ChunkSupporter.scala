@@ -8,16 +8,15 @@ package viper.silicon.rules
 
 import scala.reflect.ClassTag
 import viper.silver.ast
-import viper.silver.verifier.{VerificationError, PartialVerificationError}
-import viper.silicon.Stack
+import viper.silver.verifier.{PartialVerificationError, VerificationError}
 import viper.silicon.interfaces.state._
 import viper.silicon.interfaces.{Failure, Success, VerificationResult}
-import viper.silicon.resources.{NonQuantifiedPropertyInterpreter, Resources, FieldID, PredicateID}
+import viper.silicon.logger.SymbExLogger
+import viper.silicon.resources.{FieldID, NonQuantifiedPropertyInterpreter, PredicateID, Resources}
 import viper.silicon.state._
 import viper.silicon.state.terms._
 import viper.silicon.state.terms.perms.IsPositive
 import viper.silicon.supporters.Translator
-import viper.silicon.utils
 import viper.silicon.verifier.Verifier
 
 trait ChunkSupportRules extends SymbolicExecutionRules {
@@ -338,6 +337,10 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
                   case true =>
                     val snap = v.decider.fresh(s"${args.head}.$id", v.symbolConverter.toSort(f.typ))
                     val ch = BasicChunk(FieldID, BasicChunkIdentifier(f.name), args, snap, FullPerm())
+                    if (SymbExLogger.enabled) {
+                      // add chunk created by trying to find nonexistent chunk in imprecise state to snaps
+                      SymbExLogger.populateSnaps(Vector(ch), s)
+                    }
                     val s2 = s.copy(optimisticHeap = oh)
 
                     val runtimeCheckAstNode: CheckPosition =
@@ -413,6 +416,11 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
                 v.decider.assertgv(s.isImprecise, args.head !== Null()) {
                   case true => {
                     val snap = v.decider.fresh(s"${args.head}.$id", v.symbolConverter.toSort(f.typ))
+                    if (SymbExLogger.enabled) {
+                      // add chunk created by trying to find nonexistent chunk in imprecise state to snaps
+                      val chonk = BasicChunk(FieldID, BasicChunkIdentifier(f.name), args, snap, FullPerm())
+                      SymbExLogger.populateSnaps(Vector(chonk), s)
+                    }
 
                     val runtimeCheckAstNode: CheckPosition =
                       (s.methodCallAstNode, s.foldOrUnfoldAstNode, s.loopPosition, s.unfoldingAstNode) match {
@@ -470,6 +478,10 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
               case f: ast.Field => {
                 val snap = v.decider.fresh(s"${args.head}.$id", v.symbolConverter.toSort(f.typ))
                 val ch = BasicChunk(FieldID, BasicChunkIdentifier(f.name), args, snap, FullPerm())
+                if (SymbExLogger.enabled) {
+                  // add chunk created by trying to find nonexistent chunk in imprecise state to snaps
+                  SymbExLogger.populateSnaps(Vector(ch), s)
+                }
                 val s2 = s.copy(optimisticHeap = oh)
 
                 if (!(s.needConditionFramingProduce &&
