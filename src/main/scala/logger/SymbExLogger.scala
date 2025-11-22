@@ -357,7 +357,7 @@ object SymbExLogger {
       case Var(SuffixedIdentifier(prefix, _, _), _) if !prefix.contains("$result") && !prefix.contains("_result$") && prefix.contains("$") =>
         // field of a struct if it has been re-assigned
         if (freshTerms.contains(term)) {
-          if (state.h.getChunksForValue(term).length > 0) {
+          if (state.h.getChunksForValue(term).nonEmpty) {
             // permission for said field of struct exists in heap,
             // refer to it by name
             formatBasicChunk(snapsFor(state)(term), state)
@@ -490,14 +490,14 @@ object SymbExLogger {
   }
 
   def partitionChunks(chunks: Seq[Chunk]): (Seq[Chunk], Seq[Chunk]) = {
-    chunks.partition(_ match {
+    chunks.partition {
       case basicChunk: BasicChunk =>
         basicChunk.resourceID match {
           case FieldID => true
           case _ => false
         }
       case _ => false
-    })
+    }
   }
 
   def formatChunks(chunks: Seq[Chunk], state: State): Seq[String] = {
@@ -531,8 +531,8 @@ object SymbExLogger {
         case Mod(p0, p1) => isPCVisible(p0, state) && isPCVisible(p1, state)
         case BuiltinEquals(p0, p1) =>
           // if latest version of variable or field access does not appear in PC, do not display it
-          (state.g.getKeyForValue(p0).isDefined || state.h.getChunksForValue(p0).length > 0) && isPCVisible(p1, state) ||
-            isPCVisible(p0, state) && (state.g.getKeyForValue(p1).isDefined || state.h.getChunksForValue(p1).length > 0)
+          (state.g.getKeyForValue(p0).isDefined || state.h.getChunksForValue(p0).nonEmpty) && isPCVisible(p1, state) ||
+            isPCVisible(p0, state) && (state.g.getKeyForValue(p1).isDefined || state.h.getChunksForValue(p1).nonEmpty)
         case Less(p0, p1) => isPCVisible(p0, state) && isPCVisible(p1, state)
         case AtMost(p0, p1) => isPCVisible(p0, state) && isPCVisible(p1, state)
         case Greater(p0, p1) => isPCVisible(p0, state) && isPCVisible(p1, state)
