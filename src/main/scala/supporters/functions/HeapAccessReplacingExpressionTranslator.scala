@@ -86,8 +86,8 @@ class HeapAccessReplacingExpressionTranslator(symbolConverter: SymbolConverter,
                                   : Term =
 
     e match {
-      case _: ast.AccessPredicate | _: ast.MagicWand if ignoreAccessPredicates => True()
-      case q: ast.Forall if !q.isPure && ignoreAccessPredicates => True()
+      case _: ast.AccessPredicate | _: ast.MagicWand if ignoreAccessPredicates => True
+      case q: ast.Forall if !q.isPure && ignoreAccessPredicates => True
 
       case _: ast.Result => data.formalResult
 
@@ -114,7 +114,7 @@ class HeapAccessReplacingExpressionTranslator(symbolConverter: SymbolConverter,
 
         tQuant.transform({ case v: Var =>
           v.id match {
-            case sid: SuffixedIdentifier if names.contains(sid.prefix) => Var(SimpleIdentifier(sid.prefix), v.sort)
+            case sid: SuffixedIdentifier if names.contains(sid.prefix) => Var(SimpleIdentifier(sid.prefix.name), v.sort)
             case _ => v
           }
         })()

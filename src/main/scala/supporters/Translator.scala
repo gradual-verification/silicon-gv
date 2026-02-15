@@ -13,9 +13,9 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
   // this is, to some extent, a stub method currently
   def translate(t: terms.Term): Option[ast.Exp] = {
     t match {
-      case terms.Null()        => Some(ast.NullLit()())
-      case terms.False()       => Some(ast.FalseLit()())
-      case terms.True()        => Some(ast.TrueLit()())
+      case terms.Null        => Some(ast.NullLit()())
+      case terms.False       => Some(ast.FalseLit()())
+      case terms.True        => Some(ast.TrueLit()())
       case terms.IntLiteral(i) => Some(ast.IntLit(i)())
       case terms.Plus(t0, t1) =>
         (translate(t0), translate(t1)) match {

@@ -230,7 +230,7 @@ private trait LayeredPathConditionStackLike {
       unconditionalTerms ++= layer.globalAssumptions
 
       conditionalTerms :+=
-        Implies(layer.branchCondition.getOrElse(True()), And(layer.nonGlobalAssumptions))
+        Implies(layer.branchCondition.getOrElse(True), And(layer.nonGlobalAssumptions))
     }
 
     unconditionalTerms ++ conditionalTerms

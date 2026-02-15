@@ -10,11 +10,11 @@ import scala.reflect.ClassTag
 import viper.silver.ast
 import viper.silicon.common.collections.immutable.InsertionOrderedSet
 import viper.silicon.{Map, Stack, state, toMap}
-import viper.silicon.state.{Identifier, MagicWandChunk, MagicWandIdentifier}
+import viper.silicon.state.{Identifier, MagicWandChunk, MagicWandIdentifier, SortBasedIdentifier}
 import viper.silicon.verifier.Verifier
 
 sealed trait Node {
-  override def toString: String
+  // override def toString: String
 }
 
 sealed trait Symbol extends Node {
@@ -79,15 +79,26 @@ object sorts {
  * Declarations
  */
 
-sealed trait Decl extends Node
-
-case class SortDecl(sort: Sort) extends Decl
-case class FunctionDecl(func: Function) extends Decl
-case class SortWrapperDecl(from: Sort, to: Sort) extends Decl
+sealed trait Decl extends Node {
+  def id: Identifier
+}
+case class SortDecl(sort: Sort) extends Decl {
+  override def id: Identifier = sort.id
+}
+case class FunctionDecl(func: Function) extends Decl {
+  override def id: Identifier = func.id
+}
+case class SortWrapperDecl(from: Sort, to: Sort) extends Decl {
+  override def id: Identifier = SortWrapperId(from, to)
+}
 case class MacroDecl(id: Identifier, args: Seq[Var], body: Term) extends Decl
 
 object ConstDecl extends (Var => Decl) { /* TODO: Inconsistent naming - Const vs Var */
   def apply(v: Var) = FunctionDecl(v)
+}
+
+object SortWrapperId extends ((Sort, Sort) => Identifier) {
+  def apply(from: Sort, to: Sort): Identifier = SortBasedIdentifier("$SortWrappers.%sTo%s", Seq(from, to))
 }
 
 /*
@@ -394,7 +405,7 @@ case class IntLiteral(n: BigInt) extends ArithmeticTerm with Literal {
   override lazy val toString = n.toString()
 }
 
-case class Null() extends Term with Literal {
+case object Null extends Term with Literal {
   val sort = sorts.Ref
   override lazy val toString = "Null"
 }
@@ -404,12 +415,12 @@ sealed trait BooleanLiteral extends BooleanTerm with Literal {
   override lazy val toString = value.toString
 }
 
-case class True() extends BooleanLiteral {
+case object True extends BooleanLiteral {
   val value = true
   override lazy val toString = "True"
 }
 
-case class False() extends BooleanLiteral {
+case object False extends BooleanLiteral {
   val value = false
   override lazy val toString = "False"
 }
@@ -648,8 +659,8 @@ class Not(val p: Term) extends BooleanTerm
 object Not extends (Term => Term) {
   def apply(e0: Term) = e0 match {
     case Not(e1) => e1
-    case True() => False()
-    case False() => True()
+    case True => False
+    case False => True
     case _ => new Not(e0)
   }
 
@@ -677,9 +688,9 @@ object Or extends (Iterable[Term] => Term) {
   def apply(ts: Iterable[Term]) = createOr(ts.toSeq)
 
   //  def apply(e0: Term, e1: Term) = (e0, e1) match {
-  //    case (True(), _) | (_, True()) => True()
-  //    case (False(), _) => e1
-  //    case (_, False()) => e0
+  //    case (True, _) | (_, True) => True
+  //    case (False, _) => e1
+  //    case (_, False) => e0
   //    case _ if e0 == e1 => e0
   //    case _ => new Or(e0, e1)
   //  }
@@ -687,13 +698,13 @@ object Or extends (Iterable[Term] => Term) {
   @inline
   def createOr(_ts: Seq[Term]): Term = {
     var ts = _ts.flatMap { case Or(ts1) => ts1; case other => other :: Nil}
-    ts = _ts.filterNot(_ == False())
+    ts = _ts.filterNot(_ == False)
     ts = ts.distinct
 
     ts match {
-      case Seq() => False()
+      case Seq() => False
       case Seq(t) => t
-      case _ if ts.contains(True()) => True()
+      case _ if ts.contains(True) => True
       case _ => new Or(ts)
     }
   }
@@ -718,13 +729,13 @@ object And extends (Iterable[Term] => Term) {
   @inline
   def createAnd(_ts: Seq[Term]): Term = {
     var ts = _ts.flatMap { case And(ts1) => ts1; case other => other :: Nil}
-    ts = _ts.filterNot(_ == True())
+    ts = _ts.filterNot(_ == True)
     ts = ts.distinct
 
     ts match {
-      case Seq() => True()
+      case Seq() => True
       case Seq(t) => t
-      case _ if ts.contains(False()) => False()
+      case _ if ts.contains(False) => False
       case _ => new And(ts)
     }
   }
@@ -740,11 +751,11 @@ class Implies(val p0: Term, val p1: Term) extends BooleanTerm
 
 object Implies extends ((Term, Term) => Term) {
   def apply(e0: Term, e1: Term): Term = (e0, e1) match {
-    case (True(), _) => e1
-    case (False(), _) => True()
-    case (_, True()) => True()
+    case (True, _) => e1
+    case (False, _) => True
+    case (_, True) => True
     case (_, Implies(e10, e11)) => Implies(And(e0, e10), e11)
-    case _ if e0 == e1 => True()
+    case _ if e0 == e1 => True
     case _ => new Implies(e0, e1)
   }
 
@@ -759,9 +770,9 @@ class Iff(val p0: Term, val p1: Term) extends BooleanTerm
 
 object Iff extends ((Term, Term) => Term) {
   def apply(e0: Term, e1: Term) = (e0, e1) match {
-    case (True(), _) => e1
-    case (_, True()) => e0
-    case _ if e0 == e1 => True()
+    case (True, _) => e1
+    case (_, True) => e0
+    case _ if e0 == e1 => True
     case _ => new Iff(e0, e1)
   }
 
@@ -782,10 +793,10 @@ class Ite(val t0: Term, val t1: Term, val t2: Term)
 object Ite extends ((Term, Term, Term) => Term) {
   def apply(e0: Term, e1: Term, e2: Term) = (e0, e1, e2) match {
     case _ if e1 == e2 => e1
-    case (True(), _, _) => e1
-    case (False(), _, _) => e2
-    case (_, True(), False()) => e0
-    case (_, False(), True()) => Not(e0)
+    case (True, _, _) => e1
+    case (False, _, _) => e2
+    case (_, True, False) => e0
+    case (_, False, True) => Not(e0)
     case _ => new Ite(e0, e1, e2)
   }
 
@@ -804,7 +815,7 @@ object Equals extends ((Term, Term) => BooleanTerm) {
            s"Expected both operands to be of the same sort, but found ${e0.sort} ($e0) and ${e1.sort} ($e1).")
 
     if (e0 == e1)
-      True()
+      True
     else
       e0.sort match {
         case sorts.Snap =>
@@ -841,7 +852,7 @@ class BuiltinEquals private[terms] (val p0: Term, val p1: Term) extends Equals
 
 object BuiltinEquals extends ((Term, Term) => BooleanTerm) {
   def apply(t1: Term, t2: Term) = (t1, t2) match {
-    case (p0: PermLiteral, p1: PermLiteral) => if (p0.literal == p1.literal) True() else False()
+    case (p0: PermLiteral, p1: PermLiteral) => if (p0.literal == p1.literal) True else False
     case _ => new BuiltinEquals(t1, t2)
   }
 
@@ -871,8 +882,8 @@ class Less(val p0: Term, val p1: Term) extends ComparisonTerm
 
 object Less extends /* OptimisingBinaryArithmeticOperation with */ ((Term, Term) => Term) {
   def apply(e0: Term, e1: Term) = (e0, e1) match {
-    case (IntLiteral(n0), IntLiteral(n1)) => if (n0 < n1) True() else False()
-    case (t0, t1) if t0 == t1 => False()
+    case (IntLiteral(n0), IntLiteral(n1)) => if (n0 < n1) True else False
+    case (t0, t1) if t0 == t1 => False
     case _ => new Less(e0, e1)
   }
 
@@ -887,8 +898,8 @@ class AtMost(val p0: Term, val p1: Term) extends ComparisonTerm
 
 object AtMost extends /* OptimisingBinaryArithmeticOperation with */ ((Term, Term) => Term) {
   def apply(e0: Term, e1: Term) = (e0, e1) match {
-    case (IntLiteral(n0), IntLiteral(n1)) => if (n0 <= n1) True() else False()
-    case (t0, t1) if t0 == t1 => True()
+    case (IntLiteral(n0), IntLiteral(n1)) => if (n0 <= n1) True else False
+    case (t0, t1) if t0 == t1 => True
     case _ => new AtMost(e0, e1)
   }
 
@@ -903,8 +914,8 @@ class Greater(val p0: Term, val p1: Term) extends ComparisonTerm
 
 object Greater extends /* OptimisingBinaryArithmeticOperation with */ ((Term, Term) => Term) {
   def apply(e0: Term, e1: Term) = (e0, e1) match {
-    case (IntLiteral(n0), IntLiteral(n1)) => if (n0 > n1) True() else False()
-    case (t0, t1) if t0 == t1 => False()
+    case (IntLiteral(n0), IntLiteral(n1)) => if (n0 > n1) True else False
+    case (t0, t1) if t0 == t1 => False
     case _ => new Greater(e0, e1)
   }
 
@@ -919,8 +930,8 @@ class AtLeast(val p0: Term, val p1: Term) extends ComparisonTerm
 
 object AtLeast extends /* OptimisingBinaryArithmeticOperation with */ ((Term, Term) => Term) {
   def apply(e0: Term, e1: Term) = (e0, e1) match {
-    case (IntLiteral(n0), IntLiteral(n1)) => if (n0 >= n1) True() else False()
-    case (t0, t1) if t0 == t1 => True()
+    case (IntLiteral(n0), IntLiteral(n1)) => if (n0 >= n1) True else False
+    case (t0, t1) if t0 == t1 => True
     case _ => new AtLeast(e0, e1)
   }
 
@@ -1159,8 +1170,8 @@ class PermLess(val p0: Term, val p1: Term)
 object PermLess extends ((Term, Term) => Term) {
   def apply(t0: Term, t1: Term): Term = {
     (t0, t1) match {
-      case _ if t0 == t1 => False()
-      case (p0: PermLiteral, p1: PermLiteral) => if (p0.literal < p1.literal) True() else False()
+      case _ if t0 == t1 => False
+      case (p0: PermLiteral, p1: PermLiteral) => if (p0.literal < p1.literal) True else False
 
       case (`t0`, Ite(tCond, tIf, tElse)) =>
         /* The pattern p0 < b ? p1 : p2 arises very often in the context of quantified permissions.
@@ -1183,8 +1194,8 @@ class PermAtMost(val p0: Term, val p1: Term) extends ComparisonTerm
 
 object PermAtMost extends ((Term, Term) => Term) {
   def apply(e0: Term, e1: Term) = (e0, e1) match {
-    case (p0: PermLiteral, p1: PermLiteral) => if (p0.literal <= p1.literal) True() else False()
-    case (t0, t1) if t0 == t1 => True()
+    case (p0: PermLiteral, p1: PermLiteral) => if (p0.literal <= p1.literal) True else False
+    case (t0, t1) if t0 == t1 => True
     case _ => new PermAtMost(e0, e1)
   }
 
@@ -1936,7 +1947,7 @@ class Distinct(val ts: Set[Symbol]) extends BooleanTerm with StructuralEquality 
 object Distinct extends (Set[Symbol] => Term) {
   def apply(ts: Set[Symbol]): Term =
     if (ts.nonEmpty) new Distinct(ts)
-    else True()
+    else True
 
   def unapply(d: Distinct) = Some(d.ts)
 }
@@ -1982,12 +1993,12 @@ object perms {
        */
 
   def IsPositive(p: Term): Term = p match {
-    case p: PermLiteral => if (p.literal > Rational.zero) True() else False()
+    case p: PermLiteral => if (p.literal > Rational.zero) True else False
     case _ => PermLess(NoPerm(), p)
   }
 
   def IsNonPositive(p: Term): Term = p match {
-    case p: PermLiteral => if (p.literal <= Rational.zero) True() else False()
+    case p: PermLiteral => if (p.literal <= Rational.zero) True else False
     case _ => Or(p === NoPerm(), PermLess(p, NoPerm()))
   }
 
@@ -2063,5 +2074,5 @@ object implicits {
   import scala.language.implicitConversions
 
   implicit def intToTerm(i: Int): IntLiteral = IntLiteral(i)
-  implicit def boolToTerm(b: Boolean): BooleanLiteral = if (b) True() else False()
+  implicit def boolToTerm(b: Boolean): BooleanLiteral = if (b) True else False
 }

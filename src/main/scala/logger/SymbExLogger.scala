@@ -354,7 +354,7 @@ object SymbExLogger {
         } else {
           formatBasicChunk(snapsFor(state)(term), state)
         }
-      case Var(SuffixedIdentifier(prefix, _, _), _) if !prefix.contains("$result") && !prefix.contains("_result$") && prefix.contains("$") =>
+      case Var(SuffixedIdentifier(prefix, _, _), _) if !prefix.name.contains("$result") && !prefix.name.contains("_result$") && prefix.name.contains("$") =>
         // field of a struct if it has been re-assigned
         if (freshTerms.contains(term)) {
           if (state.h.getChunksForValue(term).nonEmpty) {
@@ -382,7 +382,7 @@ object SymbExLogger {
           if (state.g.getKeyForValue(term).isDefined) {
             // the variable referred to is the latest version in the store,
             // refer to it by name
-            prefix
+            prefix.name
           } else {
             // the variable referred to is not the latest version, retrieve
             // its definition
@@ -393,7 +393,7 @@ object SymbExLogger {
           if (state.g.getKeyForValue(term).isDefined) {
             // the variable referred to is the latest version in the store,
             // refer to it by name
-            prefix
+            prefix.name
           } else {
             // the variable referred to is not the latest version, retrieve
             // its definition
@@ -416,9 +416,9 @@ object SymbExLogger {
           formatBasicChunk(snapsFor(state)(term), state)
         }
       case Unit => "UNIT"
-      case Null() => "null"
-      case True() => "true"
-      case False() => "false"
+      case Null => "null"
+      case True => "true"
+      case False => "false"
       case IntLiteral(n) => n.toString
       case Plus(p0, p1) => "(" + formatTerm(p0, state) + " + " + formatTerm(p1, state) + ")"
       case Minus(p0, p1) => "(" + formatTerm(p0, state) + " - " + formatTerm(p1, state) + ")"
@@ -441,12 +441,12 @@ object SymbExLogger {
   def formatBasicChunk(basicChunk: BasicChunk, state: State): String = {
     val s = basicChunk.snap match {
       case Unit => " == UNIT"
-      case Null() => " == null"
+      case Null => " == null"
       case IntLiteral(n) => " == " + n.toString
-      case True() => " == true"
-      case False() => " == false"
+      case True => " == true"
+      case False => " == false"
       case Var(SuffixedIdentifier(prefix, _, _), _) if prefix == "$t" => ""
-      case Var(SuffixedIdentifier(prefix, _, _), _) if !prefix.contains("$result") && prefix.contains("$") => ""
+      case Var(SuffixedIdentifier(prefix, _, _), _) if !prefix.name.contains("$result") && prefix.name.contains("$") => ""
       case Var(SuffixedIdentifier(prefix, _, _), _) => "\u8B8A\u6578" + prefix
       case _ => ""
     }
@@ -478,7 +478,7 @@ object SymbExLogger {
           basicChunk.snap match {
             case Var(SuffixedIdentifier(prefix, _, _), _) if prefix == "$t" =>
               snapsFor(state) += basicChunk.snap -> basicChunk
-            case Var(SuffixedIdentifier(prefix, _, _), _) if !prefix.contains("$result") && prefix.contains("$")  =>
+            case Var(SuffixedIdentifier(prefix, _, _), _) if !prefix.name.contains("$result") && prefix.name.contains("$")  =>
               snapsFor(state) += basicChunk.snap -> basicChunk
             case SortWrapper(wrappedTerm, sort) =>
               snapsFor(state) += basicChunk.snap -> basicChunk
@@ -520,9 +520,9 @@ object SymbExLogger {
         case Var(SuffixedIdentifier(prefix, _, _), _) if prefix == "$t" => snapsFor(state).contains(term)
         case Var(SuffixedIdentifier(prefix, _, _), _) => true
         case SortWrapper(_, _) => snapsFor(state).contains(term)
-        case Null() => true
-        case True() => true
-        case False() => true
+        case Null => true
+        case True => true
+        case False => true
         case IntLiteral(_) => true
         case Plus(p0, p1) => isPCVisible(p0, state) && isPCVisible(p1, state)
         case Minus(p0, p1) => isPCVisible(p0, state) && isPCVisible(p1, state)

@@ -634,7 +634,7 @@ object consumer extends ConsumptionRules with Immutable {
             // is this why we produce a runtime check for != Null? does the
             // path condition not imply this (no, apparently it does not, at least for the
             // extra_check_issue.vpr example)
-            v2.decider.assertgv(s.isImprecise, And(perms.IsPositive(tPerm), tArgs.head !== Null())){
+            v2.decider.assertgv(s.isImprecise, And(perms.IsPositive(tPerm), tArgs.head !== Null)){
               case true =>
                 val resource = locacc.res(Verifier.program)
                 val loss = PermTimes(tPerm, s2.permissionScalingFactor)

@@ -253,10 +253,10 @@ object evaluator extends EvaluationRules with Immutable {
                      : VerificationResult = {
 
     val resultTerm = e match {
-      case _: ast.TrueLit => Q(s, True(), v)
-      case _: ast.FalseLit => Q(s, False(), v)
+      case _: ast.TrueLit => Q(s, True, v)
+      case _: ast.FalseLit => Q(s, False, v)
 
-      case _: ast.NullLit => Q(s, Null(), v)
+      case _: ast.NullLit => Q(s, Null, v)
       case ast.IntLit(bigval) => Q(s, IntLiteral(bigval), v)
 
       case ast.EqCmp(e0, e1) => evalBinOp(s, e0, e1, Equals, pve, v)(Q)
@@ -341,7 +341,7 @@ object evaluator extends EvaluationRules with Immutable {
                 v1.decider.assume(trigger)
                 val permCheck =
                   if (s1.triggerExp) {
-                    True()
+                    True
                   } else {
                     val totalPermissions = smCache1.get((fa.field, relevantChunks)).get._2
                       /* TODO: Have totalPermissions returned by quantifiedChunkSupporter.summarisingSnapshotMap */
@@ -1043,10 +1043,10 @@ object evaluator extends EvaluationRules with Immutable {
                      : VerificationResult = {
 
     val resultTerm = e match {
-      case _: ast.TrueLit => Q(s, True(), v)
-      case _: ast.FalseLit => Q(s, False(), v)
+      case _: ast.TrueLit => Q(s, True, v)
+      case _: ast.FalseLit => Q(s, False, v)
 
-      case _: ast.NullLit => Q(s, Null(), v)
+      case _: ast.NullLit => Q(s, Null, v)
       case ast.IntLit(bigval) => Q(s, IntLiteral(bigval), v)
 
       case ast.EqCmp(e0, e1) => evalBinOpPc(s, e0, e1, Equals, pve, v, generateChecks)(Q)
@@ -1130,7 +1130,7 @@ object evaluator extends EvaluationRules with Immutable {
                 v1.decider.assume(trigger)
                 val permCheck =
                   if (s1.triggerExp) {
-                    True()
+                    True
                   } else {
                     val totalPermissions = smCache1.get((fa.field, relevantChunks)).get._2
                       /* TODO: Have totalPermissions returned by quantifiedChunkSupporter.summarisingSnapshotMap */
@@ -1981,11 +1981,11 @@ object evaluator extends EvaluationRules with Immutable {
       // passed in the second and third arguments is not correct!
       brancher.branch(s1, tLhs, ast.NullLit()(), None, v1, fromShortCircuitingAnd)(
         (s2, v2) => eval(s2, eRhs, pve, v2)(QB),
-        (s2, v2) => QB(s2, True(), v2))
+        (s2, v2) => QB(s2, True, v2))
     )(entries => {
       assert(entries.length <= 2)
       val s1 = entries.tail.foldLeft(entries.head.s)((sAcc, entry) => sAcc.merge(entry.s))
-      val t = Implies(tLhs, entries.headOption.map(_.data).getOrElse(True()))
+      val t = Implies(tLhs, entries.headOption.map(_.data).getOrElse(True))
       (s1, t)
     })(Q)
   }
@@ -2452,7 +2452,7 @@ object evaluator extends EvaluationRules with Immutable {
 
     type brFun = (State, Verifier) => VerificationResult
 
-    val stop = if (constructor == Or) True() else False()
+    val stop = if (constructor == Or) True else False
 
     eval(s, exps.head, pve, v)((s1, t0, v1) => {
       t0 match {
@@ -2515,7 +2515,7 @@ object evaluator extends EvaluationRules with Immutable {
     // val (stop, swapIfAnd) =
     //   if(constructor == Or) (True(), (a: brFun, b: brFun) => (a, b))
     //   else (False(), (a: brFun, b: brFun) => (a, b))
-    val stop = if (constructor == Or) True() else False()
+    val stop = if (constructor == Or) True else False
 
     evalpc(s, exps.head, pve, v, generateChecks)((s1, t0, v1) => {
       t0 match {

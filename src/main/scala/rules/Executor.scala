@@ -566,7 +566,7 @@ object executor extends ExecutionRules with Immutable {
             consume(s2, fap, pve, v2)((s3, snap, v3) => {
 
               // TODO;EXTRA CHECK ISSUE(S): We assume the Ref is !== null here
-              v3.decider.assume(tRcvr !== Null())
+              v3.decider.assume(tRcvr !== Null)
               val tSnap = ssaifyRhs(tRhs, field.name, field.typ, v3)
               val id = BasicChunkIdentifier(field.name)
               val newChunk = BasicChunk(FieldID, id, Seq(tRcvr), tSnap, FullPerm())
@@ -579,7 +579,7 @@ object executor extends ExecutionRules with Immutable {
 
       case ast.NewStmt(x, fields) =>
         val tRcvr = v.decider.fresh(x)
-        v.decider.assume(tRcvr !== Null())
+        v.decider.assume(tRcvr !== Null)
         val newChunks = fields map (field => {
           val p = FullPerm()
           val snap = v.decider.fresh(field.name, v.symbolConverter.toSort(field.typ))
@@ -715,7 +715,7 @@ object executor extends ExecutionRules with Immutable {
           // TODO: Fix this
           reconstructedPermissions.addMethodCallStatement(call,
             new Translator(s1, v1.decider.pcs).getAccessibilityPredicates,
-            zip3(v1.decider.pcs.branchConditionsOrigins.map(entry => Null()),
+            zip3(v1.decider.pcs.branchConditionsOrigins.map(entry => Null),
               v1.decider.pcs.branchConditionsAstNodes,
               v1.decider.pcs.branchConditionsOrigins))
 

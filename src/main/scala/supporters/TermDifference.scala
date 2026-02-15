@@ -8,12 +8,12 @@ import viper.silicon.verifier.Verifier
 object TermDifference {
 
   def visitor(expansionPhase: terms.Term => terms.Term, excludedTerms: Seq[String], term: terms.Term): terms.Term = term match {
-    case terms.Null() if excludedTerms.contains("Null") => expansionPhase(term)
-    case terms.Null() => term
-    case terms.False() if excludedTerms.contains("False") => expansionPhase(term)
-    case terms.False() => term
-    case terms.True() if excludedTerms.contains("True") => expansionPhase(term)
-    case terms.True() => term
+    case terms.Null if excludedTerms.contains("Null") => expansionPhase(term)
+    case terms.Null => term
+    case terms.False if excludedTerms.contains("False") => expansionPhase(term)
+    case terms.False => term
+    case terms.True if excludedTerms.contains("True") => expansionPhase(term)
+    case terms.True => term
     case terms.IntLiteral(_) if excludedTerms.contains("IntLiteral") => expansionPhase(term)
     case terms.IntLiteral(i) => term
     case terms.Unit if excludedTerms.contains("Unit") => expansionPhase(term)

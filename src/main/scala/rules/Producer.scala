@@ -321,7 +321,7 @@ object producer extends ProductionRules with Immutable {
  */
               val ch = BasicChunk(FieldID, BasicChunkIdentifier(field.name), Seq(tRcvr), snap, gain)
               chunkSupporter.produce(s2_0, s2_0.h, ch, v2)((s3, h3, v3) => {
-                v3.decider.assume(tRcvr !== Null())
+                v3.decider.assume(tRcvr !== Null)
                 Q(s3.copy(h = h3), v3)})
             }
         }))

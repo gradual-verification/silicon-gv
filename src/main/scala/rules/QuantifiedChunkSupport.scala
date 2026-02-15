@@ -405,7 +405,7 @@ object quantifiedChunkSupporter extends QuantifiedChunkSupport with Immutable {
     val additionalFvfArgs = s.functionRecorderQuantifiedVariables()
     val sm = freshSnapshotMap(s, field, additionalFvfArgs, v)
 
-    val smDomainDefinitionCondition = optSmDomainDefinitionCondition.getOrElse(True())
+    val smDomainDefinitionCondition = optSmDomainDefinitionCondition.getOrElse(True)
     val codomainQVarsInDomainOfSummarisingSm = SetIn(codomainQVar, Domain(field.name, sm))
 
     val valueDefinitions =
@@ -495,7 +495,7 @@ object quantifiedChunkSupporter extends QuantifiedChunkSupport with Immutable {
 
         val effectiveCondition =
           And(
-            transformedOptSmDomainDefinitionCondition.getOrElse(True()), /* Alternatively: qvarInDomainOfSummarisingSm */
+            transformedOptSmDomainDefinitionCondition.getOrElse(True), /* Alternatively: qvarInDomainOfSummarisingSm */
             IsPositive(chunk.perm).replace(snapToCodomainTermsSubstitution))
 
         Forall(
@@ -1121,7 +1121,7 @@ object quantifiedChunkSupporter extends QuantifiedChunkSupport with Immutable {
             codomainQVars,
             relevantChunks,
             v1,
-            optSmDomainDefinitionCondition = if (s2.smDomainNeeded) Some(True()) else None,
+            optSmDomainDefinitionCondition = if (s2.smDomainNeeded) Some(True) else None,
             optQVarsInstantiations = Some(arguments))
         val permsTaken = result match {
           case Complete() => rPerm
@@ -1165,7 +1165,7 @@ object quantifiedChunkSupporter extends QuantifiedChunkSupport with Immutable {
               resource = resource,
               codomainQVars = codomainQVars,
               relevantChunks = relevantChunks,
-              optSmDomainDefinitionCondition = if (s1.smDomainNeeded) Some(True()) else None,
+              optSmDomainDefinitionCondition = if (s1.smDomainNeeded) Some(True) else None,
               optQVarsInstantiations = Some(arguments),
               v = v)
           val s2 = s1.copy(functionRecorder = s1.functionRecorder.recordFvfAndDomain(smDef1),
@@ -1335,7 +1335,7 @@ object quantifiedChunkSupporter extends QuantifiedChunkSupport with Immutable {
              quantifiedDepletedCheck)
         }
 
-    (permissionConstraint.getOrElse(True()), depletedCheck)
+    (permissionConstraint.getOrElse(True), depletedCheck)
   }
 
   /* Misc */

@@ -74,7 +74,7 @@ class DefaultStateFormatter extends StateFormatter {
       case    c: BuiltinEquals if c.p0.isInstanceOf[Combine]
            || c.p1.isInstanceOf[Combine]
            => true
-      case Not(BuiltinEquals(_, Null())) => true
+      case Not(BuiltinEquals(_, Null)) => true
       case _ => false
     }.mkString("[", ", ", "]")
   }
@@ -84,7 +84,7 @@ class DefaultStateFormatter extends StateFormatter {
     val filteredPcs = pcs.filterNot {
       case c: BuiltinEquals if c.p0.isInstanceOf[Combine]
         || c.p1.isInstanceOf[Combine] => true
-      case Not(BuiltinEquals(_, Null())) => true
+      case Not(BuiltinEquals(_, Null)) => true
       case _ => false
     }
     if (filteredPcs.isEmpty) "[]" else filteredPcs.mkString("[\"", "\", \"", "\"]")
@@ -126,7 +126,7 @@ class DefaultStateFormatter extends StateFormatter {
     val filteredPcs = π.filterNot {
       case c: BuiltinEquals if c.p0.isInstanceOf[Combine]
         || c.p1.isInstanceOf[Combine] => true
-      case Not(BuiltinEquals(_, Null())) => true
+      case Not(BuiltinEquals(_, Null)) => true
       case _ => false
     }
     if (filteredPcs.isEmpty) "[]" else filteredPcs.mkString("[\"", "\",\"", "\"]")

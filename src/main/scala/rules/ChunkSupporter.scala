@@ -333,7 +333,7 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
           case _ if s.isImprecise && addToOh =>
             resource match {
               case f: ast.Field => {
-                v.decider.assertgv(s.isImprecise, args.head !== Null()) {
+                v.decider.assertgv(s.isImprecise, args.head !== Null) {
                   case true =>
                     val snap = v.decider.fresh(s"${args.head}.$id", v.symbolConverter.toSort(f.typ))
                     val ch = BasicChunk(FieldID, BasicChunkIdentifier(f.name), args, snap, FullPerm())
@@ -375,7 +375,7 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
                       runtimeCheckFieldTarget.addCheck(ast.FieldAccessPredicate(ast.FieldAccess(translatedArgs.head, f)(), ast.FullPerm()())())
                     }
 
-                    v.decider.assume(args.head !== Null())
+                    v.decider.assume(args.head !== Null)
 
                     if (s2.gatherFrame) {
                       findChunk[NonQuantifiedChunk](s2.frameArgHeap.values, id, args, v) match {
@@ -413,7 +413,7 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
           case _ if s.isImprecise && !addToOh && s.generateChecks =>
             resource match {
               case f: ast.Field => {
-                v.decider.assertgv(s.isImprecise, args.head !== Null()) {
+                v.decider.assertgv(s.isImprecise, args.head !== Null) {
                   case true => {
                     val snap = v.decider.fresh(s"${args.head}.$id", v.symbolConverter.toSort(f.typ))
                     if (SymbExLogger.enabled) {
@@ -489,7 +489,7 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
                   profilingInfo.incrementEliminatedConjuncts
                 }
 
-                v.decider.assume(args.head !== Null())
+                v.decider.assume(args.head !== Null)
                 Q(s.copy(optimisticHeap = s2.optimisticHeap + ch, madeOptimisticAssumptions = true), snap, v)
               }
 

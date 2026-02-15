@@ -6,6 +6,7 @@
 
 package viper.silicon.state
 
+import viper.silicon.state.terms.Sort
 import viper.silver.components.StatefulComponent
 import viper.silicon.utils.Counter
 
@@ -41,12 +42,40 @@ case class SimpleIdentifier(name: String) extends Identifier {
   override val toString = name
 }
 
-case class SuffixedIdentifier(prefix: String, separator: String, suffix: String)
-    extends Identifier {
+case class SuffixedIdentifier(prefix: Identifier, separator: String, suffix: String)
+  extends Identifier {
+
+  assert(
+    !prefix.isInstanceOf[SuffixedIdentifier],
+    s"A SuffixedIdentifier ($prefix) may not be the prefix of a SuffixedIdentifier")
 
   val name = s"$prefix$separator$suffix"
-  def rename(fn: String => String) = SuffixedIdentifier(fn(prefix), separator, suffix)
-  override val toString = name
+
+  def rename(fn: String => String): SuffixedIdentifier =
+    SuffixedIdentifier(prefix.rename(fn), separator, suffix)
+
+  override def withSuffix(separator: String, suffix: String): SuffixedIdentifier =
+    this.copy(separator = separator, suffix = suffix)
+
+  override val toString: String = name
+}
+
+object SuffixedIdentifier extends ((String, String, String) => SuffixedIdentifier) {
+  def apply(prefix: String, separator: String, suffix: String): SuffixedIdentifier =
+    SuffixedIdentifier(SimpleIdentifier(prefix), separator, suffix)
+}
+
+case class SortBasedIdentifier(template: String, sorts: Seq[Sort]) extends Identifier {
+  val name: String = template.format(sorts: _*)
+
+  /** Note: Only renames the template, not the sorts; i.e. fn is only applied to the template. */
+  def rename(fn: String => String): SortBasedIdentifier =
+    SortBasedIdentifier(fn(template), sorts)
+
+  override def withSuffix(separator: String, suffix: String): SuffixedIdentifier =
+    SuffixedIdentifier(this, separator, suffix)
+
+  override val toString: String = name
 }
 
 trait IdentifierFactory {
