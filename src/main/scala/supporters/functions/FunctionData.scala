@@ -7,23 +7,79 @@
 package viper.silicon.supporters.functions
 
 import com.typesafe.scalalogging.LazyLogging
+import viper.silicon.state.FunctionPreconditionTransformer
 import viper.silver.ast
 import viper.silver.ast.utility.Functions
 import viper.silicon.common.collections.immutable.InsertionOrderedSet
 import viper.silicon.interfaces.FatalResult
-import viper.silicon.rules.{InverseFunctions, SnapshotMapDefinition, functionSupporter}
+import viper.silicon.rules.{InverseFunctions, PermMapDefinition, SnapshotMapDefinition, functionSupporter}
 import viper.silicon.state.terms._
 import viper.silicon.state.terms.predef._
-import viper.silicon.state.{IdentifierFactory, SymbolConverter}
+import viper.silicon.state.{Identifier, IdentifierFactory, SymbolConverter}
 import viper.silicon.supporters.PredicateData
 import viper.silicon.{Config, Map, toMap}
 import viper.silver.plugin.PluginAwareReporter
 
-/* TODO: Refactor FunctionData!
- *       Separate computations from "storing" the final results and sharing
- *       them with other components. Computations should probably be moved to the
- *       FunctionVerificationUnit.
- */
+trait FunctionRecorderHandler {
+
+  protected[functions] var locToSnap: Map[(ast.LocationAccess, Seq[ExpContext]), Term] = Map.empty
+  protected[functions] var fappToSnap: Map[(ast.FuncApp, Seq[ExpContext]), Term] = Map.empty
+  protected[this] var freshFvfsAndDomains: InsertionOrderedSet[SnapshotMapDefinition] = InsertionOrderedSet.empty
+  protected[this] var freshPermMaps: InsertionOrderedSet[PermMapDefinition] = InsertionOrderedSet.empty
+  protected[this] var freshFieldInvs: InsertionOrderedSet[InverseFunctions] = InsertionOrderedSet.empty
+  protected[this] var freshConstrainedVars: InsertionOrderedSet[(Var, Term)] = InsertionOrderedSet.empty
+  protected[this] var freshConstraints: InsertionOrderedSet[Term] = InsertionOrderedSet.empty
+  protected[this] var freshSnapshots: InsertionOrderedSet[Function] = InsertionOrderedSet.empty
+  protected[this] var freshPathSymbols: InsertionOrderedSet[Function] = InsertionOrderedSet.empty
+  protected[this] var freshMacros: InsertionOrderedSet[MacroDecl] = InsertionOrderedSet.empty
+  protected[this] var freshSymbolsAcrossAllPhases: InsertionOrderedSet[Decl] = InsertionOrderedSet.empty
+
+  private[functions] def getFreshFieldInvs: InsertionOrderedSet[InverseFunctions] = freshFieldInvs
+
+  private[functions] def getFreshConstrainedVars: InsertionOrderedSet[Var] = freshConstrainedVars.map(_._1)
+
+  def getFreshSymbolsAcrossAllPhases: InsertionOrderedSet[Decl] = freshSymbolsAcrossAllPhases
+
+  def addRecorders(recorders: Seq[FunctionRecorder]): Unit = {
+    val mergedFunctionRecorder: FunctionRecorder =
+      if (recorders.isEmpty)
+        NoopFunctionRecorder
+      else
+        recorders.tail.foldLeft(recorders.head)((summaryRec, nextRec) => summaryRec.merge(nextRec))
+
+    locToSnap = mergedFunctionRecorder.locToSnap
+    fappToSnap = mergedFunctionRecorder.fappToSnap
+    freshFvfsAndDomains = mergedFunctionRecorder.freshFvfsAndDomains
+    freshPermMaps = mergedFunctionRecorder.freshPermMaps
+    freshFieldInvs = mergedFunctionRecorder.freshFieldInvs
+    freshConstrainedVars = mergedFunctionRecorder.freshConstrainedVars
+    freshConstraints = mergedFunctionRecorder.freshConstraints
+    freshSnapshots = mergedFunctionRecorder.freshSnapshots
+    freshPathSymbols = mergedFunctionRecorder.freshPathSymbols
+    freshMacros = mergedFunctionRecorder.freshMacros
+
+    freshSymbolsAcrossAllPhases ++= freshPathSymbols map FunctionDecl
+    freshSymbolsAcrossAllPhases ++= freshConstrainedVars.map(pair => FunctionDecl(pair._1))
+    freshSymbolsAcrossAllPhases ++= freshSnapshots map FunctionDecl
+    freshSymbolsAcrossAllPhases ++= freshFieldInvs.flatMap(i => (i.inverses ++ i.images) map FunctionDecl)
+    freshSymbolsAcrossAllPhases ++= freshMacros
+
+    freshSymbolsAcrossAllPhases ++= freshFvfsAndDomains map (fvfDef =>
+      fvfDef.sm match {
+        case x: Var => ConstDecl(x)
+        case App(f: Function, _) => FunctionDecl(f)
+        case other => sys.error(s"Unexpected SM $other of type ${other.getClass.getSimpleName}")
+      })
+    freshSymbolsAcrossAllPhases ++= freshPermMaps map (pmDef =>
+      pmDef.pm match {
+        case x: Var => ConstDecl(x)
+        case App(f: Function, _) => FunctionDecl(f)
+        case other => sys.error(s"Unexpected permission map $other of type ${other.getClass.getSimpleName}")
+      })
+  }
+
+}
+
 class FunctionData(val programFunction: ast.Function,
                    val height: Int,
                    val quantifiedFields: InsertionOrderedSet[ast.Field],
@@ -39,9 +95,7 @@ class FunctionData(val programFunction: ast.Function,
                    predicateData: ast.Predicate => PredicateData,
                    config: Config,
                    reporter: PluginAwareReporter)
-    extends LazyLogging {
-
-  private[this] var phase = 0
+  extends LazyLogging with FunctionRecorderHandler {
 
   /*
    * Properties computed from the constructor arguments
@@ -50,27 +104,29 @@ class FunctionData(val programFunction: ast.Function,
   val function: HeapDepFun = symbolConverter.toFunction(programFunction)
   val limitedFunction = functionSupporter.limitedVersion(function)
   val statelessFunction = functionSupporter.statelessVersion(function)
+  val preconditionFunction = functionSupporter.preconditionVersion(function)
 
   val formalArgs: Map[ast.AbstractLocalVar, Var] = toMap(
     for (arg <- programFunction.formalArgs;
          x = arg.localVar)
     yield
       x -> Var(identifierFactory.fresh(x.name),
-               symbolConverter.toSort(x.typ)))
+        symbolConverter.toSort(x.typ)))
 
   val formalResult = Var(identifierFactory.fresh(programFunction.result.name),
-                         symbolConverter.toSort(programFunction.result.typ))
+    symbolConverter.toSort(programFunction.result.typ))
 
   val arguments = Seq(`?s`) ++ formalArgs.values
 
   val functionApplication = App(function, `?s` +: formalArgs.values.toSeq)
   val limitedFunctionApplication = App(limitedFunction, `?s` +: formalArgs.values.toSeq)
   val triggerFunctionApplication = App(statelessFunction, formalArgs.values.toSeq)
+  val preconditionFunctionApplication = App(preconditionFunction, `?s` +: formalArgs.values.toSeq)
 
   val limitedAxiom =
     Forall(arguments,
-           limitedFunctionApplication === functionApplication,
-           Trigger(functionApplication))
+      BuiltinEquals(limitedFunctionApplication, functionApplication),
+      Trigger(functionApplication))
 
   val triggerAxiom =
     Forall(arguments, triggerFunctionApplication, Trigger(limitedFunctionApplication))
@@ -85,59 +141,25 @@ class FunctionData(val programFunction: ast.Function,
    */
 
   private[functions] var verificationFailures: Seq[FatalResult] = Vector.empty
-  private[functions] var locToSnap: Map[ast.LocationAccess, Term] = Map.empty
-  private[functions] var fappToSnap: Map[ast.FuncApp, Term] = Map.empty
-  private[this] var freshFvfsAndDomains: InsertionOrderedSet[SnapshotMapDefinition] = InsertionOrderedSet.empty
-  private[this] var freshFieldInvs: InsertionOrderedSet[InverseFunctions] = InsertionOrderedSet.empty
-  private[this] var freshArps: InsertionOrderedSet[(Var, Term)] = InsertionOrderedSet.empty
-  private[this] var freshSnapshots: InsertionOrderedSet[Function] = InsertionOrderedSet.empty
-  private[this] var freshPathSymbols: InsertionOrderedSet[Function] = InsertionOrderedSet.empty
-  private[this] var freshMacros: InsertionOrderedSet[MacroDecl] = InsertionOrderedSet.empty
-  private[this] var freshSymbolsAcrossAllPhases: InsertionOrderedSet[Decl] = InsertionOrderedSet.empty
 
-  private[functions] def getFreshFieldInvs: InsertionOrderedSet[InverseFunctions] = freshFieldInvs
-  private[functions] def getFreshArps: InsertionOrderedSet[Var] = freshArps.map(_._1)
-  private[functions] def getFreshSymbolsAcrossAllPhases: InsertionOrderedSet[Decl] = freshSymbolsAcrossAllPhases
+  private[this] var phase = 0
 
   private[functions] def advancePhase(recorders: Seq[FunctionRecorder]): Unit = {
     assert(0 <= phase && phase <= 1, s"Cannot advance from phase $phase")
 
-    val mergedFunctionRecorder: FunctionRecorder =
-      if (recorders.isEmpty)
-        NoopFunctionRecorder
-      else
-        recorders.tail.foldLeft(recorders.head)((summaryRec, nextRec) => summaryRec.merge(nextRec))
-
-    locToSnap = mergedFunctionRecorder.locToSnap
-    fappToSnap = mergedFunctionRecorder.fappToSnap
-    freshFvfsAndDomains = mergedFunctionRecorder.freshFvfsAndDomains
-    freshFieldInvs = mergedFunctionRecorder.freshFieldInvs
-    freshArps = mergedFunctionRecorder.freshArps
-    freshSnapshots = mergedFunctionRecorder.freshSnapshots
-    freshPathSymbols = mergedFunctionRecorder.freshPathSymbols
-    freshMacros = mergedFunctionRecorder.freshMacros
-
-    freshSymbolsAcrossAllPhases ++= freshPathSymbols map FunctionDecl
-    freshSymbolsAcrossAllPhases ++= freshArps.map(pair => FunctionDecl(pair._1))
-    freshSymbolsAcrossAllPhases ++= freshSnapshots map FunctionDecl
-    freshSymbolsAcrossAllPhases ++= freshFieldInvs.flatMap(_.inverses map FunctionDecl)
-    freshSymbolsAcrossAllPhases ++= freshMacros
-
-    freshSymbolsAcrossAllPhases ++= freshFvfsAndDomains map (fvfDef =>
-      fvfDef.sm match {
-        case x: Var => ConstDecl(x)
-        case App(f: Function, _) => FunctionDecl(f)
-        case other => sys.error(s"Unexpected SM $other of type ${other.getClass.getSimpleName}")
-      })
-
+    addRecorders(recorders)
     phase += 1
   }
 
   private def generateNestedDefinitionalAxioms: InsertionOrderedSet[Term] = {
+    val freshSymbols: Set[Identifier] = freshSymbolsAcrossAllPhases.map(decl => decl.id)
+
     val nested = (
-         freshFieldInvs.flatMap(_.definitionalAxioms)
-      ++ freshFvfsAndDomains.flatMap (fvfDef => fvfDef.domainDefinitions ++ fvfDef.valueDefinitions)
-      ++ freshArps.map(_._2))
+      freshFieldInvs.flatMap(_.definitionalAxioms)
+        ++ freshFvfsAndDomains.flatMap (fvfDef => fvfDef.domainDefinitions ++ fvfDef.valueDefinitions)
+        ++ freshPermMaps.flatMap (pmDef => pmDef.valueDefinitions)
+        ++ freshConstrainedVars.map(_._2)
+        ++ freshConstraints)
 
     // Filter out nested definitions that contain free variables.
     // This should not happen, but currently can, due to bugs in the function axiomatisation code.
@@ -146,18 +168,19 @@ class FunctionData(val programFunction: ast.Function,
     // Once his changes are merged in, the commented warnings below should be turned into errors.
     nested.filter(term => {
       val freeVars = term.freeVariables -- arguments
+      val unknownVars = freeVars.filterNot(v => freshSymbols.contains(v.id))
 
-    //if (freeVars.nonEmpty) {
-    //  val messageText = (
-    //      s"Found unexpected free variables $freeVars "
-    //    + s"in term $term during axiomatisation of function "
-    //    + s"${programFunction.name}")
-    //
-    //  reporter report InternalWarningMessage(messageText)
-    //  logger warn messageText
-    //}
+      //if (unknownVars.nonEmpty) {
+      //  val messageText = (
+      //      s"Found unexpected free variables $unknownVars "
+      //    + s"in term $term during axiomatisation of function "
+      //    + s"${programFunction.name}")
+      //
+      //  reporter report InternalWarningMessage(messageText)
+      //  logger warn messageText
+      //}
 
-      freeVars.isEmpty
+      unknownVars.isEmpty
     })
   }
 
@@ -171,15 +194,21 @@ class FunctionData(val programFunction: ast.Function,
     expressionTranslator.translatePrecondition(program, programFunction.pres, this)
   }
 
+  lazy val translatedPosts = {
+    assert(phase == 1, s"Postcondition axiom must be generated in phase 1, current phase is $phase")
+    if (programFunction.posts.nonEmpty) {
+      expressionTranslator.translatePostcondition(program, programFunction.posts, this)
+    } else {
+      Seq()
+    }
+  }
+
   lazy val postAxiom: Option[Term] = {
     assert(phase == 1, s"Postcondition axiom must be generated in phase 1, current phase is $phase")
 
     if (programFunction.posts.nonEmpty) {
-      val posts =
-        expressionTranslator.translatePostcondition(program, programFunction.posts, this)
-
-      val pre = And(translatedPres)
-      val innermostBody = And(generateNestedDefinitionalAxioms ++ List(Implies(pre, And(posts))))
+      val pre = preconditionFunctionApplication
+      val innermostBody = And(generateNestedDefinitionalAxioms ++ List(Implies(pre, And(translatedPosts))))
       val bodyBindings: Map[Var, Term] = Map(formalResult -> limitedFunctionApplication)
       val body = Let(toMap(bodyBindings), innermostBody)
 
@@ -224,8 +253,8 @@ class FunctionData(val programFunction: ast.Function,
 
       /* TODO: Don't use translatePrecondition - refactor expressionTranslator */
       val args = (
-           expressionTranslator.getOrFail(locToSnap, predAcc, sorts.Snap)
-        +: expressionTranslator.translatePrecondition(program, predAcc.args, this))
+        expressionTranslator.getOrFail(locToSnap, predAcc, Seq(), sorts.Snap)
+          +: expressionTranslator.translatePrecondition(program, predAcc.args, this))
 
       val fapp = App(triggerFunction, args)
 
@@ -233,19 +262,47 @@ class FunctionData(val programFunction: ast.Function,
     }))
   }
 
+  lazy val optBody: Option[Term] = {
+    assert(phase == 2, s"Definitional axiom must be generated in phase 2, current phase is $phase")
+
+    expressionTranslator.translate(program, programFunction, this)
+  }
+
   lazy val definitionalAxiom: Option[Term] = {
     assert(phase == 2, s"Definitional axiom must be generated in phase 2, current phase is $phase")
 
-    val optBody = expressionTranslator.translate(program, programFunction, this)
-
     optBody.map(translatedBody => {
-      val pre = And(translatedPres)
+      val pre = preconditionFunctionApplication
       val nestedDefinitionalAxioms = generateNestedDefinitionalAxioms
-      val body = And(nestedDefinitionalAxioms ++ List(Implies(pre, And(functionApplication === translatedBody))))
+      val body = And(nestedDefinitionalAxioms ++ List(Implies(pre, And(BuiltinEquals(functionApplication, translatedBody)))))
+      val funcAnn = programFunction.info.getUniqueInfo[ast.AnnotationInfo]
+      val actualPredicateTriggers = funcAnn match {
+        case Some(a) if a.values.contains("opaque") => Seq()
+        case _ => predicateTriggers.values.map(pt => Trigger(Seq(triggerFunctionApplication, pt)))
+      }
       val allTriggers = (
-           Seq(Trigger(functionApplication))
-        ++ predicateTriggers.values.map(pt => Trigger(Seq(triggerFunctionApplication, pt))))
+        Seq(Trigger(functionApplication)) ++ actualPredicateTriggers)
 
       Forall(arguments, body, allTriggers)})
+  }
+
+  lazy val bodyPreconditionPropagationAxiom: Seq[Term] = {
+    val pre = preconditionFunctionApplication
+    val bodyPreconditions = if (programFunction.body.isDefined) optBody.map(translatedBody => {
+      val res = FunctionPreconditionTransformer.transform(translatedBody, program)
+      val body = Implies(pre, res)
+      Forall(arguments, body, Seq(Trigger(functionApplication)))
+    }) else None
+    bodyPreconditions.toSeq
+  }
+
+  lazy val postPreconditionPropagationAxiom: Seq[Term] = {
+    val pre = preconditionFunctionApplication
+    val postPreconditions = if (programFunction.posts.nonEmpty) {
+      val bodyBindings: Map[Var, Term] = Map(formalResult -> limitedFunctionApplication)
+      val bodies = translatedPosts.map(tPost => Let(bodyBindings, Implies(pre, FunctionPreconditionTransformer.transform(tPost, program))))
+      bodies.map(b => Forall(arguments, b, Seq(Trigger(limitedFunctionApplication))))
+    } else Seq()
+    postPreconditions
   }
 }

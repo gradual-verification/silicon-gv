@@ -719,6 +719,7 @@ object evaluator extends EvaluationRules with Immutable {
             val tQuant = Quantification(qantOp, tVars, tBody, tTriggers, name)
             Q(s1, tQuant, v1)}
 
+       */
       case fapp @ ast.FuncApp(funcName, eArgs) =>
         val func = Verifier.program.findFunction(funcName)
         val s0 = s.copy(hackIssue387DisablePermissionConsumption = Verifier.config.enableMoreCompleteExhale())
@@ -790,10 +791,14 @@ object evaluator extends EvaluationRules with Immutable {
                                  */
                              smDomainNeeded = true,
                              forFraming = true)
+            // there is new work on optimizing the snapshot generation during consume
+            // which is not added here, not needed as of now silicon#879
             consumes(s3, pres, _ => pvePre, v2)((s4, snap, v3) => {
               val s4_1 = s4.copy(forFraming = false)
               val snap1 = snap.convert(sorts.Snap)
               val tFApp = App(v3.symbolConverter.toFunction(func), snap1 :: tArgs)
+              val preFApp = App(functionSupporter.preconditionVersion(v3.symbolConverter.toFunction(func)), snap1 :: tArgs)
+              v3.decider.assume(preFApp)
               val fr5 =
                 s4_1.functionRecorder.changeDepthBy(-1)
                                    .recordSnapshot(fapp, v3.decider.pcs.branchConditions, snap1)
@@ -807,8 +812,9 @@ object evaluator extends EvaluationRules with Immutable {
             /* TODO: The join-function is heap-independent, and it is not obvious how a
              *       joined snapshot could be defined and represented
              */
-            })(join(v1.symbolConverter.toSort(func.typ), s"joined_${func.name}", joinFunctionArgs, v1))(Q)})
-      */
+          })(join(v1.symbolConverter.toSort(func.typ), s"joined_${func.name}", joinFunctionArgs, v1))((s6, r, v4)
+          => Q(s6, r, v4))
+        })
 
       // UPDATE: eval case never used since unfolding expressions are only allowed in specifications by Gradual C0
       // However, kept here to support unfolding expressions everywhere in gradual viper
@@ -1642,10 +1648,12 @@ object evaluator extends EvaluationRules with Immutable {
             val tQuant = Quantification(qantOp, tVars, tBody, tTriggers, name)
             Q(s1, tQuant, v1)}
 
+       */
+
       case fapp @ ast.FuncApp(funcName, eArgs) =>
         val func = Verifier.program.findFunction(funcName)
         val s0 = s.copy(hackIssue387DisablePermissionConsumption = Verifier.config.enableMoreCompleteExhale())
-        evals2pc(s0, eArgs, Nil, _ => pve, v)((s1, tArgs, v1) => {
+        evals2pc(s0, eArgs, Nil, _ => pve, v, generateChecks)((s1, tArgs, v1) => {
 //          bookkeeper.functionApplications += 1
           val joinFunctionArgs = tArgs //++ c2a.quantifiedVariables.filterNot(tArgs.contains)
           /* TODO: Does it matter that the above filterNot does not filter out quantified
@@ -1714,14 +1722,16 @@ object evaluator extends EvaluationRules with Immutable {
                              smDomainNeeded = true,
                              forFraming = true)
             consumes(s3, pres, _ => pvePre, v2)((s4, snap, v3) => {
-              
               val s4_1 = s4.copy(forFraming = false)
-
               val snap1 = snap.convert(sorts.Snap)
               val tFApp = App(v3.symbolConverter.toFunction(func), snap1 :: tArgs)
+              val preFApp = App(functionSupporter.preconditionVersion(v3.symbolConverter.toFunction(func)), snap1 :: tArgs)
+              v3.decider.assume(preFApp)
               val fr5 =
                 s4_1.functionRecorder.changeDepthBy(-1)
                   .recordSnapshot(fapp, v3.decider.pcs.branchConditions, snap1)
+              // there is a change on interpreting the meaning of permission amounts in functions
+              // which is not added here, not needed as of now silicon#877
               val s5 = s4_1.copy(g = s2.g,
                                h = s2.h,
                                recordVisited = s2.recordVisited,
@@ -1732,8 +1742,11 @@ object evaluator extends EvaluationRules with Immutable {
             /* TODO: The join-function is heap-independent, and it is not obvious how a
              *       joined snapshot could be defined and represented
              */
-            })(join(v1.symbolConverter.toSort(func.typ), s"joined_${func.name}", joinFunctionArgs, v1))(Q)})
+          })(join(v1.symbolConverter.toSort(func.typ), s"joined_${func.name}", joinFunctionArgs, v1))((s6, r, v4)
+          => Q(s6, r, v4))
+        })
 
+      /*
       case ast.Unfolding(
               acc @ ast.PredicateAccessPredicate(pa @ ast.PredicateAccess(eArgs, predicateName), ePerm),
               eIn) =>

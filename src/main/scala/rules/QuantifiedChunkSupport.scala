@@ -10,7 +10,7 @@ import scala.reflect.ClassTag
 import viper.silver.ast
 import viper.silver.verifier.{ErrorReason, PartialVerificationError}
 import viper.silver.verifier.reasons.{InsufficientPermission, MagicWandChunkNotFound}
-import viper.silicon.Map
+import viper.silicon.{Map, toMap}
 import viper.silicon.interfaces.state._
 import viper.silicon.interfaces.{Failure, VerificationResult}
 import viper.silicon.logger.SymbExLogger
@@ -31,9 +31,12 @@ case class InverseFunctions(condition: Term,
                             additionalArguments: Vector[Var],
                             axiomInversesOfInvertibles: Quantification,
                             axiomInvertiblesOfInverses: Quantification,
-                            qvarsToInverses: Map[Var, Function]) {
+                            qvarsToInverses: Map[Var, Function],
+                            qvarsToImages: Map[Var, Function]) {
 
   val inverses: Iterable[Function] = qvarsToInverses.values
+
+  val images: Iterable[Function] = qvarsToImages.values
 
   val definitionalAxioms: Vector[Quantification] =
     Vector(axiomInversesOfInvertibles, axiomInvertiblesOfInverses)
@@ -1456,6 +1459,7 @@ object quantifiedChunkSupporter extends QuantifiedChunkSupport with Immutable {
     val qvarsWithIndices = qvars.zipWithIndex
 
     val inverseFunctions = Array.ofDim[Function](qvars.length) /* inv_i */
+    val imageFunctions = Array.ofDim[Function](qvars.length) /* img_i */
     val inversesOfFcts = Array.ofDim[Term](qvars.length)       /* inv_i(f_1(xs), ..., f_m(xs)) */
     val inversesOfCodomains = Array.ofDim[Term](qvars.length)  /* inv_i(rs) */
 
@@ -1535,7 +1539,9 @@ object quantifiedChunkSupporter extends QuantifiedChunkSupport with Immutable {
       additionalInvArgs.toVector,
       axInvsOfFct,
       axFctsOfInvs,
-      qvars.zip(inverseFunctions)(collection.breakOut))
+      toMap(qvars.zip(inverseFunctions)),
+      toMap(qvars.zip(imageFunctions).filter(_._2 != null))
+    )
   }
 
   def hintBasedChunkOrderHeuristic(hints: Seq[Term])

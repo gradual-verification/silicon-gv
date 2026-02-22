@@ -7,13 +7,14 @@
 package viper.silicon.supporters.functions
 
 import com.typesafe.scalalogging.LazyLogging
+import viper.silver.plugin.PluginAwareReporter
 import viper.silver.ast
 import viper.silicon.Map
 import viper.silicon.rules.functionSupporter
 import viper.silicon.state.{Identifier, SimpleIdentifier, SuffixedIdentifier, SymbolConverter}
 import viper.silicon.state.terms._
 import viper.silicon.supporters.ExpressionTranslator
-import viper.silver.plugin.PluginAwareReporter
+import viper.silver.ast.AnnotationInfo
 import viper.silver.reporter.InternalWarningMessage
 
 class HeapAccessReplacingExpressionTranslator(symbolConverter: SymbolConverter,
@@ -24,11 +25,12 @@ class HeapAccessReplacingExpressionTranslator(symbolConverter: SymbolConverter,
     extends ExpressionTranslator
        with LazyLogging {
 
-  private var program: ast.Program = _
+  protected var program: ast.Program = _
   private var func: ast.Function = _
   private var data: FunctionData = _
   private var ignoreAccessPredicates = false
   private var failed = false
+  private var context: Seq[ExpContext] = Seq.empty
 
   var functionData: Map[ast.Function, FunctionData] = _
 
@@ -90,6 +92,13 @@ class HeapAccessReplacingExpressionTranslator(symbolConverter: SymbolConverter,
       case q: ast.Forall if !q.isPure && ignoreAccessPredicates => True
 
       case _: ast.Result => data.formalResult
+      case l@ast.Let(lvd, e, body) =>
+        val bvar = translate(toSort)(lvd.localVar)
+        val tE = translate(toSort)(e)
+        context = context :+ LetContext(l)
+        val tBody = translate(toSort)(body)
+        context = context.init
+        Let(bvar.asInstanceOf[Var], tE, tBody)
 
       case v: ast.AbstractLocalVar =>
         data.formalArgs.get(v) match {
@@ -109,25 +118,38 @@ class HeapAccessReplacingExpressionTranslator(symbolConverter: SymbolConverter,
          * occurrence of 'x@i' is replaced by 'x', for all variables 'x@i' where the prefix
          * 'x' is bound by the surrounding quantifier.
          */
+        context = context :+ QuantifierContext(eQuant)
         val tQuant = super.translate(symbolConverter.toSort)(eQuant).asInstanceOf[Quantification]
         val names = tQuant.vars.map(_.id.name)
 
-        tQuant.transform({ case v: Var =>
+        val res = tQuant.transform({ case v: Var =>
           v.id match {
-            case sid: SuffixedIdentifier if names.contains(sid.prefix) => Var(SimpleIdentifier(sid.prefix.name), v.sort)
+            case sid: SuffixedIdentifier if names.contains(sid.prefix.name) =>
+              Var(SimpleIdentifier(sid.prefix.name), v.sort)
             case _ => v
           }
         })()
+        context = context.init
+        res
 
-      case loc: ast.LocationAccess => getOrFail(data.locToSnap, loc, toSort(loc.typ))
+      case loc: ast.LocationAccess => getOrFail(data.locToSnap, loc, context, toSort(loc.typ))
       case ast.Unfolding(_, eIn) => translate(toSort)(eIn)
       case ast.Applying(_, eIn) => translate(toSort)(eIn)
 
       case eFApp: ast.FuncApp =>
         val silverFunc = program.findFunction(eFApp.funcname)
-        val fun = symbolConverter.toFunction(silverFunc)
+        val funcAnn = silverFunc.info.getUniqueInfo[AnnotationInfo]
+        val fun = funcAnn match {
+          case Some(a) if a.values.contains("opaque") =>
+            val funcAppAnn = eFApp.info.getUniqueInfo[AnnotationInfo]
+            funcAppAnn match {
+              case Some(a) if a.values.contains("reveal") => symbolConverter.toFunction(silverFunc)
+              case _ => functionSupporter.limitedVersion(symbolConverter.toFunction(silverFunc))
+            }
+          case _ => symbolConverter.toFunction(silverFunc)
+        }
         val args = eFApp.args map (arg => translate(arg))
-        val snap = getOrFail(data.fappToSnap, eFApp, sorts.Snap)
+        val snap = getOrFail(data.fappToSnap, eFApp, context, sorts.Snap)
         val fapp = App(fun, snap +: args)
 
         val callerHeight = data.height
@@ -141,8 +163,8 @@ class HeapAccessReplacingExpressionTranslator(symbolConverter: SymbolConverter,
       case _ => super.translate(symbolConverter.toSort)(e)
     }
 
-  def getOrFail[K <: ast.Positioned](map: Map[K, Term], key: K, sort: Sort): Term =
-    map.get(key) match {
+  def getOrFail[K <: ast.Positioned](map: Map[(K, Seq[ExpContext]), Term], key: K, ctx: Seq[ExpContext], sort: Sort): Term =
+    map.get((key, ctx)) match {
       case Some(s) =>
         s.convert(sort)
       case None =>
