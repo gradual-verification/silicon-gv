@@ -662,20 +662,10 @@ abstract class MemberSymbExLogger(log: SymbExLogger[_],
   // Maps macros to their body
   private var _macros = Map[App, Term]()
 
-/*<<<<<<< HEAD
-  val main: MemberRecord = v match {
-    case m: ast.Method => new MethodRecord(m, s, pcs)
-    case p: ast.Predicate => new PredicateRecord(p, s, pcs)
-    case f: ast.Function => new FunctionRecord(f, s, pcs)
-    case _ => null
-  }
-  openScope(main)
-=======*/
   def close(): Unit =
     synchronized {
       closed = true
     }
-//>>>>>>> upstream/master
 
   def whenOpen(f: => Unit): Unit =
     synchronized {

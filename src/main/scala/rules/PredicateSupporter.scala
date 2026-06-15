@@ -105,36 +105,6 @@ object predicateSupporter extends PredicateSupportRules {
           val (smDef1, smCache1) =
             quantifiedChunkSupporter.summarisingSnapshotMap(
               s2, predicate, s2.predicateFormalVarMap(predicate), relevantChunks, v1)
-/*<<<<<<< HEAD
-          v1.decider.assume(PredicateTrigger(predicate.name, smDef1.sm, tArgs))
-
-          smCache1
-        }
-
-        //println(s"Unsetting fold AST node in state: ${s2.foldOrUnfoldAstNode}")
-
-        val s3 = s2.copy(g = s.g,
-                         oldStore = None,
-                         oldHeaps = s.oldHeaps,
-                         h = h3,
-                         smCache = smCache,
-                         functionRecorder = s2.functionRecorder.recordFvfAndDomain(smDef),
-                         foldOrUnfoldAstNode = None)
-        Q(s3, v1)
-      } else {
-        val ch = BasicChunk(PredicateID, BasicChunkIdentifier(predicate.name), tArgs, snap.convert(sorts.Snap), tPerm)
-        val s3 = s2.copy(g = s.g,
-                         oldStore = None,
-                         oldHeaps = s.oldHeaps,
-                         smDomainNeeded = s.smDomainNeeded,
-                         permissionScalingFactor = s.permissionScalingFactor)
-        chunkSupporter.produce(s3, s3.h, ch, v1)((s4, h1, v2) => {
-
-          //println(s"Unsetting fold AST node in state: ${s4.foldOrUnfoldAstNode}")
-
-          Q(s4.copy(h = h1, foldOrUnfoldAstNode = None), v2)
-        })
-=======*/
           val eArgsString = eArgs.mkString(", ")
           v1.decider.assume(PredicateTrigger(predicate.name, smDef1.sm, tArgs),
             Option.when(withExp)(DebugExp.createInstance(s"PredicateTrigger(${predicate.name}($eArgsString))")))
@@ -163,7 +133,6 @@ object predicateSupporter extends PredicateSupportRules {
                          permissionScalingFactorExp = s.permissionScalingFactorExp)
         chunkSupporter.produce(s3, s3.h, ch, v1)((s4, h1, v2) =>
           Q(s4.copy(h = h1, foldOrUnfoldAstNode = None), v2))
-//>>>>>>> upstream/master
       }
     })
   }
@@ -221,7 +190,6 @@ object predicateSupporter extends PredicateSupportRules {
       })
       // profiling here?
     } else {
-//<<<<<<< HEAD
       val ve = pve dueTo InsufficientPermission(pa)
       val description = s"consume ${pa.pos}: $pa"
 
@@ -335,42 +303,6 @@ object predicateSupporter extends PredicateSupportRules {
             createFailure(ve, v1, s4, "")
           }
       })
-/*=======
-        val s3 = s2.copy(g = gIns, h = h2)
-                   .setConstrainable(constrainableWildcards, false)
-        produce(s3, toSf(snap.get), body, pve, v1)((s4, v2) => {
-          v2.decider.prover.saturate(Verifier.config.proverSaturationTimeouts.afterUnfold)
-          if (!Verifier.config.disableFunctionUnfoldTrigger()) {
-            val predicateTrigger =
-              App(s4.predicateData(predicate).triggerFunction,
-                snap.get.convert(terms.sorts.Snap) +: tArgs)
-            val eargs = eArgs.mkString(", ")
-            v2.decider.assume(predicateTrigger, Option.when(withExp)(DebugExp.createInstance(s"PredicateTrigger(${predicate.name}($eargs))")))
-          }
-          Q(s4.copy(g = s.g,
-                    permissionScalingFactor = s.permissionScalingFactor,
-                    permissionScalingFactorExp = s.permissionScalingFactorExp),
-            v2)})
-      })
-    } else {
-      val ve = pve dueTo InsufficientPermission(pa)
-      val description = s"consume ${pa.pos}: $pa"
-      chunkSupporter.consume(s1, s1.h, predicate, tArgs, eArgs, s1.permissionScalingFactor, s1.permissionScalingFactorExp, true, ve, v, description)((s2, h1, snap, v1) => {
-        val s3 = s2.copy(g = gIns, h = h1)
-                   .setConstrainable(constrainableWildcards, false)
-        produce(s3, toSf(snap.get), body, pve, v1)((s4, v2) => {
-          v2.decider.prover.saturate(Verifier.config.proverSaturationTimeouts.afterUnfold)
-          if (!Verifier.config.disableFunctionUnfoldTrigger()) {
-            val predicateTrigger =
-              App(s4.predicateData(predicate).triggerFunction, snap.get +: tArgs)
-            val eargs = eArgs.mkString(", ")
-            v2.decider.assume(predicateTrigger, Option.when(withExp)(DebugExp.createInstance(s"PredicateTrigger(${pa.predicateName}($eargs))")))
-          }
-          val s5 = s4.copy(g = s.g,
-                           permissionScalingFactor = s.permissionScalingFactor,
-                           permissionScalingFactorExp = s.permissionScalingFactorExp)
-          Q(s5, v2)})})
->>>>>>> upstream/master*/
     }
   }
 

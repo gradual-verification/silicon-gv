@@ -95,36 +95,6 @@ trait DefaultMethodVerificationUnitProvider extends VerifierComponent { v: Verif
           new java.io.File(s"${Verifier.config.tempDirectory()}/${method.name}.dot"))
       }
 
-/*<<<<<<< HEAD
-      val result =*/
-        /* Combined the well-formedness check and the execution of the body, which are two separate
-         * rules in Smans paper.
-         *//*
-        executionFlowController.locally(s, v)((s1, v1) => {
-          wellformed(s1, freshSnap, pres, ContractNotWellformed(viper.silicon.utils.ast.BigAnd(pres)), v1)((s2, v2) => {
-            v2.decider.prover.saturate(Verifier.config.z3SaturationTimeouts.afterContract)
-            val s2a = s2.copy(oldHeaps = s2.oldHeaps + (Verifier.PRE_STATE_LABEL -> s2.h))
-            (  executionFlowController.locally(s2a, v2)((s3, v3) => {
-                  val s4 = s3.copy(isImprecise = false,
-                                   optimisticHeap = Heap(),
-                                   h = Heap())
-                  val impLog = new WellformednessCheckRecord(posts, s, v.decider.pcs)
-                  val sepIdentifier = SymbExLogger.currentLog().openScope(impLog)
-                  wellformed(s4, freshSnap, posts, ContractNotWellformed(viper.silicon.utils.ast.BigAnd(posts)), v3)((_, v4) => {
-                    SymbExLogger.currentLog().closeScope(sepIdentifier)
-                    Success()})})
-            && {
-               executionFlowController.locally(s2a, v2)((s3, v3) => {
-                  exec(s3, body, v3)((s4, v4) => {
-                    val sepIdentifier = SymbExLogger.currentLog().openScope(new EndRecord(s4, v4.decider.pcs))
-                    consumes(s4, posts, postViolated, v4)((_, _, _) => {
-                      SymbExLogger.currentLog().closeScope(sepIdentifier)
-                      Success()
-                    })
-                  }) }) }  )})})
-
-      SymbExLogger.closeMemberScope()
-=======*/
       errorsReportedSoFar.set(0)
       val result =
         /* Combined the well-formedness check and the execution of the body, which are two separate
@@ -152,7 +122,6 @@ trait DefaultMethodVerificationUnitProvider extends VerifierComponent { v: Verif
       v.decider.resetProverOptions()
 
       symbExLog.closeMemberScope()
-//>>>>>>> upstream/master
       Seq(result)
     }
 

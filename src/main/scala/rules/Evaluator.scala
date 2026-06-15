@@ -303,69 +303,6 @@ object evaluator extends EvaluationRules {
            .setConstrainable(Seq(tVar), true)
         Q(s1, tVar, v)
        */
-//<<<<<<< HEAD
-
-      /*case fa: ast.FieldAccess => {
-        eval(s, fa.rcv, pve, v)((s1, tRcvr, eRcvr, v1) => {
-        val newFa = Option.when(withExp)({
-          if (s1.isEvalInOld) ast.FieldAccess(eRcvr.get, fa.field)(fa.pos, fa.info, fa.errT)
-          else ast.DebugLabelledOld(ast.FieldAccess(eRcvr.get, fa.field)(), debugLabel)(fa.pos, fa.info, fa.errT)
-        })
-        if (s.qpFields.contains(fa.field)) {
-           *//* Quantified permissions are not supported by Gradual Viper; this case code is dead. */
-           /*val (relevantChunks, _) =
-              quantifiedChunkSupporter.splitHeap[QuantifiedFieldChunk](s1.h, BasicChunkIdentifier(fa.field.name))
-            s1.smCache.get((fa.field, relevantChunks)) match {
-              case Some((fvfDef: SnapshotMapDefinition, totalPermissions)) if !Verifier.config.disableValueMapCaching() =>
-                *//* The next assertion must be made if the FVF definition is taken from the cache;
-                * in the other case it is part of quantifiedChunkSupporter.withValue.
-                */
-                /* Re-emit definition since the previous definition could be nested under
-                * an auxiliary quantifier (resulting from the evaluation of some Silver
-                * quantifier in whose body field 'fa.field' was accessed)
-                * which is protected by a trigger term that we currently don't have.
-                */
-                /*v1.decider.assume(And(fvfDef.valueDefinitions), Option.when(withExp)(DebugExp.createInstance("Value definitions", isInternal_ = true)))
-                val trigger = FieldTrigger(fa.field.name, fvfDef.sm, tRcvr)
-                val triggerExp = Option.when(withExp)(DebugExp.createInstance(s"FieldTrigger(${eRcvr.toString()}.${fa.field.name})"))
-                v1.decider.assume(trigger, triggerExp)
-                if (s1.triggerExp) {
-                  val fvfLookup = Lookup(fa.field.name, fvfDef.sm, tRcvr)
-                  val fr1 = s1.functionRecorder.recordSnapshot(fa, v1.decider.pcs.branchConditions, fvfLookup)
-                  val s2 = s1.copy(functionRecorder = fr1)
-                  Q(s2, fvfLookup, newFa, v1)
-                } else {
-                  v1.decider.assert(IsPositive(totalPermissions.replace(`?r`, tRcvr))) {
-                    case false =>
-                      createFailure(pve dueTo InsufficientPermission(fa), v1, s1, newFa)
-                    case true =>
-                      val fvfLookup = Lookup(fa.field.name, fvfDef.sm, tRcvr)
-                      val fr1 = s1.functionRecorder.recordSnapshot(fa, v1.decider.pcs.branchConditions, fvfLookup).recordFvfAndDomain(fvfDef)
-                      val s2 = s1.copy(functionRecorder = fr1, possibleTriggers = if (s1.recordPossibleTriggers) s1.possibleTriggers + (fa -> trigger) else s1.possibleTriggers)
-                      Q(s2, fvfLookup, v1)}
-                }
-              case _ =>
-                val (smDef1, smCache1) =
-                  quantifiedChunkSupporter.summarisingSnapshotMap(
-                    s = s1,
-                    resource = fa.field,
-                    codomainQVars = Seq(`?r`),
-                    relevantChunks = relevantChunks,
-                    optSmDomainDefinitionCondition =  None,
-                    optQVarsInstantiations = None,
-                    v = v1)
-                val trigger = FieldTrigger(fa.field.name, smDef1.sm, tRcvr)
-                v1.decider.assume(trigger)
-                val permCheck =
-                  if (s1.triggerExp) {
-                    True()
-                  } else {
-                    val totalPermissions = smCache1.get((fa.field, relevantChunks)).get._2
-                      *//* TODO: Have totalPermissions returned by quantifiedChunkSupporter.summarisingSnapshotMap */
-                    /*IsPositive(totalPermissions.replace(`?r`, tRcvr))
-                  }
-                v1.decider.assert(permCheck) {
-=======*/
       case fa: ast.FieldAccess if s.qpFields.contains(fa.field) =>
         eval(s, fa.rcv, pve, v)((s1, tRcvr, eRcvr, v1) => {
           val (debugHeapName, debugLabel) = v1.getDebugOldLabel(s1, fa.pos)
@@ -400,31 +337,9 @@ object evaluator extends EvaluationRules {
               } else {
                 val toAssert = IsPositive(totalPermissions.replace(`?r`, tRcvr))
                 v1.decider.assert(toAssert) {
-//>>>>>>> upstream/master
                   case false =>
                     createFailure(pve dueTo InsufficientPermission(fa), v1, s1, toAssert, Option.when(withExp)(perms.IsPositive(ast.CurrentPerm(fa)())()))
                   case true =>
-/*<<<<<<< HEAD
-                    val smLookup = Lookup(fa.field.name, smDef1.sm, tRcvr)
-                    val fr2 =
-                      s1.functionRecorder.recordSnapshot(fa, v1.decider.pcs.branchConditions, smLookup)
-                                        .recordFvfAndDomain(smDef1)
-                    val s2 = s1.copy(functionRecorder = fr2,
-                                    smCache = smCache1)
-                    Q(s2, smLookup, v1)
-                }
-            }
-        } else {
-          evalLocationAccess(s, fa, pve, v)((s1, _, tArgs, v1) => {
-            val ve = pve dueTo InsufficientPermission(fa)
-            val resource = fa.res(Verifier.program)
-            val addToOh = true *//* so lookup knows whether or not to add optimistically assumed permissions to the optimistic heap */
-            /*chunkSupporter.lookup(s1, s1.h, s1.optimisticHeap, addToOh, resource, fa, tArgs, pve, ve, v1)((s2, h2, oh2, tSnap, v2) => {
-              val fr = s2.functionRecorder.recordSnapshot(fa, v2.decider.pcs.branchConditions, tSnap)
-              val s3 = s2.copy(h = h2, optimisticHeap = oh2, functionRecorder = fr)
-              Q(s3, tSnap, v1)
-            })*/
-//=======
                     val fvfLookup = Lookup(fa.field.name, fvfDef.sm, tRcvr)
                     val fr1 = s1.functionRecorder.recordSnapshot(fa, v1.decider.pcs.branchConditions, fvfLookup).recordFvfAndDomain(fvfDef)
                     val possTriggers = if (s1.heapDependentTriggers.contains(fa.field) && s1.recordPossibleTriggers)
@@ -512,7 +427,6 @@ object evaluator extends EvaluationRules {
             })
             val s4 = if (Verifier.config.enableDebugging() && !s3.isEvalInOld) s3.copy(oldHeaps = s3.oldHeaps + (debugHeapName -> magicWandSupporter.getEvalHeap(s3))) else s3
             Q(s4, tSnap, newFa, v1)
-//>>>>>>> upstream/master
           })
         })
       case ast.Not(e0) =>
@@ -2814,14 +2728,6 @@ object evaluator extends EvaluationRules {
       val preMark = v1.decider.setPathConditionMark()
       evals(s2, es1, _ => pve, v1)((s3, ts1, es1New, v2) => {
         val bc = And(ts1)
-/*<<<<<<< HEAD
-        // we call conjunctExps here to translate the Anded term to its
-        // equivalent ast form
-        v2.decider.setCurrentBranchCondition(bc, conjunctExps(es1), conjunctExps(es1), None)
-        evals(s3, es2, _ => pve, v2)((s4, ts2, v3) => {
-          evalTriggers(s4, optTriggers.getOrElse(Nil), pve, v3)((s5, tTriggers, v4) => { // TODO: v4 isn't forward - problem?
-            val (auxGlobalQuants, auxNonGlobalQuants) =
-=======*/
         // ME: If bc is unsatisfiable, we are assuming false here. In that case, evaluating es2 and the triggers
         // may not return any value (e.g. if es2 contains a field read for which we don't have permission, a smoke
         // check succeeds, then the continuation for evals(es2) is never invoked). This caused issue #842.
@@ -2866,19 +2772,10 @@ object evaluator extends EvaluationRules {
                          (Q: (State, Term, Option[ast.Exp], Verifier) => VerificationResult)
                          : VerificationResult = {
 
-/*<<<<<<< HEAD
-    joiner.join[Term, Term](s, v)((s1, v1, QB) =>
-      // TODO GV: we don't currently support this, so the branching information
-      // passed in the second and third arguments is not correct!
-      brancher.branch(s1, tLhs, ast.NullLit()(), None, v1, fromShortCircuitingAnd)(
-        (s2, v2) => eval(s2, eRhs, pve, v2)(QB),
-        (s2, v2) => QB(s2, True(), v2))
-=======*/
     joiner.join[(Term, Option[ast.Exp]), (Term, Option[ast.Exp])](s, v)((s1, v1, QB) =>
       brancher.branch(s1.copy(parallelizeBranches = false), tLhs, eLhs, None, v1, fromShortCircuitingAnd = fromShortCircuitingAnd)(
         (s2, v2) => eval(s2.copy(parallelizeBranches = s1.parallelizeBranches), eRhs, pve, v2)((s2, tRhs, eRhsNew, v2) => QB(s2, (tRhs, eRhsNew), v2)),
         (s2, v2) => QB(s2.copy(parallelizeBranches = s1.parallelizeBranches), (True, Option.when(withExp)(ast.TrueLit()())), v2))
-//>>>>>>> upstream/master
     )(entries => {
       assert(entries.length <= 2)
       val s1 = entries.tail.foldLeft(entries.head.s)((sAcc, entry) => sAcc.merge(entry.s))
@@ -3440,25 +3337,6 @@ object evaluator extends EvaluationRules {
 
     eval(s, exps.head, pve, v)((s1, t0, e0New, v1) => {
       t0 match {
-/*<<<<<<< HEAD
-        case _ if exps.tail.isEmpty => Q(s1, t0, v1) // Done, if no expressions left (necessary)
-        case `stop` => Q(s1, t0, v1) // Done, if last expression was true/false for or/and (optimisation)
-        case _ => {
-          // Get branch origin for brancher.branch
-          val branchCondOrigin: Option[CheckPosition] =
-            (s1.methodCallAstNode, s1.foldOrUnfoldAstNode, s1.loopPosition) match {
-              case (None, None, None) => None
-              case (Some(methodCallAstNode), None, None) => Some(CheckPosition.GenericNode(methodCallAstNode))
-              case (None, Some(foldOrUnfoldAstNode), None) => Some(CheckPosition.GenericNode(foldOrUnfoldAstNode))
-              case (None, None, Some(_)) => s1.loopPosition
-              case _ => sys.error("Error: _ match case when setting a branch condition origin!")
-            }
-
-          joiner.join[Term, Term](s1, v1)((s2, v2, QB) =>            
-            brancher.branch(s2, t0, exps.head, branchCondOrigin, v2, true) _ tupled swapIfAnd(
-              (s3, v3) => QB(s3, constructor(Seq(t0)), v3),
-              (s3, v3) => evalSeqShortCircuit(constructor, s3, exps.tail, pve, v3)(QB))
-=======*/
         case _ if exps.tail.isEmpty => Q(s1, t0, e0New, v1) // Done, if no expressions left (necessary)
         case `stop` => Q(s1, t0, e0New, v1) // Done, if last expression was true/false for or/and (optimisation)
         case _ =>
@@ -3475,7 +3353,6 @@ object evaluator extends EvaluationRules {
             brancher.branch(s2.copy(parallelizeBranches = false), if (constructor == Or) t0 else Not(t0), expPair, branchCondOrigin, v2, fromShortCircuitingAnd = true)(
               (s3, v3) => QB(s3.copy(parallelizeBranches = s2.parallelizeBranches), (t0, e0New), v3),
               (s3, v3) => evalSeqShortCircuit(constructor, s3.copy(parallelizeBranches = s2.parallelizeBranches), exps.tail, pve, v3)((s2, t2, e2, v2) => QB(s2, (t2, e2), v2)))
-//>>>>>>> upstream/master
             ){case Seq(ent) =>
                 (ent.s, ent.data)
               case Seq(ent1, ent2) =>
@@ -3488,15 +3365,10 @@ object evaluator extends EvaluationRules {
                 (ent1.s.merge(ent2.s), (constructor(Seq(ent1.data._1, ent2.data._1)), exp))
               case entries =>
                 sys.error(s"Unexpected join data entries $entries")
-/*<<<<<<< HEAD
-            }(Q)
-        }
-=======*/
             }((s3, r3, v3) => {
             val (t3, e3) = r3
             Q(s3, t3, e3, v3)
           })
-//>>>>>>> upstream/master
       }})
   }
 

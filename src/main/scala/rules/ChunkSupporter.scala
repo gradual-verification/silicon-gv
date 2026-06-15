@@ -95,7 +95,6 @@ object chunkSupporter extends ChunkSupportRules {
               ve: VerificationError,
               v: Verifier,
               description: String)
-//<<<<<<< HEAD
              (Q: (State, Heap, Option[Term], Verifier, Boolean) => VerificationResult)
              : VerificationResult = {
     consume2(s, h, consolidate, resource, args, argsExp, perms, permsExp, returnSnap, ve, v)((s2, h2, optSnap, v2) =>
@@ -173,104 +172,6 @@ object chunkSupporter extends ChunkSupportRules {
           }
         }
       //)(Q)
-
-/*  private def consume(s: State,
-                      h: Heap,
-                      consolidate: Boolean,
-                      resource: ast.Resource,
-                      args: Seq[Term],
-                      perms: Term,
-                      ve: VerificationError,
-                      v: Verifier)
-                     (Q: (State, Heap, Option[Term], Verifier) => VerificationResult)
-                     : VerificationResult = {
-    var s1 = s.copy(h = h)
-    if (consolidate) {
-      s1 = stateConsolidator.consolidate(s.copy(h = h), v)
-    }
-    consumeGreedy(s1, s1.h, resource, args, perms, v) match {
-      case (Complete(), s2, h2, optCh2) =>
-        Q(s2.copy(h = s.h), h2, optCh2.map(_.snap), v)
-
-      // should never reach this case
-      case _ if v.decider.checkSmoke() =>
-        Success()
-
-      case (Incomplete(p), s2, h2, None) =>
-        Q(s2.copy(h = s.h), h2, None, v)
-
-=======
-             (Q: (State, Heap, Option[Term], Verifier) => VerificationResult)
-             : VerificationResult = {
-
-    consume2(s, h, resource, args, argsExp, perms, permsExp, returnSnap, ve, v)((s2, h2, optSnap, v2) =>
-      optSnap match {
-        case Some(snap) =>
-          Q(s2, h2, Some(snap.convert(sorts.Snap)), v2)
-        case None if returnSnap =>*/
-          /* Not having consumed anything could mean that we are in an infeasible
-           * branch, or that the permission amount to consume was zero.
-           *
-           * [MS 2022-01-28] Previously, a a fresh snapshot was retured, which also had to be
-           * registered with the function recorder. However, since nothing was consumed,
-           * returning the unit snapshot seems more appropriate.
-           */
-          /*val fresh = v2.decider.fresh(sorts.Snap, Option.when(withExp)(PUnknown()))
-          val s3 = s2.copy(functionRecorder = s2.functionRecorder.recordFreshSnapshot(fresh.applicable))
-          Q(s3, h2, Some(fresh), v2)
-        case None => Q(s2, h2, None, v2)
-      })
-  }
-
-  private def consume2(s: State,
-                       h: Heap,
-                       resource: ast.Resource,
-                       args: Seq[Term],
-                       argsExp: Option[Seq[ast.Exp]],
-                       perms: Term,
-                       permsExp: Option[ast.Exp],
-                       returnSnap: Boolean,
-                       ve: VerificationError,
-                       v: Verifier)
-                      (Q: (State, Heap, Option[Term], Verifier) => VerificationResult)
-                      : VerificationResult = {
-
-    val id = ChunkIdentifier(resource, s.program)
-    if (s.exhaleExt) {
-      val failure = createFailure(ve, v, s, "chunk consume in package")
-      magicWandSupporter.transfer(s, perms, permsExp, failure, Seq(), v)(consumeGreedy(_, _, id, args, _, _, _))((s1, optCh, v1) =>
-        if (returnSnap){
-          Q(s1, h, optCh.flatMap(ch => Some(ch.snap)), v1)
-        } else {
-          Q(s1, h, None, v1)
-        })
-    } else {
-      executionFlowController.tryOrFail2[Heap, Option[Term]](s.copy(h = h), v)((s1, v1, QS) =>
-        if (s1.moreCompleteExhale) {
-          moreCompleteExhaleSupporter.consumeComplete(s1, s1.h, resource, args, argsExp, perms, permsExp, returnSnap, ve, v1)((s2, h2, snap2, v2) => {
-            QS(s2.copy(h = s.h), h2, snap2, v2)
-          })
-        } else {
-          consumeGreedy(s1, s1.h, id, args, perms, permsExp, v1) match {
-            case (Complete(), s2, h2, optCh2) =>
-              val snap = optCh2 match {
-                case Some(ch) if returnSnap =>
-                  if (v1.decider.check(IsPositive(perms), Verifier.config.checkTimeout())) {
-                    Some(ch.snap)
-                  } else {
-                    Some(Ite(IsPositive(perms), ch.snap.convert(sorts.Snap), Unit))
-                  }
-                case _ => None
-              }
-              QS(s2.copy(h = s.h), h2, snap, v1)
-            case _ if v1.decider.checkSmoke(true) =>
-              Success() // TODO: Mark branch as dead?
-            case _ =>
-              createFailure(ve, v1, s1, "consuming chunk", true)
-          }
-        }
-      )(Q)
->>>>>>> upstream/master*/
     }
   }
 
@@ -281,7 +182,6 @@ object chunkSupporter extends ChunkSupportRules {
                             args: Seq[Term],
                             perms: Term,
                             permsExp: Option[ast.Exp],
-//<<<<<<< HEAD
                             v: Verifier)
                             : (ConsumptionResult, State, Heap, Option[NonQuantifiedChunk])= {
 
@@ -339,61 +239,6 @@ object chunkSupporter extends ChunkSupportRules {
             }
             (Incomplete(perms, permsExp), s, newH2, None)
           }
-/*=======
-                            permsExp: Option[ast.Exp],
-                            v: Verifier)
-                           : (ConsumptionResult, State, Heap, Option[NonQuantifiedChunk]) = {
-
-    val consumeExact = terms.utils.consumeExactRead(perms, s.constrainableARPs)
-
-    def assumeProperties(chunk: NonQuantifiedChunk, heap: Heap): Unit = {
-      val interpreter = new NonQuantifiedPropertyInterpreter(heap.values, v)
-      val resource = Resources.resourceDescriptions(chunk.resourceID)
-      val pathCond = interpreter.buildPathConditionsForChunk(chunk, resource.instanceProperties(s.mayAssumeUpperBounds))
-      pathCond.foreach(p => v.decider.assume(p._1, Option.when(withExp)(DebugExp.createInstance(p._2, p._2))))
-    }
-
-    findChunk[NonQuantifiedChunk](h.values, id, args, v) match {
-      case Some(ch) =>
-        if (s.assertReadAccessOnly) {
-          if (v.decider.check(Implies(IsPositive(perms), IsPositive(ch.perm)), Verifier.config.assertTimeout.getOrElse(0))) {
-            (Complete(), s, h, Some(ch))
-          } else {
-            (Incomplete(perms, permsExp), s, h, None)
-          }
-        } else if (consumeExact) {
-          val toTake = PermMin(ch.perm, perms)
-          val toTakeExp = permsExp.map(pe => buildMinExp(Seq(ch.permExp.get, pe), ast.Perm))
-          val newPermExp = permsExp.map(pe => ast.PermSub(ch.permExp.get, toTakeExp.get)(pe.pos, pe.info, pe.errT))
-          val newChunk = ch.withPerm(PermMinus(ch.perm, toTake), newPermExp)
-          val takenChunk = Some(ch.withPerm(toTake, toTakeExp))
-          var newHeap = h - ch
-          if (!v.decider.check(newChunk.perm === NoPerm, Verifier.config.checkTimeout())) {
-            newHeap = newHeap + newChunk
-            assumeProperties(newChunk, newHeap)
-          }
-          val remainingExp = permsExp.map(pe => ast.PermSub(pe, toTakeExp.get)(pe.pos, pe.info, pe.errT))
-          (ConsumptionResult(PermMinus(perms, toTake), remainingExp, Seq(), v, 0), s, newHeap, takenChunk)
-        } else {
-          if (v.decider.check(ch.perm !== NoPerm, Verifier.config.checkTimeout())) {
-            val constraintExp = permsExp.map(pe => ast.PermLtCmp(pe, ch.permExp.get)(pe.pos, pe.info, pe.errT))
-            v.decider.assume(PermLess(perms, ch.perm), Option.when(withExp)(DebugExp.createInstance(constraintExp, constraintExp)))
-            val newPermExp = permsExp.map(pe => ast.PermSub(ch.permExp.get, pe)(pe.pos, pe.info, pe.errT))
-            val newChunk = ch.withPerm(PermMinus(ch.perm, perms), newPermExp)
-            val takenChunk = ch.withPerm(perms, permsExp)
-            val newHeap = h - ch + newChunk
-            assumeProperties(newChunk, newHeap)
-            (Complete(), s, newHeap, Some(takenChunk))
-          } else {
-            (Incomplete(perms, permsExp), s, h, None)
-          }
-        }
-      case None =>
-        if (consumeExact && s.retrying && v.decider.check(perms === NoPerm, Verifier.config.checkTimeout())) {
-          (Complete(), s, h, None)
-        } else {
-          (Incomplete(perms, permsExp), s, h, None)
->>>>>>> upstream/master*/
         }
       }
 
@@ -434,27 +279,14 @@ object chunkSupporter extends ChunkSupportRules {
              generateChecks: Boolean = true)
             (Q: (State, Heap, Heap, Term, Verifier) => VerificationResult)
             : VerificationResult = {
-/*<<<<<<< HEAD
-//    executionFlowController.tryOrFail2[Heap, Term](s.copy(h = h), v)((s1, v1, QS) => {
-      val s1 = stateConsolidator.consolidate(s.copy(h = h, optimisticHeap = oh), v)
-=======*/
-
-    //executionFlowController.tryOrFail2[Heap, Term](s.copy(h = h), v)((s1, v1, QS) => {
-//>>>>>>> upstream/master
       val s1 = v.stateConsolidator(s).consolidate(s.copy(h = h, optimisticHeap = oh), v)
       val lookupFunction =
         if (s1.moreCompleteExhale) moreCompleteExhaleSupporter.lookupComplete _
         else lookupGreedy _
-//<<<<<<< HEAD
       lookupFunction(s1, s1.h, s1.optimisticHeap, addToOh, resource,
         runtimeCheckFieldTarget, args, argsExp, pve, ve, v, generateChecks)((s2, tSnap, v1) =>
         Q(s2.copy(h = s.h, optimisticHeap = s.optimisticHeap), s2.h, s2.optimisticHeap, tSnap, v1))
     }
-/*=======
-      lookupFunction(s1, s1.h, resource, args, argsExp, ve, v1)((s2, tSnap, v2) =>
-        QS(s2.copy(h = s.h), s2.h, tSnap, v2))
-    })(Q)
->>>>>>> upstream/master*/
 
   private def lookupGreedy(s: State,
                            h: Heap,
@@ -464,17 +296,13 @@ object chunkSupporter extends ChunkSupportRules {
                            runtimeCheckFieldTarget: ast.FieldAccess,
                            args: Seq[Term],
                            argsExp: Option[Seq[ast.Exp]],
-//<<<<<<< HEAD
                            pve: PartialVerificationError,
-//=======
-//>>>>>>> upstream/master
                            ve: VerificationError,
                            v: Verifier,
                            generateChecks: Boolean)
                           (Q: (State, Term, Verifier) => VerificationResult)
                           : VerificationResult = {
 
-//<<<<<<< HEAD
     val id = ChunkIdentifier(resource, s.program)
 
     profilingInfo.incrementTotalConjuncts
@@ -683,22 +511,6 @@ object chunkSupporter extends ChunkSupportRules {
               createFailure(ve, v, s, "looking up chunk", true)
         }
       }
-/*=======
-    val id = ChunkIdentifier(resource, s.program)
-    val findRes = findChunk[NonQuantifiedChunk](h.values, id, args, v)
-    findRes match {
-      case Some(ch) if v.decider.check(IsPositive(ch.perm), Verifier.config.checkTimeout()) =>
-        Q(s, ch.snap, v)
-      case _ if v.decider.checkSmoke(true) =>
-        if (s.isInPackage) {
-          val snap = v.decider.fresh(v.snapshotSupporter.optimalSnapshotSort(resource, s, v), Option.when(withExp)(PUnknown()))
-          Q(s, snap, v)
-        } else {
-          Success() // TODO: Mark branch as dead?
-        }
-      case _ =>
-        createFailure(ve, v, s, "looking up chunk", true)
->>>>>>> upstream/master*/
     }
   }
 
