@@ -4,16 +4,17 @@
 //
 // Copyright (c) 2011-2019 ETH Zurich.
 /*
+
 package viper.silicon.tests
 
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 import viper.silver.ast._
 import viper.silver.ast.utility.rewriter._
 import viper.silver.ast.utility._
 import viper.silver.frontend.SilFrontend
 import viper.silver.verifier.errors._
 
-class ErrorMessageTests extends FunSuite {
+class ErrorMessageTests extends AnyFunSuite {
   test("MeetingExample") {
     val filePrefix = "errorMessageTests/misc/"
     val files = Seq("simple")
@@ -22,17 +23,17 @@ class ErrorMessageTests extends FunSuite {
     val strategy = ViperStrategy.Slim({
       case a: Assert =>
         Exhale(a.exp)(a.pos, a.info, ErrTrafo({ case ExhaleFailed(_, r, false) => AssertFailed(a, r) }))
-      case And(f: FalseLit, _) =>
+      case And(f: FalseLit, _) =>*/
         /* If `assert false && e` is replaced by just `assert false`, then the default error
          * backtranslation will translate the message `Assertion false might not hold` back to
          * `Assertion false && e` ...`. Since, without the transformation, Silicon would only report
          * `Assertion false ...`, an explicit error-backtransformation is added such that
          * `Assertion false ...` is "backtranslated" to itself, i.e. to `Assertion false ...`.
          */
-        FalseLit()(f.pos, f.info, NodeTrafo(f))
-      case And(_, f: FalseLit) =>
+/*        FalseLit()(f.pos, f.info, NodeTrafo(f))
+      case And(_, f: FalseLit) =>*/
         /* Here, the automatically attached backtranslation function suffices */
-        f
+/*        f
     })
 
     files foreach (executeTest(filePrefix, _, strategy, frontend))
@@ -40,7 +41,7 @@ class ErrorMessageTests extends FunSuite {
 
   test("WhileToIfGoto") {
     val filePrefix = "errorMessageTests/whileToIfGoto/"
-    val files = Seq("simple"/*, "nested"*/)
+    val files = Seq("simple"*//*, "nested"*//*)
     val frontend = tests.instantiateFrontend()
 
     // Example of how to transform a while loop into if and goto
@@ -88,22 +89,21 @@ class ErrorMessageTests extends FunSuite {
 
   test("MethodInlining") {
     // Careful: Don't use old inside postcondition. It is not yet supported. maybe I will update the testcase
-    // removed test "withfields" bcz had exhale
     val filePrefix = "errorMessageTests/methodInlining/"
-    val files = Seq("simple" , "withArgs", "withArgsNRes")
+    val files = Seq("simple" , "withArgs", "withArgsNRes"*//*, "withFields" *//*)
     val frontend = tests.instantiateFrontend()
 
     val replaceStrategy = ViperStrategy.Context[Map[Exp, Exp]]({
       case (l: LocalVar, c) if c.c.contains(l) =>
-        val n = c.c(l)
+        val n = c.c(l)*/
         /* We want to replace formal argument `l` by actual argument `n`, and we want to report
          * `n` in error messages. The AST transformation framework, however, will by default
          * attach an error back-transformer to the replacement node `n` such that the original
          * node `l` will be reported. To prevent this, we currently need to manually attach an
          * error back-transformer saying that `n` is to be reported.
          */
-        val (pos, info, _) = n.getPrettyMetadata
-        (c.c(l).meta = ((pos, info, NodeTrafo(n))), c)
+/*        val (pos, info, _) = n.getPrettyMetadata
+        (c.c(l).withMeta(pos, info, NodeTrafo(n)), c)
 
     }, Map.empty[Exp, Exp])
 
@@ -126,7 +126,7 @@ class ErrorMessageTests extends FunSuite {
         val exPres = mDecl.pres.map(replaceStrategy.execute[Exp](_, context)).map(x => Exhale(x)(x.pos, x.info, preError(m)))
 
         // Create an inhale statement for every postcondition, replace parameters with arguments and replace result parameters with receivers
-        val replacer2: Map[Exp, Exp] = mDecl.formalReturns.zip(m.targets).map(x => x._1.localVar -> x._2).toMap ++ replacer
+        val replacer2: Map[Exp, Exp] = (mDecl.formalReturns.zip(m.targets).map(x => x._1.localVar -> x._2).toMap ++ replacer).to(Map)
         val context2 = new PartialContextC[Node, Map[Exp, Exp]](replacer2)
         val inPosts = mDecl.posts.map(replaceStrategy.execute[Exp](_, context2)).map(x => Inhale(x)(x.pos, x.info, postError(x, mDecl)))
 

@@ -21,7 +21,6 @@ import viper.silicon.state.terms.{Sort, SortDecl, sorts}
 import viper.silver.ast.PredicateAccess
 
 trait PredicateSnapFunctionsContributor[SO, SY, AX] extends PreambleContributor[SO, SY, AX]
-trait MagicWandSnapFunctionsContributor[SO, SY, AX] extends PreambleContributor[SO, SY, AX]
 
 /** Creates background definitions for n-tuples of predicate and wand arguments. Currently,
   * snapshot trees are used to built n-tuples.
@@ -45,8 +44,7 @@ class DefaultPredicateAndWandSnapFunctionsContributor(preambleReader: PreambleRe
                                                       termConverter: TermConverter[String, String, String],
                                                       predicateSnapGenerator: PredicateSnapGenerator,
                                                       config: Config)
-    extends PredicateSnapFunctionsContributor[Sort, String, String]
-       with MagicWandSnapFunctionsContributor[Sort, String, String] {
+    extends PredicateSnapFunctionsContributor[Sort, String, String] {
 
   /* PreambleBlock = Comment x Lines */
   private type PreambleBlock = (String, Iterable[String])
@@ -59,7 +57,7 @@ class DefaultPredicateAndWandSnapFunctionsContributor(preambleReader: PreambleRe
 
   /* Lifetime */
 
-  def reset() {
+  def reset(): Unit = {
     collectedPredicates = InsertionOrderedSet.empty
     collectedWandIdentifiers = InsertionOrderedSet.empty
     collectedSorts = InsertionOrderedSet.empty
@@ -67,13 +65,13 @@ class DefaultPredicateAndWandSnapFunctionsContributor(preambleReader: PreambleRe
     collectedAxioms = Seq.empty
   }
 
-  def stop() {}
+  def stop(): Unit = {}
 
-  def start() {}
+  def start(): Unit = {}
 
   /* Functionality */
 
-  def analyze(program: ast.Program) {
+  def analyze(program: ast.Program): Unit = {
     // TODO: Use next snippet instead?
     //   collectedPredicates =
     //     ast.utility.QuantifiedPermissions.quantifiedPredicates(program, program).toSet
@@ -85,6 +83,10 @@ class DefaultPredicateAndWandSnapFunctionsContributor(preambleReader: PreambleRe
         val trigExps = triggers flatMap (_.exps)
         val predicateAccesses = trigExps flatMap (e => e.deepCollect {case pa: PredicateAccess => pa})
         collectedPredicates ++= (predicateAccesses map (_.loc(program)))
+      case ast.Exists(_, triggers, _) =>
+        val trigExps = triggers flatMap (_.exps)
+        val predicateAccesses = trigExps flatMap (e => e.deepCollect { case pa: PredicateAccess => pa })
+        collectedPredicates ++= (predicateAccesses map (_.loc(program)))
     }
 
     collectedWandIdentifiers =
@@ -94,13 +96,9 @@ class DefaultPredicateAndWandSnapFunctionsContributor(preambleReader: PreambleRe
 
     // WARNING: DefaultSetsContributor contributes a sort that is due to QPs over predicates and wands
 
-    collectedSorts =
-      collectedPredicates.map(predicate =>
-        sorts.PredicateSnapFunction(predicateSnapGenerator.getSnap(predicate)._1))
-
-    if (collectedPredicates.nonEmpty || collectedWandIdentifiers.nonEmpty) {
-      collectedSorts += sorts.PredicateSnapFunction(sorts.Snap)
-    }
+    collectedSorts = collectedPredicates.map(predicate =>
+        sorts.PredicateSnapFunction(predicateSnapGenerator.getSnap(predicate)._1, predicate.name)) ++ collectedWandIdentifiers.map(identifier => sorts.PredicateSnapFunction(sorts.Snap, identifier.toString))
+    
 
     collectedFunctionDecls = generateFunctionDecls
     collectedAxioms = generateAxioms

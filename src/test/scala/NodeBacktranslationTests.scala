@@ -6,15 +6,14 @@
 
 package viper.silicon.tests
 
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 import viper.silver.ast._
 import viper.silver.ast.utility.ViperStrategy
 import viper.silver.frontend.SilFrontend
 import viper.silver.verifier.Failure
 
-class NodeBacktranslationTests extends FunSuite {
-  // These two tests rely on functions and exhale
-/*  test("Issue #348 Test 1") {
+class NodeBacktranslationTests extends AnyFunSuite {
+  /*test("Issue #348 Test 1") {
     runTest("errorMessageTests/misc/", "0348-1", tests.instantiateFrontend())
   }
 
@@ -31,23 +30,21 @@ class NodeBacktranslationTests extends FunSuite {
 
     val assignments: Map[LocalVar, Exp] =
       method.deepCollectInBody { case lva: LocalVarAssign => lva }
-            .map(lva => lva.lhs -> lva.rhs)(collection.breakOut)
+            .map(lva => lva.lhs -> lva.rhs)
+            .to(Map)
 
     val backtranslationTransformer = ViperStrategy.Slim({
       case lv: LocalVar if assignments.contains(lv) =>
         val (pos, info, _) = lv.getPrettyMetadata
         /* Note: lv might already have an error transformer set. It will be replaced. */
-        lv.meta = (pos, info, NodeTrafo(assignments(lv)))
-    })
+        lv.withMeta(pos, info, NodeTrafo(assignments(lv)))
+    }).forceCopy() // TODO: Rewriting is forced because changes in metadata are irrelevant for comparison operator, but a cleaner solution should be found
 
     val substitutionTransformer = ViperStrategy.Slim({
       case lv: LocalVar if assignments.contains(lv) => assignments(lv)
     })
 
-    // TODO: Rewriting is forced because changes in metadata are irrelevant for comparison operator, but a cleaner solution should be found
-    ViperStrategy.forceRewrite = true
     val exhaleToVerify = backtranslationTransformer.execute[Exhale](exhale)
-    ViperStrategy.forceRewrite = false
     val exhaleToReport = substitutionTransformer.execute[Exhale](exhale)
 
     assert(exhaleToVerify.toString == exhale.toString, "Unexpected syntactic difference")

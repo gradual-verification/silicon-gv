@@ -76,11 +76,12 @@ class PortableSiliconTests extends SilSuite with StatisticalTestSuite {
   override val csvFilePropertyName = "SILICONTESTS_CSV"
   override val inclusionFilePropertyName = "SILICONTESTS_INCL_FILE"
   val randomizePropertyName = "SILICONTESTS_RANDOMIZE_Z3"
+  val timeoutPropertyName = "SILICONTESTS_TIMEOUT"
 
   val commandLineArguments: Seq[String] = Seq(
     "--disableCatchingExceptions",
-    "--timeout", "180" /* seconds */
-  ) ++ (if (System.getProperty(randomizePropertyName, "false").toBoolean) Seq("--z3RandomizeSeeds") else Seq.empty)
+    "--timeout", System.getProperty(timeoutPropertyName, "180") /* timeout in seconds */
+  ) ++ (if (System.getProperty(randomizePropertyName, "false").toBoolean) Seq("--proverRandomizeSeeds") else Seq.empty)
 
   lazy val verifier: Silicon = {
     val args =
@@ -103,11 +104,6 @@ class PortableSiliconTests extends SilSuite with StatisticalTestSuite {
     // SymbExLogger.reset()
     // SymbExLogger.filePath = files.head
     // SymbExLogger.initUnitTestEngine()
-
-    /* If needed, Silicon reads the filename of the program under verification from Verifier.inputFile.
-    When the test suite is executed (sbt test/testOnly), Verifier.inputFile is set here. When Silicon is
-    run from the command line, Verifier.inputFile is set in src/main/scala/Silicon.scala. */
-    viper.silicon.verifier.Verifier.inputFile = Some(files.head)
 
     val fe = new SiliconFrontend(NoopReporter)//SiliconFrontendWithUnitTesting()
     fe.init(verifier)

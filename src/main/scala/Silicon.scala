@@ -2,30 +2,31 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2011-2019 ETH Zurich.
+// Copyright (c) 2011-2021 ETH Zurich.
 
 package viper.silicon
 
-import java.nio.file.Paths
 import java.text.SimpleDateFormat
 import java.util.concurrent.{Callable, Executors, TimeUnit, TimeoutException}
-
+import scala.collection.immutable.ArraySeq
 import scala.util.{Left, Right}
 import ch.qos.logback.classic.{Level, Logger}
 import com.typesafe.scalalogging.LazyLogging
 import org.slf4j.LoggerFactory
 import viper.silver.ast
-import viper.silver.frontend.{DefaultStates, SilFrontend}
+import viper.silver.frontend.{DefaultStates, MinimalViperFrontendAPI, SilFrontend, ViperFrontendAPI}
 import viper.silver.reporter._
-import viper.silver.verifier.{DefaultDependency => SilDefaultDependency, Failure => SilFailure, Success => SilSuccess, TimeoutOccurred => SilTimeoutOccurred, VerificationResult => SilVerificationResult, Verifier => SilVerifier}
-import viper.silicon.common.config.Version
+import viper.silver.verifier.{AbstractVerificationError => SilAbstractVerificationError, Failure => SilFailure, Success => SilSuccess, TimeoutOccurred => SilTimeoutOccurred, VerificationResult => SilVerificationResult, Verifier => SilVerifier}
 import viper.silicon.interfaces.Failure
-import viper.silicon.logger.SymbExLogger
-import viper.silicon.reporting.condenseToViperResult
-import viper.silicon.verifier.DefaultMasterVerifier
+import viper.silicon.logger.{MemberSymbExLogger, SymbExLogger}
+import viper.silicon.reporting.{MultiRunRecorders, condenseToViperResult}
+import viper.silicon.verifier.DefaultMainVerifier
+import viper.silicon.decider.{Cvc5ProverStdIO, Z3ProverStdIO}
 import viper.silver.cfg.silver.SilverCfg
 import viper.silver.logger.ViperStdOutLogger
-import viper.silver.plugin.PluginAwareReporter
+import viper.silver.utility.{FileProgramSubmitter}
+
+import scala.util.chaining._
 
 object Silicon {
   val name = BuildInfo.projectName
@@ -42,10 +43,7 @@ object Silicon {
     s"${BuildInfo.projectVersion}${buildVersion.fold("")(v => s" ($v)")}"
 
   val copyright = "(c) Copyright ETH Zurich 2012 - 2019"
-  val z3ExeEnvironmentVariable = "Z3_EXE"
-  val z3MinVersion = Version("4.5.0")
-  val z3MaxVersion: Option[Version] = None // Some(Version("4.5.0")) /* X.Y.Z if that is the *last supported* version */
-  val dependencies = Seq(SilDefaultDependency("Z3", z3MinVersion.version, "https://github.com/Z3Prover/z3"))
+  val dependencies = Z3ProverStdIO.dependencies ++ Cvc5ProverStdIO.dependencies
 
   def optionsFromScalaTestConfigMap(configMap: collection.Map[String, Any]): Seq[String] =
     configMap.flatMap {
@@ -70,7 +68,7 @@ object Silicon {
                                       debugInfo: Seq[(String, Any)] = Nil)
                                      : Silicon = {
 
-    val silicon = new Silicon(PluginAwareReporter(reporter), debugInfo)
+    val silicon = new Silicon(reporter, debugInfo)
 
     silicon.parseCommandLine(args :+ dummyInputFilename)
 
@@ -78,13 +76,13 @@ object Silicon {
   }
 }
 
-class Silicon(val reporter: PluginAwareReporter, private var debugInfo: Seq[(String, Any)] = Nil)
+class Silicon(val reporter: Reporter, private var debugInfo: Seq[(String, Any)] = Nil)
     extends SilVerifier
        with LazyLogging {
 
-  def this(debugInfo: Seq[(String, Any)]) = this(PluginAwareReporter(StdIOReporter()), debugInfo)
+  def this(debugInfo: Seq[(String, Any)]) = this(StdIOReporter(), debugInfo)
 
-  def this() = this(PluginAwareReporter(StdIOReporter()), Nil)
+  def this() = this(StdIOReporter(), Nil)
 
   val name: String = Silicon.name
   val version = Silicon.version
@@ -94,6 +92,10 @@ class Silicon(val reporter: PluginAwareReporter, private var debugInfo: Seq[(Str
 
   private var _config: Config = _
   final def config = _config
+
+  private var _symbExLog: SymbExLogger[_ <: MemberSymbExLogger] = _
+  final def symbExLog = _symbExLog
+  final def symbExLog_=(log: SymbExLogger[_ <: MemberSymbExLogger]) = { _symbExLog = log }
 
   private sealed trait LifetimeState
 
@@ -105,26 +107,28 @@ class Silicon(val reporter: PluginAwareReporter, private var debugInfo: Seq[(Str
   }
 
   private var lifetimeState: LifetimeState = LifetimeState.Instantiated
-  private var verifier: DefaultMasterVerifier = _
+  private var verifier: DefaultMainVerifier = _
 
   private var startTime: Long = _
   private var elapsedMillis: Long = _
-  private def overallTime = System.currentTimeMillis() - startTime
 
-  def parseCommandLine(args: Seq[String]) {
+  def parseCommandLine(args: Seq[String]): Unit = {
     assert(lifetimeState == LifetimeState.Instantiated, "Silicon can only be configured once")
     lifetimeState = LifetimeState.Configured
 
     _config = new Config(args)
+    if (!config.exit) {
+      _symbExLog = SymbExLogger.ofConfig(_config)
+    }
   }
 
-  def debugInfo(debugInfo: Seq[(String, Any)]) { this.debugInfo = debugInfo }
+  def debugInfo(debugInfo: Seq[(String, Any)]): Unit = { this.debugInfo = debugInfo }
 
   /** Start Silicon.
     * Can throw a org.rogach.scallop.exceptions.ScallopResult if command-line
     * parsing failed, or if --help or --version were supplied.
     */
-  def start() {
+  def start(): Unit = {
     assert(lifetimeState == LifetimeState.Configured,
            "Silicon must be configured before it can be initialized, and it can only be initialized once")
 
@@ -132,11 +136,11 @@ class Silicon(val reporter: PluginAwareReporter, private var debugInfo: Seq[(Str
 
     setLogLevelsFromConfig()
 
-    verifier = new DefaultMasterVerifier(config, reporter)
+    verifier = new DefaultMainVerifier(config, reporter, symbExLog)
     verifier.start()
   }
 
-  private def reset() {
+  private def reset(): Unit = {
     assert(lifetimeState == LifetimeState.Started || lifetimeState == LifetimeState.Running,
            "Silicon must be started before it can be reset")
 
@@ -146,7 +150,7 @@ class Silicon(val reporter: PluginAwareReporter, private var debugInfo: Seq[(Str
     verifier.reset()
   }
 
-  def stop() {
+  def stop(): Unit = {
     if (verifier != null) verifier.stop()
   }
 
@@ -171,18 +175,17 @@ class Silicon(val reporter: PluginAwareReporter, private var debugInfo: Seq[(Str
 
     logger.debug(s"$name started ${new SimpleDateFormat("yyyy-MM-dd HH:mm:ss z").format(System.currentTimeMillis())}")
 
-    /* If available, save the filename corresponding to the program under verification in Verifier.inputFile.
-     * See also src/test/scala/SiliconTests.scala, where the analogous happens if Silicon is executed while
-     * running the test suite.
+    /* Do not save the filename if the filename corresponds to the dummy one or `--ignoreFile` has been specified.
+     * Clients assume that the filename is ignored if `--ignoreFile` is used but calling `Paths.get` on it effectively
+     * tries to parse the given string as path. For example, the following string causes an exception on Windows (and
+     * only on Windows): `_programID_d:\a\test`
      *
      * TODO: Figure out what happens when ViperServer is used. */
-    config.file.foreach(filename => {
-      if (filename != Silicon.dummyInputFilename) {
-        viper.silicon.verifier.Verifier.inputFile = Some(Paths.get(filename))
-      }
-    })
+    val inputFile: Option[String] =
+      if (config.file() != Silicon.dummyInputFilename && !config.ignoreFile.getOrElse(false)) Some(config.file())
+      else None
+    MultiRunRecorders.source = inputFile
 
-    // TODO: Check consistency of cfgs.
     val consistencyErrors = utils.consistency.check(program)
 
     if (consistencyErrors.nonEmpty) {
@@ -192,7 +195,7 @@ class Silicon(val reporter: PluginAwareReporter, private var debugInfo: Seq[(Str
       val executor = Executors.newSingleThreadExecutor()
 
       val future = executor.submit(new Callable[List[Failure]] {
-        def call(): List[Failure] = runVerifier(program, cfgs)
+        def call(): List[Failure] = runVerifier(program, cfgs, inputFile)
       })
 
       try {
@@ -205,11 +208,14 @@ class Silicon(val reporter: PluginAwareReporter, private var debugInfo: Seq[(Str
         result = Some(condenseToViperResult(failures))
       } catch { /* Catch exceptions thrown during verification (errors are not caught) */
         case _: TimeoutException =>
-          // verification was interrupted, therefore close the current member's scope:
-          SymbExLogger.currentLog().closeMemberScope()
-          reporter report ExecutionTraceReport(SymbExLogger.memberList, List(), List())
+          if (config.ideModeAdvanced()) {
+            symbExLog.close()
+            reporter report ExecutionTraceReport(symbExLog.logs.toSeq, List(), List())
+          }
           result = Some(SilFailure(SilTimeoutOccurred(config.timeout(), "second(s)") :: Nil))
-        case exception: Exception if config.verified && !config.disableCatchingExceptions() =>
+        case exception: Exception if !config.disableCatchingExceptions() =>
+          config.assertVerified() // Raises an exception itself, if it fails
+
           /* An exception's root cause might be an error; the following code takes care of that */
           reporting.exceptionToViperError(exception) match {
             case Right((cause, failure)) =>
@@ -231,21 +237,19 @@ class Silicon(val reporter: PluginAwareReporter, private var debugInfo: Seq[(Str
     }
   }
 
-  private def runVerifier(program: ast.Program, cfgs: Seq[SilverCfg]): List[Failure] = {
+  private def runVerifier(program: ast.Program, cfgs: Seq[SilverCfg], inputFile: Option[String]): List[Failure] = {
 //    verifier.bookkeeper.branches = 1
     /*verifier.bookkeeper.*/startTime = System.currentTimeMillis()
 
-    val results = verifier.verify(program, cfgs)
+    val results = verifier.verify(program, cfgs, inputFile)
 
     /*verifier.bookkeeper.*/elapsedMillis = System.currentTimeMillis() - /*verifier.bookkeeper.*/startTime
 
-    val failures =
-      results.flatMap(r => r :: r.allPrevious)
-             .collect{ case f: Failure => f } /* Ignore successes */
-             .sortBy(_.message.pos match { /* Order failures according to source position */
-                case pos: ast.HasLineColumn => (pos.line, pos.column)
-                case _ => (-1, -1)
-             })
+    val failures = results
+      // note that we do not extract 'previous' verification errors from VerificationResult's `previous` field
+      // because this is expected to have already been done in `verifier.verify` (for each member).
+      .collect{ case f: Failure => f } /* Ignore successes */
+      .sortBy(failureSortingCriterion)
 
 //    if (config.showStatistics.isDefined) {
 //      val proverStats = verifier.decider.statistics()
@@ -276,11 +280,24 @@ class Silicon(val reporter: PluginAwareReporter, private var debugInfo: Seq[(Str
     failures
   }
 
-  private def logFailure(failure: Failure, log: String => Unit) {
+  private def failureSortingCriterion(f: Failure): (Int, Int) = {
+    // apply transformers if available:
+    val transformedError = f.message match {
+      case e: SilAbstractVerificationError => e.transformedError()
+      case e => e
+    }
+    transformedError.pos match { /* Order failures according to source position */
+      case pos: ast.HasLineColumn => (pos.line, pos.column)
+      case _ => (-1, -1)
+    }
+  }
+
+  private def logFailure(failure: Failure, log: String => Unit): Unit = { //TODO:J log context?
     log("\n" + failure.message.readableMessage(withId = true, withPosition = true))
   }
 
-  private def setLogLevelsFromConfig() {
+  private def setLogLevelsFromConfig(): Unit = {
+    // Set level of main (package) logger
     config.logLevel
       .map(Level.toLevel)
       .foreach(level => {
@@ -288,22 +305,22 @@ class Silicon(val reporter: PluginAwareReporter, private var debugInfo: Seq[(Str
 
         val packageLogger = LoggerFactory.getLogger(this.getClass.getPackage.getName).asInstanceOf[Logger]
         packageLogger.setLevel(level)
-
-        config.logger.foreach { case (loggerName, loggerLevelString) =>
-          val logger = LoggerFactory.getLogger(loggerName).asInstanceOf[Logger]
-          logger.setLevel(Level.toLevel(loggerLevelString))
-        }
     })
+
+    // Set levels of specialised loggers (e.g. for heuristics)
+    config.logger.foreach { case (loggerName, loggerLevelString) =>
+      val logger = LoggerFactory.getLogger(loggerName).asInstanceOf[Logger]
+      logger.setLevel(Level.toLevel(loggerLevelString))
+    }
   }
 }
 
-class SiliconFrontend(override val reporter: PluginAwareReporter,
-                      override implicit val logger: Logger) extends SilFrontend {
-
-  def this(reporter: Reporter, logger: Logger = ViperStdOutLogger("SiliconFrontend", "INFO").get) =
-    this(PluginAwareReporter(reporter), logger)
+class SiliconFrontend(override val reporter: Reporter,
+                      override implicit val logger: Logger = ViperStdOutLogger("SiliconFrontend", "INFO").get) extends SilFrontend {
 
   protected var siliconInstance: Silicon = _
+
+  override def backendTypeFormat: Option[String] = Some("SMTLIB")
 
   def createVerifier(fullCmd: String) = {
     siliconInstance = new Silicon(reporter, Seq("args" -> fullCmd))
@@ -314,7 +331,7 @@ class SiliconFrontend(override val reporter: PluginAwareReporter,
   def configureVerifier(args: Seq[String]) = {
     siliconInstance.parseCommandLine(args)
 
-    if (siliconInstance.config.error.isEmpty) {
+    if (siliconInstance.config.error.isEmpty && !siliconInstance.config.exit) {
       /** Parsing the provided command-line options might fail, in which the resulting error
         * is recorded in `siliconInstance.config.error`
         * (see also [[viper.silver.frontend.SilFrontendConfig.onError]]).
@@ -340,12 +357,38 @@ class SiliconFrontend(override val reporter: PluginAwareReporter,
   }
 }
 
-object SiliconRunner extends SiliconFrontend(StdIOReporter()) {
-  def main(args: Array[String]) {
+/**
+  * Silicon "frontend" for use by actual Viper frontends.
+  * Performs consistency check and verification.
+  * See [[viper.silver.frontend.ViperFrontendAPI]] for usage information.
+  */
+class SiliconFrontendAPI(override val reporter: Reporter)
+  extends SiliconFrontend(reporter) with ViperFrontendAPI
+
+/**
+  * Silicon "frontend" for use by actual Viper frontends.
+  * Performs only verification (no consistency check).
+  * See [[viper.silver.frontend.ViperFrontendAPI]] for usage information.
+  */
+class MinimalSiliconFrontendAPI(override val reporter: Reporter)
+  extends SiliconFrontend(reporter) with MinimalViperFrontendAPI
+
+
+object SiliconRunner extends SiliconRunnerInstance {
+  def main(args: Array[String]): Unit = {
+    runMain(args)
+  }
+}
+
+class SiliconRunnerInstance extends SiliconFrontend(StdIOReporter()) {
+  def runMain(args: Array[String]): Unit = {
     var exitCode = 1 /* Only 0 indicates no error - we're pessimistic here */
 
+    val submitter = new FileProgramSubmitter(this)
+    submitter.setArgs(args)
+
     try {
-      execute(args)
+      execute(ArraySeq.unsafeWrapArray(args))
         /* Will call SiliconFrontend.createVerifier and SiliconFrontend.configureVerifier */
 
       if (state >= DefaultStates.Verification && result == SilSuccess) {
@@ -353,12 +396,13 @@ object SiliconRunner extends SiliconFrontend(StdIOReporter()) {
       }
     } catch { /* Catch exceptions and errors thrown at any point of the execution of Silicon */
       case exception: Exception
-           if config == null ||
-              (config.verified && !config.asInstanceOf[Config].disableCatchingExceptions()) =>
+           if config == null || !config.asInstanceOf[Config].disableCatchingExceptions() =>
+
+        if (config != null) config.assertVerified() // Raises an exception itself, if it fails
 
         /* An exception's root cause might be an error; the following code takes care of that */
         reporting.exceptionToViperError(exception) match {
-          case Right((cause, failure)) =>
+          case Right((cause, _)) =>
             /* Report exceptions in a user-friendly way */
             reporter report ExceptionReport(exception)
             logger debug ("An exception occurred:", cause) /* Log stack trace */

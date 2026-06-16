@@ -8,6 +8,7 @@ package viper.silicon.state
 
 import scala.collection.mutable
 import viper.silicon.state.terms._
+import viper.silver.ast
 
 package object utils {
   /** Note: the method accounts for `ref` occurring in `σ`, i.e. it will not generate the
@@ -20,7 +21,7 @@ package object utils {
     val refSets = mutable.HashSet[Term]()
     val refSeqs = mutable.HashSet[Term]()
 
-    def collect(t: Term) {
+    def collect(t: Term): Unit = {
       t.sort match {
         case sorts.Ref => if (t != ref) refs += t
         case sorts.Set(sorts.Ref) => refSets += t
@@ -30,7 +31,7 @@ package object utils {
     }
 
     /* Collect all Ref/Set[Ref]/Seq[Ref]-typed values from the store */
-    s.g.values.values foreach collect
+    s.g.termValues.values foreach collect
 
     /* Collect all Ref/Set[Ref]/Seq[Ref]-typed terms from heap chunks */
     s.h.values.foreach {
@@ -59,6 +60,45 @@ package object utils {
     disjointnessAssumptions.result()
   }
 
+  def computeReferenceDisjointnessesExp(s: State, ref: ast.Exp)
+  : Seq[ast.Exp] = {
+
+    val refs = mutable.HashSet[ast.Exp]()
+    val refSets = mutable.HashSet[ast.Exp]()
+    val refSeqs = mutable.HashSet[ast.Exp]()
+
+    def collect(e: ast.Exp): Unit = {
+      e.typ match {
+        case ast.Ref => if (e != ref) refs += e
+        case ast.SetType(ast.Ref) => refSets += e
+        case ast.SeqType(ast.Ref) => refSeqs += e
+        case _ =>
+      }
+    }
+
+    /* Collect all Ref/Set[Ref]/Seq[Ref]-typed values from the store */
+    s.g.values.values foreach (p => collect(p._2.get))
+
+    /* Collect all Ref/Set[Ref]/Seq[Ref]-typed terms from heap chunks */
+    s.h.values.foreach {
+      case bc: BasicChunk =>
+        bc.argsExp.get foreach collect
+      case qch: QuantifiedFieldChunk =>
+        qch.singletonRcvrExp.foreach(rcvr => {
+          collect(rcvr)
+        })
+      case _ =>
+    }
+
+    val disjointnessAssumptions = mutable.ListBuffer[ast.Exp]()
+
+    refs foreach (r => disjointnessAssumptions += ast.NeCmp(ref, r)())
+    refSets foreach (rs => disjointnessAssumptions += ast.Not(ast.AnySetContains(ref, rs)())())
+    refSeqs foreach (rs => disjointnessAssumptions += ast.Not(ast.SeqContains(ref, rs)())())
+
+    disjointnessAssumptions.result()
+  }
+
   def subterms(t: Term): Seq[Term] = t match {
     case _: Symbol | _: Literal | _: MagicWandChunkTerm => Nil
     case op: BinaryOp[Term@unchecked] => List(op.p0, op.p1)
@@ -68,16 +108,17 @@ package object utils {
     case or: Or => or.ts
     case _: PermLiteral => Nil
     case fp: FractionPerm => List(fp.n, fp.d)
-    case ivp: IsValidPermVar => List(ivp.v)
-    case irp: IsReadPermVar => List(irp.v, irp.ub)
+    case ivp: IsValidPermVal => List(ivp.t)
+    case irp: IsReadPermVar => List(irp.v)
     case app: Application[_] => app.args
     case sr: SeqRanged => List(sr.p0, sr.p1)
     case ss: SeqSingleton => List(ss.p)
     case su: SeqUpdate => List(su.t0, su.t1, su.t2)
+    case mu: MapUpdate => List(mu.base, mu.key, mu.value)
     case ss: SingletonSet => List(ss.p)
     case ss: SingletonMultiset => List(ss.p)
     case sw: SortWrapper => List(sw.t)
-    case d: Distinct => Seq.empty // d.ts.toList
+    case _: Distinct => Seq.empty // d.ts.toList
     case q: Quantification => q.vars ++ List(q.body) ++ q.triggers.flatMap(_.p)
     case l: Let =>
       val (vs, ts) = l.bindings.toSeq.unzip
@@ -93,7 +134,7 @@ package object utils {
 
   }
 
-  /** @see [[viper.silver.ast.utility.Transformer.simplify()]] */
+  /** @see [[viper.silver.ast.utility.Simplifier.simplify]] */
   def transform[T <: Term](term: T,
                            pre: PartialFunction[Term, Term] = PartialFunction.empty)
                           (recursive: Term => Boolean = !pre.isDefinedAt(_),
@@ -107,8 +148,8 @@ package object utils {
     def recurse(term: Term): Term = term match {
       case _: Var | _: Function | _: Literal | _: MagicWandChunkTerm | _: Distinct => term
 
-      case Quantification(quantifier, variables, body, triggers, name, isGlobal) =>
-        Quantification(quantifier, variables map go, go(body), triggers map goTriggers, name, isGlobal)
+      case Quantification(quantifier, variables, body, triggers, name, isGlobal, weight) =>
+        Quantification(quantifier, variables map go, go(body), triggers map goTriggers, name, isGlobal, weight)
 
       case Plus(t0, t1) => Plus(go(t0), go(t1))
       case Minus(t0, t1) => Minus(go(t0), go(t1))
@@ -151,11 +192,12 @@ package object utils {
       case AtLeast(t0, t1) => AtLeast(go(t0), go(t1))
       case _: PermLiteral => term
       case FractionPerm(n, d) => FractionPerm(go(n), go(d))
-      case IsValidPermVar(v) => IsValidPermVar(go(v))
-      case IsReadPermVar(v, ub) => IsReadPermVar(go(v), go(ub))
+      case IsValidPermVal(t) => IsValidPermVal(go(t))
+      case IsReadPermVar(v) => IsReadPermVar(go(v))
       case PermTimes(p0, p1) => PermTimes(go(p0), go(p1))
       case IntPermTimes(p0, p1) => IntPermTimes(go(p0), go(p1))
       case PermIntDiv(p0, p1) => PermIntDiv(go(p0), go(p1))
+      case PermPermDiv(p0, p1) => PermPermDiv(go(p0), go(p1))
       case PermPlus(p0, p1) => PermPlus(go(p0), go(p1))
       case PermMinus(p0, p1) => PermMinus(go(p0), go(p1))
       case PermLess(p0, p1) => PermLess(go(p0), go(p1))
@@ -170,6 +212,7 @@ package object utils {
       case SeqLength(t) => SeqLength(go(t))
       case SeqAt(t0, t1) => SeqAt(go(t0), go(t1))
       case SeqIn(t0, t1) => SeqIn(go(t0), go(t1))
+      case SeqInTrigger(t0, t1) => SeqInTrigger(go(t0), go(t1))
       case SeqUpdate(t0, t1, t2) => SeqUpdate(go(t0), go(t1), go(t2))
       case SingletonSet(t) => SingletonSet(go(t))
       case SetAdd(t0, t1) => SetAdd(go(t0), go(t1))
@@ -188,7 +231,13 @@ package object utils {
       case MultisetCardinality(t) => MultisetCardinality(go(t))
       case MultisetCount(t0, t1) => MultisetCount(go(t0), go(t1))
       case MultisetAdd(t1, t2) => MultisetAdd(go(t1), go(t2))
-      case MagicWandSnapshot(lhs, rhs) => MagicWandSnapshot(go(lhs), go(rhs))
+      case MapLookup(t0, t1) => MapLookup(go(t0), go(t1))
+      case MapCardinality(t) => MapCardinality(go(t))
+      case MapUpdate(t0, t1, t2) => MapUpdate(go(t0), go(t1), go(t2))
+      case MapDomain(t) => MapDomain(go(t))
+      case MapRange(t) => MapRange(go(t))
+      case MagicWandSnapshot(t) => MagicWandSnapshot(go(t))
+      case MWSFLookup(t0, t1) => MWSFLookup(go(t0), go(t1))
       case Combine(t0, t1) => Combine(go(t0), go(t1))
       case First(t) => First(go(t))
       case Second(t) => Second(go(t))

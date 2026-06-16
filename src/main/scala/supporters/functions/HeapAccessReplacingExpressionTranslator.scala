@@ -2,30 +2,35 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2011-2019 ETH Zurich.
+// Copyright (c) 2011-2021 ETH Zurich.
 
 package viper.silicon.supporters.functions
 
 import com.typesafe.scalalogging.LazyLogging
+
+import scala.annotation.unused
 import viper.silver.ast
 import viper.silicon.Map
 import viper.silicon.rules.functionSupporter
 import viper.silicon.state.{Identifier, SimpleIdentifier, SuffixedIdentifier, SymbolConverter}
 import viper.silicon.state.terms._
 import viper.silicon.supporters.ExpressionTranslator
-import viper.silver.plugin.PluginAwareReporter
-import viper.silver.reporter.InternalWarningMessage
+import viper.silicon.utils.ast.extractPTypeFromExp
+import viper.silicon.verifier.Verifier
+import viper.silver.parser.{PType, PUnknown}
+import viper.silver.ast.AnnotationInfo
+import viper.silver.reporter.{InternalWarningMessage, Reporter}
 
 class HeapAccessReplacingExpressionTranslator(symbolConverter: SymbolConverter,
-                                              fresh: (String, Sort) => Var,
+                                              fresh: (String, Sort, Option[PType]) => Var,
                                               resolutionFailureMessage: (ast.Positioned, FunctionData) => String,
                                               stopOnResolutionFailure: (ast.Positioned, FunctionData) => Boolean,
-                                              reporter: PluginAwareReporter)
+                                              reporter: Reporter)
     extends ExpressionTranslator
        with LazyLogging {
 
-  private var program: ast.Program = _
-  private var func: ast.Function = _
+  protected var program: ast.Program = _
+  @unused private var func: ast.Function = _
   private var data: FunctionData = _
   private var ignoreAccessPredicates = false
   private var failed = false
@@ -86,15 +91,15 @@ class HeapAccessReplacingExpressionTranslator(symbolConverter: SymbolConverter,
                                   : Term =
 
     e match {
-      case _: ast.AccessPredicate | _: ast.MagicWand if ignoreAccessPredicates => True()
-      case q: ast.Forall if !q.isPure && ignoreAccessPredicates => True()
+      case _: ast.AccessPredicate | _: ast.MagicWand if ignoreAccessPredicates => True
+      case q: ast.Forall if !q.isPure && ignoreAccessPredicates => True
 
       case _: ast.Result => data.formalResult
 
       case v: ast.AbstractLocalVar =>
         data.formalArgs.get(v) match {
           case Some(t) => t
-          case None => Var(Identifier(v.name), toSort(v.typ))
+          case None => Var(Identifier(v.name), toSort(v.typ), false)
         }
 
       case eQuant: ast.QuantifiedExp =>
@@ -114,20 +119,31 @@ class HeapAccessReplacingExpressionTranslator(symbolConverter: SymbolConverter,
 
         tQuant.transform({ case v: Var =>
           v.id match {
-            case sid: SuffixedIdentifier if names.contains(sid.prefix) => Var(SimpleIdentifier(sid.prefix), v.sort)
+            case sid: SuffixedIdentifier if names.contains(sid.prefix.name) =>
+              Var(SimpleIdentifier(sid.prefix.name), v.sort, false)
             case _ => v
           }
         })()
 
-      case loc: ast.LocationAccess => getOrFail(data.locToSnap, loc, toSort(loc.typ))
+      case loc: ast.LocationAccess => getOrFail(data.locToSnap, loc, toSort(loc.typ), Option.when(Verifier.config.enableDebugging())(extractPTypeFromExp(loc)))
       case ast.Unfolding(_, eIn) => translate(toSort)(eIn)
       case ast.Applying(_, eIn) => translate(toSort)(eIn)
+      case ast.Asserting(_, eIn) => translate(toSort)(eIn)
 
       case eFApp: ast.FuncApp =>
         val silverFunc = program.findFunction(eFApp.funcname)
-        val fun = symbolConverter.toFunction(silverFunc)
+        val funcAnn = silverFunc.info.getUniqueInfo[AnnotationInfo]
+        val fun = funcAnn match {
+          case Some(a) if a.values.contains("opaque") =>
+            val funcAppAnn = eFApp.info.getUniqueInfo[AnnotationInfo]
+            funcAppAnn match {
+              case Some(a) if a.values.contains("reveal") => symbolConverter.toFunction(silverFunc)
+              case _ => functionSupporter.limitedVersion(symbolConverter.toFunction(silverFunc))
+            }
+          case _ => symbolConverter.toFunction(silverFunc)
+        }
         val args = eFApp.args map (arg => translate(arg))
-        val snap = getOrFail(data.fappToSnap, eFApp, sorts.Snap)
+        val snap = getOrFail(data.fappToSnap, eFApp, sorts.Snap, Option.when(Verifier.config.enableDebugging())(PUnknown()))
         val fapp = App(fun, snap +: args)
 
         val callerHeight = data.height
@@ -141,7 +157,7 @@ class HeapAccessReplacingExpressionTranslator(symbolConverter: SymbolConverter,
       case _ => super.translate(symbolConverter.toSort)(e)
     }
 
-  def getOrFail[K <: ast.Positioned](map: Map[K, Term], key: K, sort: Sort): Term =
+  def getOrFail[K <: ast.Positioned](map: Map[K, Term], key: K, sort: Sort, pType: Option[PType]): Term =
     map.get(key) match {
       case Some(s) =>
         s.convert(sort)
@@ -159,6 +175,6 @@ class HeapAccessReplacingExpressionTranslator(symbolConverter: SymbolConverter,
          *       including the formal arguments of a function, if the unresolved expression is from
          *       a function body.
          */
-        fresh("$unresolved", sort)
+        fresh("$unresolved", sort, pType)
     }
 }

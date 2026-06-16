@@ -15,6 +15,7 @@ class Trigger private[terms] (val p: Seq[Term]) extends StructuralEqualityUnaryO
 }
 
 object Trigger extends (Seq[Term] => Trigger) {
+
   def apply(t: Term) = new Trigger(t :: Nil)
   def apply(ts: Seq[Term]) = new Trigger(ts)
 
@@ -26,8 +27,7 @@ object Trigger extends (Seq[Term] => Trigger) {
   * (see, e.g. [[GenericTriggerGenerator.setCustomIsForbiddenInTrigger]]).
   */
 class TriggerGenerator
-    extends GenericTriggerGenerator[Term, Sort, Term, Var, Quantification]
-       with Mutable {
+    extends GenericTriggerGenerator[Term, Sort, Term, Var, Quantification] {
 
   protected def hasSubnode(root: Term, child: Term) = root.hasSubterm(child)
   protected def visit[A](root: Term)(f: PartialFunction[Term, A]) = root.visit(f)
@@ -36,7 +36,7 @@ class TriggerGenerator
   protected def transform[T <: Term](root: T)(f: PartialFunction[Term, Term]) = root.transform(f)()
   protected def Quantification_vars(q: Quantification) = q.vars
   protected def Exp_typ(term: Term): Sort = term.sort
-  protected def Var(id: String, sort: Sort) = terms.Var(Identifier(id), sort)
+  protected def Var(id: String, sort: Sort) = terms.Var(Identifier(id), sort, false)
 
   def generateFirstTriggerGroup(vs: Seq[Var], toSearch: Seq[Term]): Option[(Seq[Trigger], Seq[Var])] =
     generateFirstTriggerSetGroup(vs, toSearch).map {
@@ -81,7 +81,7 @@ class TriggerGenerator
   }
 
   /* True iff the given node is a possible trigger */
-  def isPossibleTrigger(e: Term): Boolean = e match {
+  def isPossibleTrigger(e: Term): Boolean = (customIsPossibleTrigger orElse {
     case _: Var => false
     case app: App => app.applicable.isInstanceOf[Function]
     case   _: CustomEquals
@@ -96,28 +96,31 @@ class TriggerGenerator
          | _: MultisetTerm
          | _: MultisetCardinality
          | _: MultisetCount
+         | _: MapLookup
+         | _: MapCardinality
+         | _: MapDomain
+         | _: MapRange
+         | _: MapUpdate
          | _: SnapshotTerm
          | _: Domain
          | _: Lookup
          | _: PredicateLookup
          => true
     case _ => false
-  }
+  }: PartialFunction[Term, Boolean])(e)
 
   /* True iff the given node is not allowed in triggers */
-  def isForbiddenInTrigger(term: Term) = term match {
-    case app: App => app.applicable.isInstanceOf[Macro]
+  def isForbiddenInTrigger(term: Term) = (customIsForbiddenInTrigger orElse {
     case   _: Plus | _: Minus | _: Times | _: Div | _: Mod
          | _: Not | _: Or | _: And | _: Implies | _: Iff | _: Ite
          | _: BuiltinEquals
          | _: Less | _: AtMost | _: Greater | _: AtLeast
-         | _: PermTimes | _: IntPermTimes | _: PermIntDiv | _: PermPlus | _: PermMinus
+         | _: PermTimes | _: IntPermTimes | _: PermIntDiv | _: PermPermDiv |_: PermPlus | _: PermMinus
          | _: PermLess | _: PermAtMost
          | _: Distinct
-         | _: Let
          => true
     case _ => false
-  }
+  }: PartialFunction[Term, Boolean])(term)
 
   val advancedIsForbiddenInTrigger:PartialFunction[Term, Boolean] = {
     case _: Plus | _: Minus => false
@@ -151,7 +154,6 @@ class AxiomRewriter(counter: Counter/*, logger: MultiRunLogger*/,
 
   private type Type = Sort
   private type Exp = Term
-  private type Eq = Equals
 
   def rewrite(quantification: Quantification): Option[Quantification] =
     rewrite(quantification, quantification.triggers.map(trigger => TriggerSet(trigger.p)))
@@ -191,17 +193,17 @@ class AxiomRewriter(counter: Counter/*, logger: MultiRunLogger*/,
   protected val solver = SimpleArithmeticSolver
 
   protected def fresh(name: String, typ: Type): Var =
-    Var(Identifier(s"$name@rw${counter.next()}"), typ)
+    Var(Identifier(s"$name@rw${counter.next()}"), typ, false)
 
   protected def log(message: String): Unit = {
 //    logger.println(message)
   }
 
-  protected def log(key: String, item: Any) {
+  protected def log(key: String, item: Any): Unit = {
     log(key, item :: Nil)
   }
 
-  protected def log(key: String, items: Iterable[Any]) {
+  protected def log(key: String, items: Iterable[Any]): Unit = {
 //    if (items.size <= 1)
 //      logger.println(s"  $key: $items")
 //    else {
@@ -219,7 +221,6 @@ object SimpleArithmeticSolver extends GenericArithmeticSolver[Sort, Term, Var, P
 
   private type Type = Sort
   private type Exp = Term
-  private type Eq = Equals
 
   /*
    * Abstract members - type arguments

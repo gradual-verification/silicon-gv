@@ -7,9 +7,11 @@
 package viper.silicon.reporting
 
 import java.io.{File, PrintWriter}
+
 import scala.collection.mutable
 import scala.reflect.ClassTag
 import viper.silicon.Config
+import viper.silicon.utils.notNothing.NotNothing
 import viper.silicon.verifier.Verifier
 import viper.silver.components.StatefulComponent
 
@@ -49,9 +51,9 @@ trait MultiRunRecorder extends StatefulComponent {
 
   protected def onSourceChanged(previousSource: Option[String], currentSource: Option[String]): Unit
 
-  def start() { /* nothing to do */ }
-  def reset() { /* nothing to do */ }
-  def stop() { /* nothing to do */ }
+  def start(): Unit = { /* nothing to do */ }
+  def reset(): Unit = { /* nothing to do */ }
+  def stop(): Unit = { /* nothing to do */ }
 }
 
 abstract class PrintWriterBasedMultiRunRecorder extends MultiRunRecorder {
@@ -94,7 +96,12 @@ object MultiRunRecorders extends StatefulComponent {
   private val sinks = mutable.ArrayBuffer.empty[PrintWriter]
 
   protected def config: Config = Verifier.config
-  protected def source: Option[String] = Verifier.inputFile.map(_.toString)
+
+  /**
+   The source is set by the Silicon verifier (in method [[viper.silicon.Silicon.verify]]) after parsing and type
+   checking but before consistency checks and verification.
+   */
+  var source: Option[String] = None
 
   protected def sink(name: String): PrintWriter = {
     val writer =
@@ -106,7 +113,7 @@ object MultiRunRecorders extends StatefulComponent {
     writer
   }
 
-  def get[R <: MultiRunRecorder : ClassTag](name: String): R = {
+  def get[R <: MultiRunRecorder : NotNothing : ClassTag](name: String): R = {
     val recorder =
       recorders.getOrElseUpdate(name, {
         val sinkArgumentClass = classOf[PrintWriter]
@@ -126,12 +133,12 @@ object MultiRunRecorders extends StatefulComponent {
     assert(sinks.isEmpty)
   }
 
-  def reset() {
+  def reset(): Unit = {
     recorders.valuesIterator.foreach(_.reset())
     sinks.foreach(_.flush())
   }
 
-  def stop() {
+  def stop(): Unit = {
     recorders.valuesIterator.foreach(_.stop())
     sinks.foreach(_.close())
 

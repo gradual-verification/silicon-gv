@@ -6,15 +6,21 @@
 
 package viper.silicon.supporters
 
-import viper.silver.ast
-import viper.silver.ast.utility.QuantifiedPermissions.QuantifiedPermissionAssertion
-import viper.silicon.state.{State, SymbolConverter}
+import viper.silicon.debugger.DebugExp
 import viper.silicon.state.terms.{Combine, First, Second, Sort, Term, Unit, sorts}
+import viper.silicon.state.{MagicWandIdentifier, State, SymbolConverter}
 import viper.silicon.utils.toSf
 import viper.silicon.verifier.Verifier
+import viper.silver.ast
+import viper.silver.ast.Resource
+import viper.silver.ast.utility.QuantifiedPermissions.QuantifiedPermissionAssertion
+
+import scala.annotation.unused
 
 trait SnapshotSupporter {
   def optimalSnapshotSort(a: ast.Exp, program: ast.Program): (Sort, Boolean)
+
+  def optimalSnapshotSort(r: ast.Resource, s: State, v: Verifier): Sort
 
   def createSnapshotPair(s: State,
                          sf: (Sort, Verifier) => Term,
@@ -27,6 +33,17 @@ trait SnapshotSupporter {
 class DefaultSnapshotSupporter(symbolConverter: SymbolConverter) extends SnapshotSupporter {
   def optimalSnapshotSort(a: ast.Exp, program: ast.Program): (Sort, Boolean) =
     optimalSnapshotSort(a, program, Nil)
+
+  def optimalSnapshotSort(r: Resource, s: State, v: Verifier): Sort = r match {
+    case f: ast.Field => v.symbolConverter.toSort(f.typ)
+    case p: ast.Predicate if s.predicateSnapMap.contains(p) => s.predicateSnapMap(p)
+    case p: ast.Predicate =>
+      p.body.map(v.snapshotSupporter.optimalSnapshotSort(_, s.program)._1)
+        .getOrElse(sorts.Snap)
+    case mw: ast.MagicWand if s.qpMagicWands.contains(MagicWandIdentifier(mw, s.program)) =>
+      sorts.Snap
+    case _: ast.MagicWand => sorts.MagicWandSnapFunction
+  }
 
   private def optimalSnapshotSort(a: ast.Exp, program: ast.Program, visited: Seq[String])
                                  : (Sort, Boolean) =
@@ -64,7 +81,7 @@ class DefaultSnapshotSupporter(symbolConverter: SymbolConverter) extends Snapsho
 
       case ast.And(a1, a2) =>
         /* At least one of a1, a2 must be impure, otherwise ... */
-        getOptimalSnapshotSortFromPair(a1, a2, () => (sorts.Snap, false), program, visited)
+        getOptimalSnapshotSortFromPair(a1, a2, () => (sorts.Snap, false))
 
       case ast.CondExp(_, a1, a2) =>
         /* At least one of a1, a2 must be impure, otherwise ... */
@@ -78,10 +95,10 @@ class DefaultSnapshotSupporter(symbolConverter: SymbolConverter) extends Snapsho
           (s, isPure)
         }
 
-        getOptimalSnapshotSortFromPair(a1, a2, () => findCommonSort(), program, visited)
+        getOptimalSnapshotSortFromPair(a1, a2, () => findCommonSort())
 
       case QuantifiedPermissionAssertion(_, _, acc: ast.FieldAccessPredicate) =>
-        (sorts.FieldValueFunction(symbolConverter.toSort(acc.loc.field.typ)), false)
+        (sorts.FieldValueFunction(symbolConverter.toSort(acc.loc.field.typ), acc.loc.field.name), false)
 
       case _ =>
         (sorts.Snap, false)
@@ -89,20 +106,12 @@ class DefaultSnapshotSupporter(symbolConverter: SymbolConverter) extends Snapsho
 
   private def getOptimalSnapshotSortFromPair(a1: ast.Exp,
                                              a2: ast.Exp,
-                                             fIfBothPure: () => (Sort, Boolean),
-                                             program: ast.Program,
-                                             visited: Seq[String])
+                                             fIfBothPure: () => (Sort, Boolean))
                                             : (Sort, Boolean) = {
 
     if (a1.isPure && a2.isPure) fIfBothPure()
     else (sorts.Snap, false)
   }
-
-  private def mkSnap(a: ast.Exp, program: ast.Program, v: Verifier, visited: Seq[String] = Nil): Term =
-    optimalSnapshotSort(a, program, visited) match {
-      case (sorts.Snap, true) => Unit
-      case (sort, _) => v.decider.fresh(sort)
-    }
 
   def createSnapshotPair(s: State,
                          sf: (Sort, Verifier) => Term,
@@ -119,7 +128,7 @@ class DefaultSnapshotSupporter(symbolConverter: SymbolConverter) extends Snapsho
     (sf0, sf1)
   }
 
-  private def createSnapshotPair(s: State, snap: Term, a0: ast.Exp, a1: ast.Exp, v: Verifier): (Term, Term) = {
+  private def createSnapshotPair(@unused s: State, snap: Term, @unused a0: ast.Exp, @unused a1: ast.Exp, v: Verifier): (Term, Term) = {
     /* [2015-11-17 Malte] If both fresh snapshot terms and first/second datatypes
      * are used, then the overall test suite verifies in 2min 10sec, whereas
      * it takes 2min 20sec when only first/second datatypes are used. Might be
@@ -134,10 +143,12 @@ class DefaultSnapshotSupporter(symbolConverter: SymbolConverter) extends Snapsho
      * to use First(snap)/Second(snap) as the default.
      */
 
-    assert(snap != Unit, "Unit snapshot cannot be decomposed")
+    if (snap == Unit) {
+      throw new IllegalArgumentException("Unit snapshot cannot be decomposed")
+    }
 
     val (snap0, snap1, snapshotEq) =
-/* // [2019-12-22 Malte] Old code kept for documentation purposes
+      /* // [2019-12-22 Malte] Old code kept for documentation purposes
       if (!s.conservingSnapshotGeneration) {
         val snap0 = mkSnap(a0, Verifier.program, v)
         val snap1 = mkSnap(a1, Verifier.program, v)
@@ -149,8 +160,7 @@ class DefaultSnapshotSupporter(symbolConverter: SymbolConverter) extends Snapsho
 
         (snap0, snap1, snap === Combine(snap0, snap1))
       }
-
-    v.decider.assume(snapshotEq)
+    v.decider.assume(snapshotEq, Option.when(Verifier.config.enableDebugging())(DebugExp.createInstance("Snapshot", true)))
 
     (snap0, snap1)
   }

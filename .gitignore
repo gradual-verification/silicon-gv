@@ -1,5 +1,6 @@
 .idea
 .idea_modules
+common/target
 project/project
 project/target
 target
@@ -17,12 +18,12 @@ utils/tidy_smtlib/tidy_smtlib.jar
 utils/scripts/tidy_smtlib.jar
 silicon_classpath.txt
 lib/
-silver
+src/test/resources/symbExLogTests/*.alog
+.DS_Store
 viper_tutorial_examples
-*.DS_Store
-.bloop
-.bsp
-.metals
+.bsp/
+.bloop/
+.metals/
 .scalafmt.conf
 executionTreeData.txt
 dot_input.dot

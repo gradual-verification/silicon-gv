@@ -6,6 +6,9 @@
 
 package viper.silicon.rules
 
+import viper.silicon.debugger.DebugExp
+import viper.silicon.Config.JoinMode
+
 import scala.collection.mutable
 import viper.silver.ast
 import viper.silver.ast.utility.QuantifiedPermissions.QuantifiedPermissionAssertion
@@ -14,11 +17,12 @@ import viper.silver.verifier.reasons._
 import viper.silicon.Stack
 import viper.silicon.interfaces.{Failure, VerificationResult}
 import viper.silicon.logger.SymbExLogger
-import viper.silicon.logger.records.data.{CondExpRecord, ConsumeRecord}
+import viper.silicon.logger.records.data.{CondExpRecord, ConsumeRecord, ImpliesRecord}
 import viper.silicon.state._
 import viper.silicon.state.terms._
 import viper.silicon.state.terms.predef.`?r`
 import viper.silicon.supporters.Translator
+import viper.silicon.utils.ast.BigAnd
 import viper.silicon.verifier.Verifier
 import viper.silicon.utils
 
@@ -28,6 +32,7 @@ trait ConsumptionRules extends SymbolicExecutionRules {
     *
     * @param s The state to consume the assertion from.
     * @param a The assertion to consume.
+    * @param returnSnap Whether a snapshot should be returned or not.
     * @param pve The error to report in case the consumption fails.
     * @param v The verifier to use.
     * @param Q The continuation to invoke if the consumption succeeded, with the following
@@ -36,8 +41,8 @@ trait ConsumptionRules extends SymbolicExecutionRules {
     *          consumed partial heap.
     * @return The result of the continuation.
     */
-  def consume(s: State, a: ast.Exp, pve: PartialVerificationError, v: Verifier)
-             (Q: (State, Term, Verifier) => VerificationResult)
+  def consume(s: State, a: ast.Exp, returnSnap: Boolean, pve: PartialVerificationError, v: Verifier)
+             (Q: (State, Option[Term], Verifier) => VerificationResult)
              : VerificationResult
 
   /** Subsequently consumes the assertions `as` (from head to tail), starting in state `s`.
@@ -48,6 +53,7 @@ trait ConsumptionRules extends SymbolicExecutionRules {
     *
     * @param s The state to consume the assertions from.
     * @param as The assertions to consume.
+    * @param returnSnap Whether a snapshot should be returned or not.
     * @param pvef The error to report in case a consumption fails. Given assertions `as`, an error
     *             `pvef(as_i)` will be reported if consuming assertion `as_i` fails.
     * @param v @see [[consume]]
@@ -56,13 +62,14 @@ trait ConsumptionRules extends SymbolicExecutionRules {
     */
   def consumes(s: State,
                as: Seq[ast.Exp],
+               returnSnap: Boolean,
                pvef: ast.Exp => PartialVerificationError,
                v: Verifier)
-              (Q: (State, Term, Verifier) => VerificationResult)
+              (Q: (State, Option[Term], Verifier) => VerificationResult)
               : VerificationResult
 }
 
-object consumer extends ConsumptionRules with Immutable {
+object consumer extends ConsumptionRules {
   import brancher._
   import evaluator._
 
@@ -71,19 +78,23 @@ object consumer extends ConsumptionRules with Immutable {
    */
 
   /** @inheritdoc */
-  def consume(s: State, a: ast.Exp, pve: PartialVerificationError, v: Verifier)
-             (Q: (State, Term, Verifier) => VerificationResult)
+  def consume(s: State, a: ast.Exp, returnSnap: Boolean, pve: PartialVerificationError, v: Verifier)
+             (Q: (State, Option[Term], Verifier) => VerificationResult)
              : VerificationResult = {
 
     val consumed = a match {
       case impr @ ast.ImpreciseExp(e) =>
-        consumeR(s, true, s.optimisticHeap, s.h, e.whenExhaling, pve, v)((s1, oh1, h1, snap, v1) => {
+        consumeR(s, true, s.optimisticHeap, s.h, e.whenExhaling, returnSnap, pve, v)((s1, oh1, h1, snap, v1) => {
           val s2 = s1.copy(isImprecise = true, h = Heap(), optimisticHeap = Heap(),
                            partiallyConsumedHeap = s.partiallyConsumedHeap)
-          Q(s2, Combine(Unit, snap), v1)})
-
+          snap match {
+            case Some(sn) if returnSnap => Q(s2, Some(Combine((Unit, sn))), v1)
+            case None if !returnSnap => Q(s2, None, v1)
+            case _ => sys.error(s"Consume returned unexpected snapshot: ${(returnSnap, snap)}")
+          }
+        })
       case _ =>
-        consumeR(s, s.isImprecise, s.optimisticHeap, s.h, a.whenExhaling, pve, v)((s1, oh1, h1, snap, v1) => {
+        consumeR(s, s.isImprecise, s.optimisticHeap, s.h, a.whenExhaling, returnSnap, pve, v)((s1, oh1, h1, snap, v1) => {
           val s2 = s1.copy(h = h1, optimisticHeap = oh1,
                            partiallyConsumedHeap = s.partiallyConsumedHeap)
           Q(s2, snap, v1)})
@@ -95,9 +106,10 @@ object consumer extends ConsumptionRules with Immutable {
   /** @inheritdoc */
   def consumes(s: State,
                as: Seq[ast.Exp],
+               returnSnap: Boolean,
                pvef: ast.Exp => PartialVerificationError,
                v: Verifier)
-              (Q: (State, Term, Verifier) => VerificationResult)
+              (Q: (State, Option[Term], Verifier) => VerificationResult)
               : VerificationResult = {
 
     val allTlcs = mutable.ListBuffer[ast.Exp]()
@@ -137,15 +149,19 @@ object consumer extends ConsumptionRules with Immutable {
 
 
     if(imprecise) {
-      consumeTlcs(s, true, s.optimisticHeap, s.h, allTlcs.result(), allPves.result(), v)((s1, oh1, h1, snap1, v1) => {
+      consumeTlcs(s, true, s.optimisticHeap, s.h, allTlcs.result(), returnSnap, allPves.result(), v)((s1, oh1, h1, snap1, v1) => {
         val s2 = s1.copy(h = Heap(),
                         optimisticHeap = Heap(),
                         partiallyConsumedHeap = s.partiallyConsumedHeap,
                         isImprecise = true)
-        Q(s2, Combine(Unit, snap1), v1)
+        snap1 match {
+          case Some(sn1) if returnSnap => Q(s2, Some(Combine((Unit, sn1))), v1)
+          case None if !returnSnap => Q(s2, None, v1)
+          case _ => sys.error(s"Consume returned unexpected snapshot: ${(returnSnap, snap1)}")
+        }
       })
     } else {
-      consumeTlcs(s, s.isImprecise, s.optimisticHeap, s.h, allTlcs.result(), allPves.result(), v)((s1, oh1, h1, snap1, v1) => {
+      consumeTlcs(s, s.isImprecise, s.optimisticHeap, s.h, allTlcs.result(), returnSnap, allPves.result(), v)((s1, oh1, h1, snap1, v1) => {
         val s2 = s1.copy(h = h1,
                         optimisticHeap = oh1,
                         partiallyConsumedHeap = s.partiallyConsumedHeap)
@@ -154,7 +170,7 @@ object consumer extends ConsumptionRules with Immutable {
     }
   }
 /*
-    consumeTlcs(s, s.h, allTlcs.result(), allPves.result(), v)((s1, h1, snap1, v1) => {
+    consumeTlcs(s, s.h, allTlcs.result(), returnSnap, allPves.result(), v)((s1, h1, snap1, v1) => {
       val s2 = s1.copy(h = h1,
                        partiallyConsumedHeap = s.partiallyConsumedHeap)
       Q(s2, snap1, v1)
@@ -166,35 +182,41 @@ object consumer extends ConsumptionRules with Immutable {
                           oh: Heap,
                           h: Heap,
                           tlcs: Seq[ast.Exp],
+                          returnSnap: Boolean,
                           pves: Seq[PartialVerificationError],
                           v: Verifier)
-                         (Q: (State, Heap, Heap, Term, Verifier) => VerificationResult)
+                         (Q: (State, Heap, Heap, Option[Term], Verifier) => VerificationResult)
                          : VerificationResult = {
 
     if (tlcs.isEmpty)
-      Q(s, oh, h, Unit, v)
+      Q(s, oh, h, if (returnSnap) Some(Unit) else None, v)
     else {
       val a = tlcs.head
       val pve = pves.head
 
 
       if (tlcs.tail.isEmpty)
-        wrappedConsumeTlc(s, impr, oh, h, a, pve, v)(Q)
+        wrappedConsumeTlc(s, impr, oh, h, a, returnSnap, pve, v)(Q)
       else
-        wrappedConsumeTlc(s, impr, oh, h, a, pve, v)((s1, oh1, h1, snap1, v1) =>
-          consumeTlcs(s1, impr, oh1, h1, tlcs.tail, pves.tail, v1)((s2, oh2, h2, snap2, v2) =>
-            Q(s2, oh2, h2, Combine(snap1, snap2), v2)))
+        wrappedConsumeTlc(s, impr, oh, h, a, returnSnap, pve, v)((s1, oh1, h1, snap1, v1) => {
+          consumeTlcs(s1, impr, oh1, h1, tlcs.tail, returnSnap, pves.tail, v1)((s2, oh2, h2, snap2, v2) =>
+            (snap1, snap2) match {
+              case (Some(sn1), Some(sn2)) if returnSnap => Q(s2, oh2, h2, Some(Combine((sn1, sn2))), v2)
+              case (None, None) if !returnSnap => Q(s2, oh2, h2, None, v2)
+              case (_, _) =>  sys.error(s"Consume returned unexpected snapshot: ${(returnSnap, (snap1, snap2))}")
+            })
+        })
     }
   }
 
-  private def consumeR(s: State, impr: Boolean, oh: Heap, h: Heap, a: ast.Exp, pve: PartialVerificationError, v: Verifier)
-                      (Q: (State, Heap, Heap, Term, Verifier) => VerificationResult)
+  private def consumeR(s: State, impr: Boolean, oh: Heap, h: Heap, a: ast.Exp, returnSnap: Boolean, pve: PartialVerificationError, v: Verifier)
+                      (Q: (State, Heap, Heap, Option[Term], Verifier) => VerificationResult)
                       : VerificationResult = {
 
     val tlcs = a.topLevelConjuncts
     val pves = Seq.fill(tlcs.length)(pve)
 
-    consumeTlcs(s, impr, oh, h, tlcs, pves, v)(Q)
+    consumeTlcs(s, impr, oh, h, tlcs, returnSnap, pves, v)(Q)
   }
 
   /** Wrapper/decorator for consume that injects the following operations:
@@ -206,9 +228,10 @@ object consumer extends ConsumptionRules with Immutable {
                                   oh: Heap,
                                   h: Heap,
                                   a: ast.Exp,
+                                  returnSnap: Boolean,
                                   pve: PartialVerificationError,
                                   v: Verifier)
-                                 (Q: (State, Heap, Heap, Term, Verifier) => VerificationResult)
+                                 (Q: (State, Heap, Heap, Option[Term], Verifier) => VerificationResult)
                                  : VerificationResult = {
 // Do we need to do this stuff on oh? - Jacob
     /* tryOrFail effects the "main" heap s.h, so we temporarily set the consume-heap h to be the
@@ -216,21 +239,21 @@ object consumer extends ConsumptionRules with Immutable {
      * consume.
      */
     val sInit = s.copy(h = h)
-    val s0 = stateConsolidator.consolidate(sInit, v)
+    val s0 = v.stateConsolidator(s).consolidate(sInit, v)
     val h0 = s0.h /* h0 is h, but consolidated */
     val s1 = s0.copy(h = s.h)
 
     /* TODO: To remove this cast: Add a type argument to the ConsumeRecord.
      *       Globally the types match, but locally the type system does not know.
      */
-    val sepIdentifier = SymbExLogger.currentLog().openScope(new ConsumeRecord(a, s1, v.decider.pcs))
-    consumeTlc(s1, impr, oh, h0, a, pve, v)((s2, oh2, h2, snap2, v1) => {
-      SymbExLogger.currentLog().closeScope(sepIdentifier)
+    val sepIdentifier = v.symbExLog.openScope(new ConsumeRecord(a, s1, v.decider.pcs))
+    consumeTlc(s1, impr, oh, h0, a, returnSnap, pve, v)((s2, oh2, h2, snap2, v1) => {
+      v1.symbExLog.closeScope(sepIdentifier)
       Q(s2, oh2, h2, snap2, v1)})
   }
 
-  private def consumeTlc(s: State, impr: Boolean, oh: Heap, h: Heap, a: ast.Exp, pve: PartialVerificationError, v: Verifier)
-                        (Q: (State, Heap, Heap, Term, Verifier) => VerificationResult)
+  private def consumeTlc(s: State, impr: Boolean, oh: Heap, h: Heap, a: ast.Exp, returnSnap: Boolean, pve: PartialVerificationError, v: Verifier)
+                        (Q: (State, Heap, Heap, Option[Term], Verifier) => VerificationResult)
                         : VerificationResult = {
     
     /* ATTENTION: Expressions such as `perm(...)` must be evaluated in-place,
@@ -245,7 +268,7 @@ object consumer extends ConsumptionRules with Immutable {
     v.logger.debug("h = " + v.stateFormatter.format(h))
     if (s.reserveHeaps.nonEmpty)
       v.logger.debug("hR = " + s.reserveHeaps.map(v.stateFormatter.format).mkString("", ",\n     ", ""))
-
+    
     val consumed = a match {
 
 /*
@@ -282,49 +305,49 @@ object consumer extends ConsumptionRules with Immutable {
       // set some local variable, sourceCall, so we can continue to access it?
       case ite @ ast.CondExp(e0, a1, a2) =>
         val condExpRecord = new CondExpRecord(ite, s, v.decider.pcs, "consume")
-        val uidCondExp = SymbExLogger.currentLog().openScope(condExpRecord)
+        val uidCondExp = v.symbExLog.openScope(condExpRecord)
 
-        evalpc(s.copy(isImprecise = impr), e0, pve, v)((s1, t0, v1) => {
+        evalpc(s.copy(isImprecise = impr), e0, pve, v)((s1, t0, e0New, v1) => {
           val s2 = s1.copy(isImprecise = s.isImprecise)
       
-            // what was happening here...?
-            // we were unsetting the position in the state at the beginning of
-            // consumeTlc, but we were not able to attach it to the branching info
-            //
-            // we weren't seeing it at this point, where we were matching on it to see if
-            // it was None
-            //
-            // this has been changed since that point, but we should figure out what the
-            // issue was... it is commit with the message "Buggy changes to track branch positions
-            // for method call sites"
-            val branchPosition: Option[CheckPosition] =
-              (s.methodCallAstNode, s.foldOrUnfoldAstNode, s.loopPosition) match {
-                case (None, None, None) => None
-                case (Some(methodCallAstNode), None, None) => Some(CheckPosition.GenericNode(methodCallAstNode))
-                case (None, Some(foldOrUnfoldAstNode), None) => Some(CheckPosition.GenericNode(foldOrUnfoldAstNode))
-                case (None, None, Some(_)) => s.loopPosition
-                case _ => {
-                  sys.error("This should not happen, at least until we support "
-                    + "unfoldings, maybe! We don't deal with this case at the "
-                    + "moment because we want to know if this happens!")
-                }
+          // what was happening here...?
+          // we were unsetting the position in the state at the beginning of
+          // consumeTlc, but we were not able to attach it to the branching info
+          //
+          // we weren't seeing it at this point, where we were matching on it to see if
+          // it was None
+          //
+          // this has been changed since that point, but we should figure out what the
+          // issue was... it is commit with the message "Buggy changes to track branch positions
+          // for method call sites"
+          val branchPosition: Option[CheckPosition] =
+            (s.methodCallAstNode, s.foldOrUnfoldAstNode, s.loopPosition) match {
+              case (None, None, None) => None
+              case (Some(methodCallAstNode), None, None) => Some(CheckPosition.GenericNode(methodCallAstNode))
+              case (None, Some(foldOrUnfoldAstNode), None) => Some(CheckPosition.GenericNode(foldOrUnfoldAstNode))
+              case (None, None, Some(_)) => s.loopPosition
+              case _ => {
+                sys.error("This should not happen, at least until we support "
+                  + "unfoldings, maybe! We don't deal with this case at the "
+                  + "moment because we want to know if this happens!")
               }
+            }
 
-            branch(s2, t0, e0, branchPosition, v1)(
-              // the things in the branch (the then and else contents) may reach
-              // the final case of consumeTlc, where we unset the method
-              // callsite ast node
-              //
-              // that's why it worked before...? the way we do it now is
-              // better, maybe
-              (s3, v2) => consumeR(s3, impr, oh, h, a1, pve, v2)((s4, oh3, h3, t1, v3) => {
-                SymbExLogger.currentLog().closeScope(uidCondExp)
-                Q(s4, oh3, h3, t1, v3)
-              }),
-              (s3, v2) => consumeR(s3, impr, oh, h, a2, pve, v2)((s4, oh3, h3, t1, v3) => {
-                SymbExLogger.currentLog().closeScope(uidCondExp)
-                Q(s4, oh3, h3, t1, v3)
-              }))
+          branch(s2, t0, (e0, e0New), branchPosition, v1)(
+            // the things in the branch (the then and else contents) may reach
+            // the final case of consumeTlc, where we unset the method
+            // callsite ast node
+            //
+            // that's why it worked before...? the way we do it now is
+            // better, maybe
+            (s3, v2) => consumeR(s3, impr, oh, h, a1, returnSnap, pve, v2)((s4, oh3, h3, t1, v3) => {
+              v3.symbExLog.closeScope(uidCondExp)
+              Q(s4, oh3, h3, t1, v3)
+            }),
+            (s3, v2) => consumeR(s3, impr, oh, h, a2, returnSnap, pve, v2)((s4, oh3, h3, t1, v3) => {
+              v3.symbExLog.closeScope(uidCondExp)
+              Q(s4, oh3, h3, t1, v3)
+            }))
         })
 
       /* TODO: Initial handling of QPs is identical/very similar in consumer
@@ -338,125 +361,172 @@ object consumer extends ConsumptionRules with Immutable {
         val optTrigger =
           if (forall.triggers.isEmpty) None
           else Some(forall.triggers)
+
         evalQuantified(s, Forall, forall.variables, Seq(cond), Seq(acc.perm, acc.loc.rcv), optTrigger, qid.name, pve, v) {
-          case (s1, qvars, Seq(tCond), Seq(tPerm, tRcvr), tTriggers, (auxGlobals, auxNonGlobals), v1) =>
+          case (s1, qvars, qvarExps, Seq(tCond), condNew, Some((Seq(tPerm, tRcvr), permRcvrOpt, tTriggers, (auxGlobals, auxNonGlobals), auxExps)), v1) =>
             quantifiedChunkSupporter.consume(
               s = s1,
               h = h,
-              forall = forall,
-              acc = acc,
               resource = field,
               qvars = qvars,
+              qvarExps = qvarExps,
               formalQVars = Seq(`?r`),
+              formalQVarsExp = Option.when(withExp)(Seq(ast.LocalVarDecl(`?r`.id.name, ast.Ref)())),
               qid = qid.name,
               optTrigger = optTrigger,
               tTriggers = tTriggers,
               auxGlobals = auxGlobals,
               auxNonGlobals = auxNonGlobals,
+              auxGlobalsExp = auxExps.map(_._1),
+              auxNonGlobalsExp = auxExps.map(_._2),
               tCond = tCond,
+              eCond = condNew.map(_.head),
               tArgs = Seq(tRcvr),
+              eArgs = permRcvrOpt.map(permRcvr => Seq(permRcvr(1))),
               tPerm = tPerm,
+              ePerm = permRcvrOpt.map(_(0)),
+              returnSnap = returnSnap,
               pve = pve,
               negativePermissionReason = NegativePermission(acc.perm),
-              notInjectiveReason = ReceiverNotInjective(acc.loc),
-              insufficientPermissionReason =InsufficientPermission(acc.loc),
-              v1)(Q)
+              notInjectiveReason = QPAssertionNotInjective(acc.loc),
+              insufficientPermissionReason = InsufficientPermission(acc.loc),
+              v1)((s2, h2, snap, v2) => Q(s2.copy(constrainableARPs = s.constrainableARPs), h2, snap, v2))
+          case (s1, _, _, _, _, None, v1) => Q(s1, h, if (returnSnap) Some(Unit) else None, v1)
         }
 
       case QuantifiedPermissionAssertion(forall, cond, acc: ast.PredicateAccessPredicate) =>
-        val predicate = Verifier.program.findPredicate(acc.loc.predicateName)
-         * TODO: Quantified codomain variables are used in axioms and chunks (analogous to `?r`)
+<<<<<<< HEAD
+        val predicate = Verifier.program.findPredicate(acc.loc.predicateName)*/
+         /* TODO: Quantified codomain variables are used in axioms and chunks (analogous to `?r`)*/
+//=======
+        /*val predicate = s.program.findPredicate(acc.loc.predicateName)*/
+        /* TODO: Quantified codomain variables are used in axioms and chunks (analogous to `?r`)
+>>>>>>> upstream/master
          *       and need to be instantiated in several places. Hence, they need to be known,
          *       which is more complicated if fresh identifiers are used.
          *       At least two options:
          *         1. Choose fresh identifiers each time; remember/restore, e.g. by storing these variables in chunks
          *         2. Choose fresh identifiers once; store in and take from state (or from object Verifier)
-         *
-        val formalVars = s.predicateFormalVarMap(predicate)
+         */
+        /*val formalVars = s.predicateFormalVarMap(predicate)
         val qid = BasicChunkIdentifier(acc.loc.predicateName)
         val optTrigger =
           if (forall.triggers.isEmpty) None
           else Some(forall.triggers)
         evalQuantified(s, Forall, forall.variables, Seq(cond), acc.perm +: acc.loc.args, optTrigger, qid.name, pve, v) {
-          case (s1, qvars, Seq(tCond), Seq(tPerm, tArgs @ _*), tTriggers, (auxGlobals, auxNonGlobals), v1) =>
+          case (s1, qvars, qvarExps, Seq(tCond), condNew, Some((Seq(tPerm, tArgs @ _*), permArgsNew, tTriggers, (auxGlobals, auxNonGlobals), auxExps)), v1) =>
             quantifiedChunkSupporter.consume(
               s = s1,
               h = h,
-              forall = forall,
-              acc = acc,
               resource = predicate,
               qvars = qvars,
+              qvarExps = qvarExps,
               formalQVars = formalVars,
+              formalQVarsExp = Option.when(withExp)(predicate.formalArgs),
               qid = qid.name,
               optTrigger = optTrigger,
               tTriggers = tTriggers,
               auxGlobals = auxGlobals,
               auxNonGlobals = auxNonGlobals,
+              auxGlobalsExp = auxExps.map(_._1),
+              auxNonGlobalsExp = auxExps.map(_._2),
               tCond = tCond,
+              eCond = condNew.map(_.head),
               tArgs = tArgs,
+              eArgs = permArgsNew.map(_.tail),
               tPerm = tPerm,
+              ePerm = permArgsNew.map(_.head),
+              returnSnap = returnSnap,
               pve = pve,
               negativePermissionReason = NegativePermission(acc.perm),
-              notInjectiveReason = ReceiverNotInjective(acc.loc),
-              insufficientPermissionReason =InsufficientPermission(acc.loc),
-              v1)(Q)
+              notInjectiveReason = QPAssertionNotInjective(acc.loc),
+              insufficientPermissionReason = InsufficientPermission(acc.loc),
+              v1)((s2, h2, snap, v2) => Q(s2.copy(constrainableARPs = s.constrainableARPs), h2, snap, v2))
+          case (s1, _, _, _, _, None, v1) => Q(s1, h, if (returnSnap) Some(Unit) else None, v1)
         }
 
       case QuantifiedPermissionAssertion(forall, cond, wand: ast.MagicWand) =>
-        val bodyVars = wand.subexpressionsToEvaluate(Verifier.program)
-        val formalVars = bodyVars.indices.toList.map(i => Var(Identifier(s"x$i"), v.symbolConverter.toSort(bodyVars(i).typ)))
-        val qid = MagicWandIdentifier(wand, Verifier.program).toString
+        val bodyVars = wand.subexpressionsToEvaluate(s.program)
+        val formalVars = bodyVars.indices.toList.map(i => Var(Identifier(s"x$i"), v.symbolConverter.toSort(bodyVars(i).typ), false))
+        val formalVarExps = Option.when(withExp)(bodyVars.indices.toList.map(i => ast.LocalVarDecl(s"x$i", bodyVars(i).typ)()))
+        val qid = MagicWandIdentifier(wand, s.program).toString
         val optTrigger =
           if (forall.triggers.isEmpty) None
           else Some(forall.triggers)
         val ePerm = ast.FullPerm()()
-        val tPerm = FullPerm()
+        val tPerm = FullPerm
         evalQuantified(s, Forall, forall.variables, Seq(cond), bodyVars, optTrigger, qid, pve, v) {
-          case (s1, qvars, Seq(tCond), tArgs, tTriggers, (auxGlobals, auxNonGlobals), v1) =>
+          case (s1, qvars, qvarExps, Seq(tCond), condNew, Some((tArgs, bodyVarsNew, tTriggers, (auxGlobals, auxNonGlobals), auxExps)), v1) =>
             quantifiedChunkSupporter.consume(
               s = s1,
               h = h,
-              forall = forall,
-              acc = wand,
               resource = wand,
               qvars = qvars,
+              qvarExps = qvarExps,
               formalQVars = formalVars,
+              formalQVarsExp = formalVarExps,
               qid = qid,
               optTrigger = optTrigger,
               tTriggers = tTriggers,
               auxGlobals = auxGlobals,
               auxNonGlobals = auxNonGlobals,
+              auxGlobalsExp = auxExps.map(_._1),
+              auxNonGlobalsExp = auxExps.map(_._2),
               tCond = tCond,
+              eCond = condNew.map(_.head),
               tArgs = tArgs,
+              eArgs = bodyVarsNew,
               tPerm = tPerm,
+              ePerm = Option.when(withExp)(ePerm),
+              returnSnap = returnSnap,
               pve = pve,
               negativePermissionReason = NegativePermission(ePerm),
-              notInjectiveReason = sys.error("Quantified wand not injective"), /*ReceiverNotInjective(...)*/
-              insufficientPermissionReason = MagicWandChunkNotFound(wand), /*InsufficientPermission(...)*/
-              v1)(Q)
+              notInjectiveReason = sys.error("Quantified wand not injective"), *//*ReceiverNotInjective(...)*/
+              //insufficientPermissionReason = MagicWandChunkNotFound(wand), /*InsufficientPermission(...)*/
+              /*v1)((s2, h2, snap, v2) => Q(s2.copy(constrainableARPs = s.constrainableARPs), h2, snap, v2))
+          case (s1, _, _, _, _, None, v1) => Q(s1.copy(constrainableARPs = s.constrainableARPs), h, if (returnSnap) Some(Unit) else None, v1)
         }
+<<<<<<< HEAD
 */
 /*
       case ast.AccessPredicate(loc @ ast.FieldAccess(eRcvr, field), ePerm)
+=======
+
+      case accPred@ast.AccessPredicate(loc @ ast.FieldAccess(eRcvr, field), ePerm)
+>>>>>>> upstream/master
               if s.qpFields.contains(field) =>
 
-        eval(s, eRcvr, pve, v)((s1, tRcvr, v1) =>
-          eval(s1, ePerm, pve, v1)((s2, tPerm, v2) => {
-            val (relevantChunks, _) =
-              quantifiedChunkSupporter.splitHeap[QuantifiedFieldChunk](s2.h, BasicChunkIdentifier(field.name))
-            val (smDef1, smCache1) =
-              quantifiedChunkSupporter.summarisingSnapshotMap(
-                s2, field, Seq(`?r`), relevantChunks, v2)
-            v2.decider.assume(FieldTrigger(field.name, smDef1.sm, tRcvr))
-//            v2.decider.assume(PermAtMost(tPerm, FullPerm()))
-            val loss = PermTimes(tPerm, s2.permissionScalingFactor)
+        eval(s, eRcvr, pve, v)((s1, tRcvr, eRcvrNew, v1) =>
+          eval(s1, ePerm, pve, v1)((s2, tPerm, ePermNew, v2) => {
+            val s2p = if (s2.heapDependentTriggers.contains(field)){
+              val (relevantChunks, _) =
+                quantifiedChunkSupporter.splitHeap[QuantifiedFieldChunk](s2.h, BasicChunkIdentifier(field.name))
+              val (smDef1, smCache1) =
+                quantifiedChunkSupporter.summarisingSnapshotMap(
+                  s2, field, Seq(`?r`), relevantChunks, v2)
+              val debugExp = Option.when(withExp)(DebugExp.createInstance(s"Field Trigger: ${eRcvrNew.get.toString}.${field.name}"))
+              v2.decider.assume(FieldTrigger(field.name, smDef1.sm, tRcvr), debugExp)
+              //            v2.decider.assume(PermAtMost(tPerm, FullPerm()))
+              s2.copy(smCache = smCache1)
+            } else {
+              s2
+            }
+            val loss = if (!Verifier.config.unsafeWildcardOptimization() || s2.permLocations.contains(field))
+              PermTimes(tPerm, s2.permissionScalingFactor)
+            else
+              WildcardSimplifyingPermTimes(tPerm, s2.permissionScalingFactor)
+            val lossExp = ePermNew.map(p => ast.PermMul(p, s2.permissionScalingFactorExp.get)(ePerm.pos, ePerm.info, ePerm.errT))
             quantifiedChunkSupporter.consumeSingleLocation(
-              s2.copy(smCache = smCache1),
+              s2p,
               h,
               Seq(`?r`),
+              Option.when(withExp)(Seq(ast.LocalVarDecl("r", ast.Ref)(accPred.pos, accPred.info, accPred.errT))),
               Seq(tRcvr),
+              eRcvrNew.map(Seq(_)),
               loc,
               loss,
+              lossExp,
+              returnSnap,
               None,
               pve,
               v2
@@ -466,28 +536,42 @@ object consumer extends ConsumptionRules with Immutable {
               Q(s4, oh, h3, snap, v3)})}))
 
       case ast.AccessPredicate(loc @ ast.PredicateAccess(eArgs, predname), ePerm)
-              if s.qpPredicates.contains(Verifier.program.findPredicate(predname)) =>
+              if s.qpPredicates.contains(s.program.findPredicate(predname)) =>
 
-        val predicate = Verifier.program.findPredicate(predname)
+        val predicate = s.program.findPredicate(predname)
         val formalVars = s.predicateFormalVarMap(predicate)
 
-        evals(s, eArgs, _ => pve, v)((s1, tArgs, v1) =>
-          eval(s1, ePerm, pve, v1)((s2, tPerm, v2) => {
-            val (relevantChunks, _) =
-              quantifiedChunkSupporter.splitHeap[QuantifiedPredicateChunk](s.h, BasicChunkIdentifier(predname))
-            val (smDef1, smCache1) =
-              quantifiedChunkSupporter.summarisingSnapshotMap(
-                s2, predicate, s2.predicateFormalVarMap(predicate), relevantChunks, v2)
-            v2.decider.assume(PredicateTrigger(predicate.name, smDef1.sm, tArgs))
+        evals(s, eArgs, _ => pve, v)((s1, tArgs, eArgsNew, v1) =>
+          eval(s1, ePerm, pve, v1)((s2, tPerm, ePermNew, v2) => {
+            val s2p = if (s2.heapDependentTriggers.contains(predicate)){
+              val (relevantChunks, _) =
+                quantifiedChunkSupporter.splitHeap[QuantifiedPredicateChunk](s.h, BasicChunkIdentifier(predname))
+              val (smDef1, smCache1) =
+                quantifiedChunkSupporter.summarisingSnapshotMap(
+                  s2, predicate, s2.predicateFormalVarMap(predicate), relevantChunks, v2)
+              val debugExp = Option.when(withExp)(DebugExp.createInstance(s"PredicateTrigger(${predicate.name}(${eArgsNew.mkString(", ")}))", isInternal_ = true))
+              v2.decider.assume(PredicateTrigger(predicate.name, smDef1.sm, tArgs), debugExp)
+              s2.copy(smCache = smCache1)
+            } else {
+              s2
+            }
 
-            val loss = PermTimes(tPerm, s2.permissionScalingFactor)
+            val loss = if (!Verifier.config.unsafeWildcardOptimization() || s2.permLocations.contains(loc.loc(s2.program)))
+              PermTimes(tPerm, s2.permissionScalingFactor)
+            else
+              WildcardSimplifyingPermTimes(tPerm, s2.permissionScalingFactor)
+            val lossExp = ePermNew.map(p => ast.PermMul(p, s2.permissionScalingFactorExp.get)(ePerm.pos, ePerm.info, ePerm.errT))
             quantifiedChunkSupporter.consumeSingleLocation(
-              s2.copy(smCache = smCache1),
+              s2p,
               h,
               formalVars,
+              Option.when(withExp)(predicate.formalArgs),
               tArgs,
+              eArgsNew,
               loc,
               loss,
+              lossExp,
+              returnSnap,
               None,
               pve,
               v2
@@ -501,6 +585,7 @@ object consumer extends ConsumptionRules with Immutable {
       case let: ast.Let if !let.isPure =>
         letSupporter.handle[ast.Exp](s, let, pve, v)((s1, g1, body, v1) => {
           val s2 = s1.copy(g = s1.g + g1)
+<<<<<<< HEAD
           consumeR(s2, impr, oh, h, body, pve, v1)(Q)})
 */
 /*
@@ -532,25 +617,47 @@ object consumer extends ConsumptionRules with Immutable {
               case false =>
                 createFailure(pve dueTo NegativePermission(perm), v2, s2)}))
 */
-      case ast.PredicateAccessPredicate(locacc: ast.LocationAccess, perm) =>
+/*=======
+          consumeR(s2, h, body, returnSnap, pve, v1)(Q)})
 
-       //eval for expression and perm (perm should always be 1)
-        evalpc(s.copy(isImprecise = impr), perm, pve, v)((s1, tPerm, v1) =>
-          evalLocationAccesspc(s1.copy(isImprecise = impr), locacc, pve, v1)((s2, predName, tArgs, v2) => {
+      case ast.AccessPredicate(locacc: ast.LocationAccess, perm) =>
+        eval(s, perm, pve, v)((s1, tPerm, permNew, v1) =>
+          evalLocationAccess(s1, locacc, pve, v1)((s2, _, tArgs, eArgs, v2) =>
+            permissionSupporter.assertNotNegative(s2, tPerm, perm, permNew, pve, v2)((s3, v3) => {
+              val resource = locacc.res(s.program)
+              val loss = if (!Verifier.config.unsafeWildcardOptimization() || s2.permLocations.contains(locacc.loc(s2.program)))
+                PermTimes(tPerm, s2.permissionScalingFactor)
+              else
+                WildcardSimplifyingPermTimes(tPerm, s2.permissionScalingFactor)
+              val lossExp = permNew.map(p => ast.PermMul(p, s3.permissionScalingFactorExp.get)(p.pos, p.info, p.errT))
+              val ve = pve dueTo InsufficientPermission(locacc)
+              val description = s"consume ${a.pos}: $a"
+              chunkSupporter.consume(s3, h, resource, tArgs, eArgs, loss, lossExp, returnSnap, ve, v3, description)((s4, h1, snap1, v4) => {
+                val s5 = s4.copy(partiallyConsumedHeap = Some(h1),
+                                 constrainableARPs = s.constrainableARPs)
+                Q(s5, h1, snap1, v4)})})))
+>>>>>>> upstream/master*/
+
+      case ast.PredicateAccessPredicate(locacc: ast.LocationAccess, perm0) =>
+        val perm = perm0.getOrElse(ast.FullPerm()(ast.NoPosition, ast.NoInfo, ast.NoTrafos))
+        //eval for expression and perm (perm should always be 1)
+        evalpc(s.copy(isImprecise = impr), perm, pve, v)((s1, tPerm, permNew, v1) =>
+          evalLocationAccesspc(s1.copy(isImprecise = impr), locacc, pve, v1)((s2, predName, tArgs, eArgs, v2) => {
             v2.decider.assertgv(s.isImprecise, perms.IsPositive(tPerm)) {
               case true =>
-                val resource = locacc.res(Verifier.program)
+                val resource = locacc.res(s2.program)
                 val loss = PermTimes(tPerm, s2.permissionScalingFactor)
+                val lossExp = permNew.map(p => ast.PermMul(p, s2.permissionScalingFactorExp.get)(p.pos, p.info, p.errT))
                 val ve = pve dueTo InsufficientPermission(locacc)
                 val description = s"consume ${a.pos}: $a"
                 var s3 = s2.copy(isImprecise = s.isImprecise)
 
-                chunkSupporter.consume(s3, h, true, resource, tArgs, loss, ve, v2, description)((s4, h1, snap1, v3, chunkExisted) => {
+                chunkSupporter.consume(s3, h, true, resource, tArgs, eArgs, loss, lossExp, returnSnap, ve, v2, description)((s4, h1, snap1, v3, chunkExisted) => {
 
                   profilingInfo.incrementTotalConjuncts
 
                   if (s4.isImprecise) {
-                    chunkSupporter.consume(s4, oh, false, resource, tArgs, loss, ve, v3, description)((s5, oh1, snap2, v4, chunkExisted1) => {
+                    chunkSupporter.consume(s4, oh, true, resource, tArgs, eArgs, loss, lossExp, returnSnap, ve, v3, description)((s5, oh1, snap2, v4, chunkExisted1) => {
                       
                       if (!chunkExisted && !chunkExisted1) {
                         
@@ -575,7 +682,7 @@ object consumer extends ConsumptionRules with Immutable {
 
                         if (s5.generateChecks) {
                           runtimeChecks.addChecks(runtimeCheckAstNode,
-                            ast.PredicateAccessPredicate(ast.PredicateAccess(translatedArgs, predName)(), perm)(),
+                            ast.PredicateAccessPredicate(ast.PredicateAccess(translatedArgs, predName)(), Some(perm))(),
                             viper.silicon.utils.zip3(v4.decider.pcs.branchConditionsSemanticAstNodes,
                               v4.decider.pcs.branchConditionsAstNodes,
                               v.decider.pcs.branchConditionsOrigins).map(bc => BranchCond(bc._1, bc._2, bc._3)),
@@ -588,29 +695,27 @@ object consumer extends ConsumptionRules with Immutable {
                         
                         profilingInfo.incrementEliminatedConjuncts
 
-                        Q(s5, oh1, h1, snap1, v4)}
-
+                        Q(s5, oh1, h1, snap1, v4)
+                      }
                       else {
 
                         if (chunkExisted1) {
                           profilingInfo.incrementEliminatedConjuncts
                         }
 
-                        Q(s5, oh1, h1, snap2, v4)}})}
-
+                        Q(s5, oh1, h1, snap2, v4)}})
+                  }
                   else if (chunkExisted) {
 
                     profilingInfo.incrementEliminatedConjuncts
 
-                    Q(s4, oh, h1, snap1, v3)}
-
+                    Q(s4, oh, h1, snap1, v3)
+                  }
                   else {
-
-                    createFailure(pve dueTo InsufficientPermission(locacc), v3, s4)}})
-
+                    createFailure(pve dueTo InsufficientPermission(locacc), v3, s4, "")
+                  }})
               case false =>
-
-                createFailure(pve dueTo InsufficientPermission(locacc), v2, s2)
+                createFailure(pve dueTo InsufficientPermission(locacc), v2, s2, "")
 
             } match {
 
@@ -619,29 +724,30 @@ object consumer extends ConsumptionRules with Immutable {
             }}))
 
 
-      case ast.FieldAccessPredicate(locacc: ast.LocationAccess, perm) =>
-
-       //eval for expression and perm (perm should always be 1)
-        evalpc(s.copy(isImprecise = impr), perm, pve, v)((s1, tPerm, v1) =>
-          evalLocationAccesspc(s1.copy(isImprecise = impr), locacc, pve, v1)((s2, field, tArgs, v2) => {
+      case ast.FieldAccessPredicate(locacc: ast.LocationAccess, perm0) =>
+        val perm = perm0.getOrElse(ast.FullPerm()(ast.NoPosition, ast.NoInfo, ast.NoTrafos))
+        //eval for expression and perm (perm should always be 1)
+        evalpc(s.copy(isImprecise = impr), perm, pve, v)((s1, tPerm, permNew, v1) =>
+          evalLocationAccesspc(s1.copy(isImprecise = impr), locacc, pve, v1)((s2, field, tArgs, eArgs, v2) => {
             // is this why we produce a runtime check for != Null? does the
             // path condition not imply this (no, apparently it does not, at least for the
             // extra_check_issue.vpr example)
-            v2.decider.assertgv(s.isImprecise, And(perms.IsPositive(tPerm), tArgs.head !== Null())){
+            v2.decider.assertgv(s.isImprecise, And(perms.IsPositive(tPerm), tArgs.head !== Null)){
               case true =>
-                val resource = locacc.res(Verifier.program)
+                val resource = locacc.res(s2.program)
                 val loss = PermTimes(tPerm, s2.permissionScalingFactor)
+                val lossExp = permNew.map(p => ast.PermMul(p, s2.permissionScalingFactorExp.get)(p.pos, p.info, p.errT))
                 val ve = pve dueTo InsufficientPermission(locacc)
                 val description = s"consume ${a.pos}: $a"
                 var s3 = s2.copy(isImprecise = s.isImprecise)
 
-                chunkSupporter.consume(s3, h, true, resource, tArgs, loss, ve, v2, description)((s4, h1, snap1, v3, chunkExisted) => {
+                chunkSupporter.consume(s3, h, true, resource, tArgs, eArgs, loss, lossExp, returnSnap, ve, v2, description)((s4, h1, snap1, v3, chunkExisted) => {
 
                   profilingInfo.incrementTotalConjuncts
 
                   // don't know if this should be s3 or s4 - J
                   if (s4.isImprecise) {
-                    chunkSupporter.consume(s4, oh, false, resource, tArgs, loss, ve, v3, description)((s5, oh1, snap2, v4, chunkExisted1) => {
+                    chunkSupporter.consume(s4, oh, true, resource, tArgs, eArgs, loss, lossExp, returnSnap, ve, v3, description)((s5, oh1, snap2, v4, chunkExisted1) => {
                       
                       if (!chunkExisted && !chunkExisted1) {
 
@@ -668,7 +774,7 @@ object consumer extends ConsumptionRules with Immutable {
 
                         if (s5.generateChecks) {
                           runtimeChecks.addChecks(runtimeCheckAstNode,
-                            ast.FieldAccessPredicate(ast.FieldAccess(translatedArgs.head, resource.asInstanceOf[ast.Field])(), perm)(),
+                            ast.FieldAccessPredicate(ast.FieldAccess(translatedArgs.head, resource.asInstanceOf[ast.Field])(), Some(perm))(),
                             viper.silicon.utils.zip3(v4.decider.pcs.branchConditionsSemanticAstNodes,
                               v4.decider.pcs.branchConditionsAstNodes,
                               v.decider.pcs.branchConditionsOrigins).map(bc => BranchCond(bc._1, bc._2, bc._3)),
@@ -678,10 +784,9 @@ object consumer extends ConsumptionRules with Immutable {
                       }
 
                       if (chunkExisted) {
-
                         profilingInfo.incrementEliminatedConjuncts
-                        Q(s5, oh1, h1, snap1, v4)}
-
+                        Q(s5, oh1, h1, snap1, v4)
+                      }
                       else {
 
                         // we don't want to count it if the runtime check
@@ -695,10 +800,10 @@ object consumer extends ConsumptionRules with Immutable {
                     profilingInfo.incrementEliminatedConjuncts
                     Q(s4, oh, h1, snap1, v3)}
                   else {
-                    createFailure(pve dueTo InsufficientPermission(locacc), v3, s4)}})
+                    createFailure(pve dueTo InsufficientPermission(locacc), v3, s4, "")}})
 
               case false =>
-                createFailure(pve dueTo InsufficientPermission(locacc), v2, s2)
+                createFailure(pve dueTo InsufficientPermission(locacc), v2, s2, "")
 
             // this is the assertgv case for field access
             } match {
@@ -743,7 +848,7 @@ object consumer extends ConsumptionRules with Immutable {
             }}))
 
 /*
-      case ast.AccessPredicate(locacc: ast.LocationAccess, perm/*,need an overloaded copy with impreciseHeap as a parameter*/) => //add h_?; perm = 1
+      case ast.AccessPredicate(locacc: ast.LocationAccess, perm*//*,need an overloaded copy with impreciseHeap as a parameter*//*) => //add h_?; perm = 1
 
        //eval for expression and perm (perm should always be 1)
         evalpc(s.copy(isImprecise = impr), perm, pve, v)((s1, tPerm, v1) =>
@@ -759,7 +864,7 @@ object consumer extends ConsumptionRules with Immutable {
 
 
 
-                chunkSupporter.consume(s3, h, resource, tArgs, loss, ve, v2, description)((s4, h1, snap1, v3, chunkExisted) => {
+                chunkSupporter.consume(s3, h, resource, tArgs, loss, ve, v2, description)((s4, h1, snap1, v3, chunkExisted) => {*/
 /*                  val s4 = s3.copy(partiallyConsumedHeap = Some(h1),
                                    constrainableARPs = s.constrainableARPs,
                                    isImprecise = s3.isImprecise)
@@ -775,37 +880,47 @@ object consumer extends ConsumptionRules with Immutable {
                   }
 
 */
-                  Q(s4, oh, h1, snap1, v3)})
+                  /*Q(s4, oh, h1, snap1, v3)})
               case false =>
                 createFailure(pve dueTo InsufficientPermission(locacc), v2, s2)}}))
 */
 /*
       case _: ast.InhaleExhaleExp =>
-        Failure(viper.silicon.utils.consistency.createUnexpectedInhaleExhaleExpressionError(a))
+        createFailure(viper.silicon.utils.consistency.createUnexpectedInhaleExhaleExpressionError(a), v, s, "valid AST")
 */
       /* Handle wands */
-
-/*
-      case wand: ast.MagicWand if s.qpMagicWands.contains(MagicWandIdentifier(wand, Verifier.program)) =>
-        val bodyVars = wand.subexpressionsToEvaluate(Verifier.program)
-        val formalVars = bodyVars.indices.toList.map(i => Var(Identifier(s"x$i"), v.symbolConverter.toSort(bodyVars(i).typ)))
-
-        evals(s, bodyVars, _ => pve, v)((s1, tArgs, v1) => {
-          val (relevantChunks, _) =
-            quantifiedChunkSupporter.splitHeap[QuantifiedMagicWandChunk](s1.h, MagicWandIdentifier(wand, Verifier.program))
-          val (smDef1, smCache1) =
-            quantifiedChunkSupporter.summarisingSnapshotMap(
-              s1, wand, formalVars, relevantChunks, v1)
-          v1.decider.assume(PredicateTrigger(MagicWandIdentifier(wand, Verifier.program).toString, smDef1.sm, tArgs))
-
-          val loss = PermTimes(FullPerm(), s1.permissionScalingFactor)
+/*      case wand: ast.MagicWand if s.qpMagicWands.contains(MagicWandIdentifier(wand, s.program)) =>
+        val bodyVars = wand.subexpressionsToEvaluate(s.program)
+        val formalVars = bodyVars.indices.toList.map(i => Var(Identifier(s"x$i"), v.symbolConverter.toSort(bodyVars(i).typ), false))
+        val formalVarExps = Option.when(withExp)(bodyVars.indices.toList.map(i => ast.LocalVarDecl(s"x$i", bodyVars(i).typ)()))
+        evals(s, bodyVars, _ => pve, v)((s1, tArgs, bodyVarsNew, v1) => {
+          val s1p = if (s1.heapDependentTriggers.contains(MagicWandIdentifier(wand, s.program))){
+            val (relevantChunks, _) =
+              quantifiedChunkSupporter.splitHeap[QuantifiedMagicWandChunk](s1.h, MagicWandIdentifier(wand, s.program))
+            val (smDef1, smCache1) =
+              quantifiedChunkSupporter.summarisingSnapshotMap(
+                s1, wand, formalVars, relevantChunks, v1)
+            val argsString = bodyVarsNew.mkString(", ")
+            val predName = MagicWandIdentifier(wand, s.program).toString
+            val debugExp = Option.when(withExp)(DebugExp.createInstance(s"PredicateTrigger($predName($argsString))", isInternal_ = true))
+            v1.decider.assume(PredicateTrigger(predName, smDef1.sm, tArgs), debugExp)
+            s1.copy(smCache = smCache1)
+          } else {
+            s1
+          }
+          val loss = s1.permissionScalingFactor
+          val lossExp = s1.permissionScalingFactorExp
           quantifiedChunkSupporter.consumeSingleLocation(
-            s1.copy(smCache = smCache1),
+            s1p,
             h,
             formalVars,
+            formalVarExps,
             tArgs,
+            Option.when(withExp)(bodyVars),
             wand,
             loss,
+            lossExp,
+            returnSnap,
             None,
             pve,
             v1
@@ -815,10 +930,10 @@ object consumer extends ConsumptionRules with Immutable {
             Q(s4, h3, snap, v3)})})
 
       case wand: ast.MagicWand =>
-        magicWandSupporter.evaluateWandArguments(s, wand, pve, v)((s1, tArgs, v1) => {
+        magicWandSupporter.evaluateWandArguments(s, wand, pve, v)((s1, tArgs, eArgs, v1) => {
           val ve = pve dueTo MagicWandChunkNotFound(wand)
           val description = s"consume wand $wand"
-          chunkSupporter.consume(s1, h, wand, tArgs, FullPerm(), ve, v1, description)(Q)
+          chunkSupporter.consume(s1, h, wand, tArgs, eArgs, FullPerm, Option.when(withExp)(ast.FullPerm()(wand.pos, wand.info, wand.errT)), returnSnap, ve, v1, description)(Q)
         })
 */
       case _ => {
@@ -846,7 +961,7 @@ object consumer extends ConsumptionRules with Immutable {
               + s"Position: ${(s.methodCallAstNode, s.foldOrUnfoldAstNode, s.loopPosition)}")
         }
 
-        evalAndAssert(s, impr, a, pve, v)((s1, t, v1) => {
+        evalAndAssert(s, impr, a, returnSnap, pve, v)((s1, t, v1) => {
 
           returnedState = Some((s1, v1.decider.pcs.duplicate()))
 
@@ -895,8 +1010,8 @@ object consumer extends ConsumptionRules with Immutable {
     consumed
   }
 
-  private def evalAndAssert(s: State, impr: Boolean, e: ast.Exp, pve: PartialVerificationError, v: Verifier)
-                           (Q: (State, Term, Verifier) => VerificationResult)
+  private def evalAndAssert(s: State, impr: Boolean, e: ast.Exp, returnSnap: Boolean, pve: PartialVerificationError, v: Verifier)
+                           (Q: (State, Option[Term], Verifier) => VerificationResult)
                            : (VerificationResult, Option[Term]) = {
 
     /* It is expected that the partially consumed heap (h in the above implementation of
@@ -914,24 +1029,24 @@ object consumer extends ConsumptionRules with Immutable {
                     reserveHeaps = Nil,
                     exhaleExt = false)
 
-    val s2 = stateConsolidator.consolidate(s1, v)
+    val s2 = v.stateConsolidator(s).consolidate(s1, v)
 
     var returnValue: Option[(VerificationResult, Option[Term])] = None
 
-    val result = evalpc(s2.copy(isImprecise = impr), e, pve, v)((s3, t, v1) => {
+    val result = evalpc(s2.copy(isImprecise = impr), e, pve, v)((s3, t, eNew, v1) => {
       val s4 = s3.copy(isImprecise = s2.isImprecise)
       v1.decider.assertgv(s4.isImprecise, t) {
         case true =>
-          v1.decider.assume(t)
+          v1.decider.assume(t, Option.when(withExp)(e), eNew)
           val s5 = s4.copy(h = s.h,
                            reserveHeaps = s.reserveHeaps,
                            exhaleExt = s.exhaleExt)
-          Q(s5, Unit, v1)
+          Q(s5, if (returnSnap) Some(Unit) else None, v1)
         case false =>
         //  println("pve " + pve + "\ne " + e + "\nv1 " + v1 + "\ns3 " + s3)
           //println("heap: " + s.h + "\noh: " + s.optimisticHeap)
           //val s4 = s3.copy(isImprecise = false)
-          createFailure(pve dueTo AssertionFalse(e), v1, s3)
+          createFailure(pve dueTo AssertionFalse(e), v1, s3, t, eNew)
           // matching on the return value of assertgv
     } match {
       case (verificationResult, returnedCheck) => {
