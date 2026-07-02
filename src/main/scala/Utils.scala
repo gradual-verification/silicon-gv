@@ -12,6 +12,7 @@ import viper.silver.verifier.{VerificationError, errors}
 import viper.silver.verifier.errors.Internal
 import viper.silver.verifier.reasons.{FeatureUnsupported, UnexpectedNode}
 import viper.silver.ast.utility.rewriter.Traverse
+import viper.silver.ast.utility.Triggers.TriggerGenerationWithAddAndSubtract
 import viper.silicon.state.terms.{Sort, Term, Var}
 import viper.silicon.verifier.Verifier
 
@@ -170,13 +171,7 @@ package object utils {
           /* Standard trigger generation code failed.
            * Let's try generating (certain) invalid triggers, which will then be rewritten
            */
-          silver.ast.utility.Triggers.TriggerGeneration.setCustomIsForbiddenInTrigger {
-            case _: silver.ast.Add | _: silver.ast.Sub => false
-          }
-
-          val optTriggerSet = silver.ast.utility.Expressions.generateTriggerSet(q)
-
-          silver.ast.utility.Triggers.TriggerGeneration.setCustomIsForbiddenInTrigger(PartialFunction.empty)
+          val optTriggerSet = silver.ast.utility.Expressions.generateTriggerSet(q, TriggerGenerationWithAddAndSubtract)
 
           val advancedTriggerForall =
             optTriggerSet match {
@@ -238,8 +233,8 @@ package object utils {
     def toUnambiguousShortString(resource: silver.ast.Resource): String = {
       resource match {
         case l: silver.ast.Location => l.name
-        case m: silver.ast.MagicWand => m.toString()
-        case m @ silver.ast.MagicWandOp => s"${m.op}@${sourceLineColumn(m)}"
+        case m: silver.ast.MagicWand => m.toString
+        case m @ silver.ast.MagicWandOp => s"${silver.ast.MagicWandOp.op}@${sourceLineColumn(m)}"
       }
     }
 

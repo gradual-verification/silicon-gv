@@ -6,7 +6,7 @@
 
 package viper.silicon.rules
 
-import viper.silicon.interfaces.{Failure, SiliconNativeCounterexample, SiliconVariableCounterexample}
+import viper.silicon.interfaces.{Failure, SiliconFailureContext, SiliconNativeCounterexample, SiliconVariableCounterexample}
 import viper.silicon.logger.SymbExLogger
 import viper.silicon.logger.records.data.ErrorRecord
 import viper.silicon.state.State
@@ -14,7 +14,7 @@ import viper.silicon.verifier.Verifier
 import viper.silver.verifier.errors.ErrorWrapperWithExampleTransformer
 import viper.silver.verifier.{Counterexample, CounterexampleTransformer, Model, VerificationError}
 
-trait SymbolicExecutionRules extends Immutable {
+trait SymbolicExecutionRules {
   protected def createFailure(ve: VerificationError, v: Verifier, s: State, generateNewModel: Boolean = false): Failure = {
     val sepIdentifier = SymbExLogger.currentLog().openScope(
       new ErrorRecord(ve, s, v.decider.pcs))
@@ -49,7 +49,7 @@ trait SymbolicExecutionRules extends Immutable {
           case Some(trafo) => trafo.f(ce)
           case _ => ce
         }
-        res.counterexample = Some(finalCE)
+        res.failureContexts = Seq(SiliconFailureContext(Seq.empty, Some(finalCE), None))
       }
     }
     Failure(res)

@@ -44,7 +44,7 @@ trait PredicateSupportRules extends SymbolicExecutionRules {
             : VerificationResult
 }
 
-object predicateSupporter extends PredicateSupportRules with Immutable {
+object predicateSupporter extends PredicateSupportRules {
   import consumer._
   import producer._
 
@@ -197,13 +197,13 @@ object predicateSupporter extends PredicateSupportRules with Immutable {
 
                 if (s5.generateChecks) {
                   runtimeChecks.addChecks(runtimeCheckAstNode,
-                    ast.PredicateAccessPredicate(pa, ast.FullPerm()())(),
+                    ast.PredicateAccessPredicate(pa, Some(ast.FullPerm()()))(),
                     viper.silicon.utils.zip3(v2.decider.pcs.branchConditionsSemanticAstNodes,
                       v2.decider.pcs.branchConditionsAstNodes,
                       v.decider.pcs.branchConditionsOrigins).map(bc => BranchCond(bc._1, bc._2, bc._3)),
                     pa,
                     s5.forFraming)
-                  pa.addCheck(ast.PredicateAccessPredicate(pa, ast.FullPerm()())())
+                  pa.addCheck(ast.PredicateAccessPredicate(pa, Some(ast.FullPerm()()))())
                 }
               }
               if (chunkExisted) {

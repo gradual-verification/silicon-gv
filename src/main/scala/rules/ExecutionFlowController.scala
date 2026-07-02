@@ -48,7 +48,7 @@ trait ExecutionFlowRules extends SymbolicExecutionRules {
 
 }
 
-object executionFlowController extends ExecutionFlowRules with Immutable {
+object executionFlowController extends ExecutionFlowRules {
   def locallyWithResult[R](s: State, v: Verifier)
                           (block: (State, Verifier, (R => VerificationResult)) => VerificationResult)
                           (Q: R => VerificationResult)

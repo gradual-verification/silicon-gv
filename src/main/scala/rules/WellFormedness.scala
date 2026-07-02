@@ -27,7 +27,7 @@ trait WellFormednessRules extends SymbolicExecutionRules {
               : Boolean
 }
 
-object wellFormedness extends WellFormednessRules with Immutable {
+object wellFormedness extends WellFormednessRules {
   import producer._
   private var visitedPreds: Seq[String] = Seq() // assumes pred names unique; silver + C0's typecheckers/parsers ensure this
 

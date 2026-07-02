@@ -9,7 +9,6 @@ package viper.silicon.supporters
 import java.io.File
 import java.net.URL
 import scala.reflect.ClassTag
-import fastparse.all
 import viper.silver.ast
 import viper.silicon.common.collections.immutable.InsertionOrderedSet
 import viper.silicon.interfaces.PreambleContributor
@@ -87,9 +86,11 @@ abstract class BuiltinDomainsContributor extends PreambleContributor[Sort, Domai
   }
 
   protected def computeGroundTypeInstances(program: ast.Program): InsertionOrderedSet[BuiltinDomainType] =
-    program.groundTypeInstances.collect {
-      case builtinDomainTypeTag(s) => s
-    }.to[InsertionOrderedSet]
+    InsertionOrderedSet(
+      program.groundTypeInstances.collect {
+        case builtinDomainTypeTag(s) => s
+      }
+    )
 
   protected def transformSourceDomain(sourceDomain: ast.Domain): ast.Domain = sourceDomain
 
@@ -182,20 +183,13 @@ private object utils {
         source.close()
       }
 
-    viper.silver.parser.FastParser.parse(content, fromPath) match {
-      case fastparse.core.Parsed.Success(parsedProgram: viper.silver.parser.PProgram, _) =>
-        assert(parsedProgram.errors.isEmpty, s"Unexpected parsing errors: ${parsedProgram.errors}")
+    val fp = new viper.silver.parser.FastParser()
+    val parsedProgram = fp.parse(content, fromPath)
+    assert(parsedProgram.errors.isEmpty, s"Unexpected parsing errors: ${parsedProgram.errors}")
 
-        val resolver = viper.silver.parser.Resolver(parsedProgram)
-        val resolved = resolver.run.get
-        val translator = viper.silver.parser.Translator(resolved)
-        val program = translator.translate.get
-
-        program
-
-      case fastparse.core.Parsed.Failure(msg, index, extra) =>
-        val (line, col) = ast.LineCol(extra.input.asInstanceOf[all.ParserInput], index)
-        sys.error(s"Failure: $msg, at ${viper.silver.parser.FilePosition(fromPath, line, col)}")
-    }
+    val resolver = viper.silver.parser.Resolver(parsedProgram)
+    val resolved = resolver.run(false).get
+    val translator = viper.silver.parser.Translator(resolved)
+    translator.translate.get
   }
 }

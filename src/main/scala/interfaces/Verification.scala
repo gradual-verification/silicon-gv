@@ -8,7 +8,8 @@ package viper.silicon.interfaces
 
 import viper.silicon.interfaces.state.Chunk
 import viper.silicon.state.Store
-import viper.silver.verifier.{Counterexample, Model, VerificationError}
+import viper.silver.ast
+import viper.silver.verifier.{Counterexample, FailureContext, Model, VerificationError}
 import viper.silicon.state.terms.Term
 
 /*
@@ -113,3 +114,9 @@ case class SiliconVariableCounterexample(internalStore: Store, nativeModel: Mode
   }
 }
 
+case class SiliconFailureContext(branchConditions: Seq[ast.Exp],
+                                 counterExample: Option[Counterexample],
+                                 reasonUnknown: Option[String]) extends FailureContext {
+  override lazy val toString: String =
+    counterExample.fold("")(ce => s"\n\t\tcounterexample:\n$ce")
+}

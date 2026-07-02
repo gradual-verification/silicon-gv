@@ -70,7 +70,7 @@ trait ProductionRules extends SymbolicExecutionRules {
               : VerificationResult
 }
 
-object producer extends ProductionRules with Immutable {
+object producer extends ProductionRules {
   import brancher._
   import evaluator._
 
@@ -303,10 +303,10 @@ object producer extends ProductionRules with Immutable {
  *      letSupporter.handle[ast.Exp](s, let, pve, v)((s1, g1, body, v1) =>
  *        produceR(s1.copy(g = s1.g + g1), sf, body, pve, v1)(Q))
  */
-      case loc @ ast.FieldAccessPredicate(locacc @ ast.FieldAccess(eRcvr, field), perm) =>
+      case loc @ ast.FieldAccessPredicate(locacc @ ast.FieldAccess(eRcvr, field), _) =>
         val s0 = s.copy(generateChecks = false)
         evalpc(s0, eRcvr, pve, v, false)((s1, tRcvr, v1) =>
-          evalpc(s1, perm, pve, v1, false)((s2, tPerm, v2) => {
+          evalpc(s1, loc.perm, pve, v1, false)((s2, tPerm, v2) => {
             val s2_0 = s2.copy(generateChecks = true)
             if(chunkSupporter.inHeap(s2_0.h, s2_0.h.values, field, Seq(tRcvr), v2) && !v2.decider.checkSmoke()) {
               createFailure(pve dueTo LocInHeap(locacc), v2, s2_0) 
@@ -326,11 +326,11 @@ object producer extends ProductionRules with Immutable {
             }
         }))
 
-      case ast.PredicateAccessPredicate(ast.PredicateAccess(eArgs, predicateName), perm) =>
+      case pap @ ast.PredicateAccessPredicate(ast.PredicateAccess(eArgs, predicateName), _) =>
         val predicate = Verifier.program.findPredicate(predicateName)
         val s0 = s.copy(generateChecks = false)
         evalspc(s0, eArgs, _ => pve, v, false)((s1, tArgs, v1) =>
-          evalpc(s1, perm, pve, v1, false)((s2, tPerm, v2) => {
+          evalpc(s1, pap.perm, pve, v1, false)((s2, tPerm, v2) => {
             val s2_0 = s2.copy(generateChecks = true)
             val snap = sf(
               predicate.body.map(v2.snapshotSupporter.optimalSnapshotSort(_, Verifier.program)._1)

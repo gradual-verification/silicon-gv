@@ -18,7 +18,7 @@ import viper.silicon.state._
 import viper.silicon.state.terms._
 import viper.silicon.verifier.Verifier
 
-object heuristicsSupporter extends SymbolicExecutionRules with Immutable {
+object heuristicsSupporter extends SymbolicExecutionRules {
   import executor._
 
   /* tryOperation-Methods with varying output arity */
@@ -296,7 +296,7 @@ object heuristicsSupporter extends SymbolicExecutionRules with Immutable {
         val foldPredicateReactions =
           reason.offendingNode match {
             case pa: ast.PredicateAccess if ok(pa) =>
-              val foldMissing = foldPredicate(ast.PredicateAccessPredicate(pa, ast.FullPerm()())(), pve) _
+              val foldMissing = foldPredicate(ast.PredicateAccessPredicate(pa, Some(ast.FullPerm()()))(), pve) _
 
               val optFoldLoad =
                 cause.load match {
@@ -389,7 +389,7 @@ object heuristicsSupporter extends SymbolicExecutionRules with Immutable {
           val reversedArgs: Seq[ast.Exp] = backtranslate(s.g.values, allChunks.toSeq, args, program)
 
           if (args.length == reversedArgs.length)
-            Some(ast.PredicateAccessPredicate(ast.PredicateAccess(reversedArgs, name)(), ast.FullPerm()())())
+            Some(ast.PredicateAccessPredicate(ast.PredicateAccess(reversedArgs, name)(), Some(ast.FullPerm()()))())
           else
             None
         case _ => sys.error("Unexpected case in pattern matching")

@@ -17,7 +17,7 @@ import viper.silicon.state.terms.predef._
 import viper.silicon.state.{IdentifierFactory, SymbolConverter}
 import viper.silicon.supporters.PredicateData
 import viper.silicon.{Config, Map, toMap}
-import viper.silver.plugin.PluginAwareReporter
+import viper.silver.reporter.Reporter
 
 /* TODO: Refactor FunctionData!
  *       Separate computations from "storing" the final results and sharing
@@ -38,7 +38,7 @@ class FunctionData(val programFunction: ast.Function,
                    identifierFactory: IdentifierFactory,
                    predicateData: ast.Predicate => PredicateData,
                    config: Config,
-                   reporter: PluginAwareReporter)
+                   reporter: Reporter)
     extends LazyLogging {
 
   private[this] var phase = 0

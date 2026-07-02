@@ -62,7 +62,7 @@ trait ConsumptionRules extends SymbolicExecutionRules {
               : VerificationResult
 }
 
-object consumer extends ConsumptionRules with Immutable {
+object consumer extends ConsumptionRules {
   import brancher._
   import evaluator._
 
@@ -537,10 +537,10 @@ object consumer extends ConsumptionRules with Immutable {
               case false =>
                 createFailure(pve dueTo NegativePermission(perm), v2, s2)}))
 */
-      case ast.PredicateAccessPredicate(locacc: ast.LocationAccess, perm) =>
+      case pap @ ast.PredicateAccessPredicate(locacc: ast.LocationAccess, _) =>
 
        //eval for expression and perm (perm should always be 1)
-        evalpc(s.copy(isImprecise = impr), perm, pve, v)((s1, tPerm, v1) =>
+        evalpc(s.copy(isImprecise = impr), pap.perm, pve, v)((s1, tPerm, v1) =>
           evalLocationAccesspc(s1.copy(isImprecise = impr), locacc, pve, v1)((s2, predName, tArgs, v2) => {
             v2.decider.assertgv(s.isImprecise, perms.IsPositive(tPerm)) {
               case true =>
@@ -581,7 +581,7 @@ object consumer extends ConsumptionRules with Immutable {
 
                         if (s5.generateChecks) {
                           runtimeChecks.addChecks(runtimeCheckAstNode,
-                            ast.PredicateAccessPredicate(ast.PredicateAccess(translatedArgs, predName)(), perm)(),
+                            ast.PredicateAccessPredicate(ast.PredicateAccess(translatedArgs, predName)(), pap.permExp)(),
                             viper.silicon.utils.zip3(v4.decider.pcs.branchConditionsSemanticAstNodes,
                               v4.decider.pcs.branchConditionsAstNodes,
                               v.decider.pcs.branchConditionsOrigins).map(bc => BranchCond(bc._1, bc._2, bc._3)),
@@ -626,10 +626,10 @@ object consumer extends ConsumptionRules with Immutable {
             }}))
 
 
-      case ast.FieldAccessPredicate(locacc: ast.LocationAccess, perm) =>
+      case fap @ ast.FieldAccessPredicate(locacc: ast.LocationAccess, _) =>
 
        //eval for expression and perm (perm should always be 1)
-        evalpc(s.copy(isImprecise = impr), perm, pve, v)((s1, tPerm, v1) =>
+        evalpc(s.copy(isImprecise = impr), fap.perm, pve, v)((s1, tPerm, v1) =>
           evalLocationAccesspc(s1.copy(isImprecise = impr), locacc, pve, v1)((s2, field, tArgs, v2) => {
             // is this why we produce a runtime check for != Null? does the
             // path condition not imply this (no, apparently it does not, at least for the
@@ -676,7 +676,7 @@ object consumer extends ConsumptionRules with Immutable {
 
                         if (s5.generateChecks) {
                           runtimeChecks.addChecks(runtimeCheckAstNode,
-                            ast.FieldAccessPredicate(ast.FieldAccess(translatedArgs.head, resource.asInstanceOf[ast.Field])(), perm)(),
+                            ast.FieldAccessPredicate(ast.FieldAccess(translatedArgs.head, resource.asInstanceOf[ast.Field])(), fap.permExp)(),
                             viper.silicon.utils.zip3(v4.decider.pcs.branchConditionsSemanticAstNodes,
                               v4.decider.pcs.branchConditionsAstNodes,
                               v.decider.pcs.branchConditionsOrigins).map(bc => BranchCond(bc._1, bc._2, bc._3)),
@@ -755,7 +755,7 @@ object consumer extends ConsumptionRules with Immutable {
       case ast.AccessPredicate(locacc: ast.LocationAccess, perm/*,need an overloaded copy with impreciseHeap as a parameter*/) => //add h_?; perm = 1
 
        //eval for expression and perm (perm should always be 1)
-        evalpc(s.copy(isImprecise = impr), perm, pve, v)((s1, tPerm, v1) =>
+        evalpc(s.copy(isImprecise = impr), fap.perm, pve, v)((s1, tPerm, v1) =>
           evalLocationAccesspc(s1.copy(isImprecise = impr), locacc, pve, v1)((s2, _, tArgs, v2) => {
 
             v2.decider.assertgv(s.isImprecise, perms.IsPositive(tPerm)){

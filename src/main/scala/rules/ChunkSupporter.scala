@@ -78,7 +78,7 @@ trait ChunkSupportRules extends SymbolicExecutionRules {
                       : Iterable[CH]
 }
 
-object chunkSupporter extends ChunkSupportRules with Immutable {
+object chunkSupporter extends ChunkSupportRules {
   def consume(s: State,
               h: Heap,
               consolidate: Boolean,
@@ -366,13 +366,13 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
 
                     if (s2.generateChecks) {
                       runtimeChecks.addChecks(runtimeCheckAstNode,
-                        ast.FieldAccessPredicate(ast.FieldAccess(translatedArgs.head, f)(), ast.FullPerm()())(),
+                        ast.FieldAccessPredicate(ast.FieldAccess(translatedArgs.head, f)(), Some(ast.FullPerm()()))(),
                         viper.silicon.utils.zip3(v.decider.pcs.branchConditionsSemanticAstNodes,
                           v.decider.pcs.branchConditionsAstNodes,
                           v.decider.pcs.branchConditionsOrigins).map(bc => BranchCond(bc._1, bc._2, bc._3)),
                         runtimeCheckFieldTarget,
                         s2.forFraming)
-                      runtimeCheckFieldTarget.addCheck(ast.FieldAccessPredicate(ast.FieldAccess(translatedArgs.head, f)(), ast.FullPerm()())())
+                      runtimeCheckFieldTarget.addCheck(ast.FieldAccessPredicate(ast.FieldAccess(translatedArgs.head, f)(), Some(ast.FullPerm()()))())
                     }
 
                     v.decider.assume(args.head !== Null())
@@ -444,13 +444,13 @@ object chunkSupporter extends ChunkSupportRules with Immutable {
                       })
 
                     runtimeChecks.addChecks(runtimeCheckAstNode,
-                      ast.FieldAccessPredicate(ast.FieldAccess(translatedArgs.head, f)(), ast.FullPerm()())(),
+                      ast.FieldAccessPredicate(ast.FieldAccess(translatedArgs.head, f)(), Some(ast.FullPerm()()))(),
                       viper.silicon.utils.zip3(v.decider.pcs.branchConditionsSemanticAstNodes,
                         v.decider.pcs.branchConditionsAstNodes,
                         v.decider.pcs.branchConditionsOrigins).map(bc => BranchCond(bc._1, bc._2, bc._3)),
                       runtimeCheckFieldTarget,
                       s.forFraming)
-                    runtimeCheckFieldTarget.addCheck(ast.FieldAccessPredicate(ast.FieldAccess(translatedArgs.head, f)(), ast.FullPerm()())())
+                    runtimeCheckFieldTarget.addCheck(ast.FieldAccessPredicate(ast.FieldAccess(translatedArgs.head, f)(), Some(ast.FullPerm()()))())
 
                     Q(s.copy(madeOptimisticAssumptions = true), snap, v)
                   }

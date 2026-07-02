@@ -43,7 +43,7 @@ trait ExecutionRules extends SymbolicExecutionRules {
            : VerificationResult
 }
 
-object executor extends ExecutionRules with Immutable {
+object executor extends ExecutionRules {
 
   import consumer._
   import evaluator._
@@ -66,7 +66,7 @@ object executor extends ExecutionRules with Immutable {
 
           val potentialCheckPosition: Option[CheckPosition.Loop] = {
             val loopInvariant = originatingBlock match {
-              case cfg.LoopHeadBlock(invs, _) => Some(invs)
+              case cfg.LoopHeadBlock(invs, _, _) => Some(invs)
               case _ => None
             }
 
@@ -149,7 +149,7 @@ object executor extends ExecutionRules with Immutable {
       Q(s, v)
     } else {
       val isImprecise = originatingBlock match {
-        case cfg.LoopHeadBlock(_, _) => s.invariantContexts.head._1
+        case cfg.LoopHeadBlock(_, _, _) => s.invariantContexts.head._1
         case _ => s.isImprecise
       }
       if (isImprecise) {
@@ -289,7 +289,7 @@ object executor extends ExecutionRules with Immutable {
          */
         sys.error(s"Unexpected block: $block")
 
-      case block @ cfg.LoopHeadBlock(invs, stmts) =>
+      case block @ cfg.LoopHeadBlock(invs, stmts, _) =>
         // we use the first invariant in invs because invs is a Seq[ast.Exp]
         // and a Seq may be mutable in CFGs produced by gvc0
         incomingEdgeKind match {
@@ -431,11 +431,6 @@ object executor extends ExecutionRules with Immutable {
               SymbExLogger.currentLog().closeScope(sepIdentifier)
               Success()})
         }
-
-      case cfg.ConstrainingBlock(vars: Seq[ast.AbstractLocalVar @unchecked], body: SilverCfg) =>
-        val arps = vars map (s.g.apply(_).asInstanceOf[Var])
-        exec(s.setConstrainable(arps, true), body, v)((s1, v1) =>
-          follows(s1.setConstrainable(arps, false), block, magicWandSupporter.getOutEdges(s1, block), Internal(_), v1)(Q))
     }
   }
 
@@ -561,7 +556,7 @@ object executor extends ExecutionRules with Immutable {
 
         eval(s, eRcvr, pve, v)((s1, tRcvr, v1) =>
           eval(s1, rhs, pve, v1)((s2, tRhs, v2) => {
-            val fap = ast.FieldAccessPredicate(fa, ast.FullPerm()(ass.pos))(ass.pos)
+            val fap = ast.FieldAccessPredicate(fa, Some(ast.FullPerm()(ass.pos)))(ass.pos)
 
             consume(s2, fap, pve, v2)((s3, snap, v3) => {
 
@@ -694,7 +689,7 @@ object executor extends ExecutionRules with Immutable {
       case call @ ast.MethodCall(methodName, eArgs, lhs) =>
         val meth = Verifier.program.findMethod(methodName)
         val fargs = meth.formalArgs.map(_.localVar)
-        val formalsToActuals: Map[ast.LocalVar, ast.Exp] = fargs.zip(eArgs)(collection.breakOut)
+        val formalsToActuals: Map[ast.LocalVar, ast.Exp] = fargs.zip(eArgs).to(Map)
         val reasonTransformer = (n: viper.silver.verifier.errors.ErrorNode) => n.replace(formalsToActuals)
         val pveCall = CallFailed(call).withReasonNodeTransformed(reasonTransformer)
 
@@ -768,28 +763,28 @@ object executor extends ExecutionRules with Immutable {
           })
         })
 
-      case fold @ ast.Fold(ast.PredicateAccessPredicate(ast.PredicateAccess(eArgs, predicateName), ePerm)) =>
+      case fold @ ast.Fold(pap @ ast.PredicateAccessPredicate(ast.PredicateAccess(eArgs, predicateName), _)) =>
         val predicate = Verifier.program.findPredicate(predicateName)
         val pve = FoldFailed(fold)
         evals(s, eArgs, _ => pve, v)((s1, tArgs, v1) =>
-          eval(s1, ePerm, pve, v1)((s2, tPerm, v2) => {
+          eval(s1, pap.perm, pve, v1)((s2, tPerm, v2) => {
             v2.decider.assertgv(s2.isImprecise, IsPositive(tPerm)) { //The IsPositive check is redundant
               case true =>
                 val wildcards = s2.constrainableARPs -- s1.constrainableARPs
                 predicateSupporter.fold(s2, predicate, Some(fold), tArgs, tPerm, wildcards, pve, v2)(Q)
               case false =>
-                createFailure(pve dueTo NegativePermission(ePerm), v2, s2)
+                createFailure(pve dueTo NegativePermission(pap.perm), v2, s2)
             } match {
               case (verificationResult, _) => verificationResult
             }
           }))
 
-      case unfold @ ast.Unfold(ast.PredicateAccessPredicate(pa @ ast.PredicateAccess(eArgs, predicateName), ePerm)) =>
+      case unfold @ ast.Unfold(pap @ ast.PredicateAccessPredicate(pa @ ast.PredicateAccess(eArgs, predicateName), _)) =>
         val predicate = Verifier.program.findPredicate(predicateName)
         val pve = UnfoldFailed(unfold)
         val sFrame = s.copy(gatherFrame = true)
         evals(sFrame, eArgs, _ => pve, v)((s1, tArgs, v1) =>
-          eval(s1.copy(gatherFrame = false), ePerm, pve, v1)((s2, tPerm, v2) => {
+          eval(s1.copy(gatherFrame = false), pap.perm, pve, v1)((s2, tPerm, v2) => {
 
             val smCache1 = if (s2.qpPredicates.contains(predicate)) {
               val (relevantChunks, _) =
@@ -808,7 +803,7 @@ object executor extends ExecutionRules with Immutable {
                 val wildcards = s2.constrainableARPs -- s1.constrainableARPs
                 predicateSupporter.unfold(s2.copy(smCache = smCache1), predicate, Some(unfold), tArgs, tPerm, wildcards, pve, v2, pa)(Q)
               case false =>
-                createFailure(pve dueTo NegativePermission(ePerm), v2, s2)
+                createFailure(pve dueTo NegativePermission(pap.perm), v2, s2)
             } match {
               case (verificationResult, _) => verificationResult
             }

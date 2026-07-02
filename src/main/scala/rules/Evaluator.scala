@@ -80,7 +80,7 @@ trait EvaluationRules extends SymbolicExecutionRules {
                     : VerificationResult
 }
 
-object evaluator extends EvaluationRules with Immutable {
+object evaluator extends EvaluationRules {
   import consumer._
   import producer._
 
@@ -755,7 +755,7 @@ object evaluator extends EvaluationRules with Immutable {
              * The first approach is slightly simpler and suffices here, though.
              */
             val fargs = func.formalArgs.map(_.localVar)
-            val formalsToActuals: Map[ast.LocalVar, ast.Exp] = fargs.zip(eArgs)(collection.breakOut)
+            val formalsToActuals: Map[ast.LocalVar, ast.Exp] = fargs.zip(eArgs).to(Map)
             val exampleTrafo = CounterexampleTransformer({
               case ce: SiliconCounterexample => ce.withStore(s2.g)
               case ce => ce
@@ -820,7 +820,7 @@ object evaluator extends EvaluationRules with Immutable {
         val predicate = Verifier.program.findPredicate(predicateName)
         if (s.cycles(predicate) < Verifier.config.recursivePredicateUnfoldings()) { // config value is 1
           evals(s, eArgs, _ => pve, v)((s1, tArgs, v1) =>
-            eval(s1, ePerm, pve, v1)((s2, tPerm, v2) =>
+            eval(s1, acc.perm, pve, v1)((s2, tPerm, v2) =>
               v2.decider.assert(IsNonNegative(tPerm)) {
                 case true =>
                   joiner.join[Term, Term](s2, v2)((s3, v3, QB) => {
@@ -890,7 +890,7 @@ object evaluator extends EvaluationRules with Immutable {
                         })})})
                   })(join(v2.symbolConverter.toSort(eIn.typ), "joined_unfolding", s2.relevantQuantifiedVariables, v2))(Q)
                 case false =>
-                  createFailure(pve dueTo NegativePermission(ePerm), v2, s2)}))
+                  createFailure(pve dueTo NegativePermission(acc.perm), v2, s2)}))
         } else {
           val unknownValue = v.decider.appliedFresh("recunf", v.symbolConverter.toSort(eIn.typ), s.relevantQuantifiedVariables)
           // v.logger.debug(s"assigning whole expression a symbolic value: ${unknownValue}")
@@ -1194,7 +1194,7 @@ object evaluator extends EvaluationRules with Immutable {
                   // (since we're in evalpc!)
                   runtimeChecks.addChecks(runtimeCheckAstNode,
                     ast.FieldAccessPredicate(ast.FieldAccess(astRcvr, fa.field)(),
-                      ast.FullPerm()())(),
+                      Some(ast.FullPerm()()))(),
                     viper.silicon.utils.zip3(v.decider.pcs.branchConditionsSemanticAstNodes,
                       v.decider.pcs.branchConditionsAstNodes,
                       v.decider.pcs.branchConditionsOrigins).map(bc => BranchCond(bc._1, bc._2, bc._3)),
@@ -1353,7 +1353,7 @@ object evaluator extends EvaluationRules with Immutable {
         //v.logger.debug(s"recursive unfolding depth ${s.cycles(predicate)}")
         if (s.cycles(predicate) < Verifier.config.recursivePredicateUnfoldings()) { // config value is 1
           evalspc(s, eArgs, _ => pve, v, generateChecks)((s1, tArgs, v1) =>
-            evalpc(s1, ePerm, pve, v1, generateChecks)((s2, tPerm, v2) =>
+            evalpc(s1, acc.perm, pve, v1, generateChecks)((s2, tPerm, v2) =>
               v2.decider.assert(IsNonNegative(tPerm)) {
                 case true =>
                   joiner.join[Term, Term](s2, v2)((s3, v3, QB) => {
@@ -1425,7 +1425,7 @@ object evaluator extends EvaluationRules with Immutable {
                         })})})
                   })(join(v2.symbolConverter.toSort(eIn.typ), "joined_unfolding", s2.relevantQuantifiedVariables, v2))(Q)
                 case false =>
-                  createFailure(pve dueTo NegativePermission(ePerm), v2, s2)}))
+                  createFailure(pve dueTo NegativePermission(acc.perm), v2, s2)}))
         } else {
           val unknownValue = v.decider.appliedFresh("recunf", v.symbolConverter.toSort(eIn.typ), s.relevantQuantifiedVariables)
           // v.logger.debug(s"assigning whole expression a symbolic value: ${unknownValue}")
@@ -1678,7 +1678,7 @@ object evaluator extends EvaluationRules with Immutable {
              * The first approach is slightly simpler and suffices here, though.
              */
             val fargs = func.formalArgs.map(_.localVar)
-            val formalsToActuals: Map[ast.LocalVar, ast.Exp] = fargs.zip(eArgs)(collection.breakOut)
+            val formalsToActuals: Map[ast.LocalVar, ast.Exp] = fargs.zip(eArgs).to(Map)
             val exampleTrafo = CounterexampleTransformer({
               case ce: SiliconCounterexample => ce.withStore(s2.g)
               case ce => ce

@@ -25,7 +25,6 @@ import viper.silicon.reporting.condenseToViperResult
 import viper.silicon.verifier.DefaultMasterVerifier
 import viper.silver.cfg.silver.SilverCfg
 import viper.silver.logger.ViperStdOutLogger
-import viper.silver.plugin.PluginAwareReporter
 
 object Silicon {
   val name = BuildInfo.projectName
@@ -70,7 +69,7 @@ object Silicon {
                                       debugInfo: Seq[(String, Any)] = Nil)
                                      : Silicon = {
 
-    val silicon = new Silicon(PluginAwareReporter(reporter), debugInfo)
+    val silicon = new Silicon(reporter, debugInfo)
 
     silicon.parseCommandLine(args :+ dummyInputFilename)
 
@@ -78,13 +77,13 @@ object Silicon {
   }
 }
 
-class Silicon(val reporter: PluginAwareReporter, private var debugInfo: Seq[(String, Any)] = Nil)
+class Silicon(val reporter: Reporter, private var debugInfo: Seq[(String, Any)] = Nil)
     extends SilVerifier
        with LazyLogging {
 
-  def this(debugInfo: Seq[(String, Any)]) = this(PluginAwareReporter(StdIOReporter()), debugInfo)
+  def this(debugInfo: Seq[(String, Any)]) = this(StdIOReporter(), debugInfo)
 
-  def this() = this(PluginAwareReporter(StdIOReporter()), Nil)
+  def this() = this(StdIOReporter(), Nil)
 
   val name: String = Silicon.name
   val version = Silicon.version
@@ -209,7 +208,7 @@ class Silicon(val reporter: PluginAwareReporter, private var debugInfo: Seq[(Str
           SymbExLogger.currentLog().closeMemberScope()
           reporter report ExecutionTraceReport(SymbExLogger.memberList, List(), List())
           result = Some(SilFailure(SilTimeoutOccurred(config.timeout(), "second(s)") :: Nil))
-        case exception: Exception if config.verified && !config.disableCatchingExceptions() =>
+        case exception: Exception if !config.disableCatchingExceptions() =>
           /* An exception's root cause might be an error; the following code takes care of that */
           reporting.exceptionToViperError(exception) match {
             case Right((cause, failure)) =>
@@ -297,11 +296,11 @@ class Silicon(val reporter: PluginAwareReporter, private var debugInfo: Seq[(Str
   }
 }
 
-class SiliconFrontend(override val reporter: PluginAwareReporter,
-                      override implicit val logger: Logger) extends SilFrontend {
-
-  def this(reporter: Reporter, logger: Logger = ViperStdOutLogger("SiliconFrontend", "INFO").get) =
-    this(PluginAwareReporter(reporter), logger)
+class SiliconFrontend(
+  override val reporter: Reporter,
+  override implicit val logger: Logger =
+    ViperStdOutLogger("SiliconFrontend", "INFO").get
+) extends SilFrontend {
 
   protected var siliconInstance: Silicon = _
 
@@ -353,8 +352,7 @@ object SiliconRunner extends SiliconFrontend(StdIOReporter()) {
       }
     } catch { /* Catch exceptions and errors thrown at any point of the execution of Silicon */
       case exception: Exception
-           if config == null ||
-              (config.verified && !config.asInstanceOf[Config].disableCatchingExceptions()) =>
+           if config == null || !config.asInstanceOf[Config].disableCatchingExceptions() =>
 
         /* An exception's root cause might be an error; the following code takes care of that */
         reporting.exceptionToViperError(exception) match {

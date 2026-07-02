@@ -13,7 +13,6 @@ import viper.silver.verifier.{AbstractError, Verifier, Failure => SilFailure, Su
 import viper.silicon.{Silicon, SiliconFrontend}
 import viper.silver.frontend.DefaultStates
 import viper.silver.reporter.NoopReporter
-import viper.silver.plugin.PluginAwareReporter
 
 class SiliconTests extends SilSuite {
   private val siliconTestDirectories =
@@ -62,7 +61,7 @@ class SiliconTests extends SilSuite {
   }
 
   val silicon = {
-    val reporter = PluginAwareReporter(NoopReporter)
+    val reporter = NoopReporter
     val debugInfo = ("startedBy" -> "viper.silicon.SiliconTests") :: Nil
     new Silicon(reporter, debugInfo)
   }

@@ -22,7 +22,7 @@ trait StateConsolidationRules extends SymbolicExecutionRules {
   def merge(fr: FunctionRecorder, h: Heap, ch: NonQuantifiedChunk, v: Verifier): (FunctionRecorder, Heap)
 }
 
-object stateConsolidator extends StateConsolidationRules with Immutable {
+object stateConsolidator extends StateConsolidationRules {
   def consolidate(s: State, v: Verifier): State = {
     if (Verifier.config.disableMostStateConsolidations() || Verifier.config.enableMoreCompleteExhale()) {
       // TODO: Skipping most of what the regular state consolidation performs results in

@@ -170,8 +170,8 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
           shortestField match {
             case None => Some(currentField)
             case Some(shortestFieldUnwrapped) => {
-              val cfArray = currentField.toString().split('.')
-              val sfArray = shortestFieldUnwrapped.toString().split('.')
+              val cfArray = currentField.toString.split("[.]")
+              val sfArray = shortestFieldUnwrapped.toString.split("[.]")
               if (cfArray.length < sfArray.length) {
                 Some(currentField)
               } else {

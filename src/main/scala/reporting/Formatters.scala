@@ -112,7 +112,7 @@ class DefaultStateFormatter extends StateFormatter {
   private def toJson(γ: Store): String = {
     val values: Map[AbstractLocalVar, Term] = γ.values
     if (values.isEmpty) "[]" else values.map((storeChunk:(AbstractLocalVar,Term)) => {
-      s"""{"value":"${storeChunk._1.toString()} -> ${storeChunk._2.toString}","type":"${storeChunk._1.typ}"}"""
+      s"""{"value":"${storeChunk._1.toString} -> ${storeChunk._2.toString}","type":"${storeChunk._1.typ}"}"""
     }).mkString("[", ",", "]")
   }
 

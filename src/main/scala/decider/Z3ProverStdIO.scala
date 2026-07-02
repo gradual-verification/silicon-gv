@@ -18,13 +18,12 @@ import viper.silicon.reporting.{ExternalToolError, Z3InteractionFailed}
 import viper.silicon.state.IdentifierFactory
 import viper.silicon.state.terms._
 import viper.silicon.verifier.Verifier
-import viper.silver.plugin.PluginAwareReporter
-import viper.silver.reporter.{ConfigurationConfirmation, InternalWarningMessage}
+import viper.silver.reporter.{ConfigurationConfirmation, InternalWarningMessage, Reporter}
 
 class Z3ProverStdIO(uniqueId: String,
                     termConverter: TermToSMTLib2Converter,
                     identifierFactory: IdentifierFactory,
-                    reporter: PluginAwareReporter)
+                    reporter: Reporter)
     extends Prover
        with LazyLogging {
 
