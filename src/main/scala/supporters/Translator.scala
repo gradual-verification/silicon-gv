@@ -2,8 +2,9 @@ package viper.silicon.supporters
 
 import viper.silver.ast
 import viper.silicon.decider.RecordedPathConditions
-import viper.silicon.state.{BasicChunk, Identifier, State, Store, terms}
+import viper.silicon.state.{BasicChunk, Heap, Identifier, State, Store, terms}
 import viper.silicon.resources.{FieldID, PredicateID}
+import viper.silicon.verifier.Verifier
 
 // should we use the path conditions from the state?
 final class Translator(s: State, pcs: RecordedPathConditions) {
@@ -126,7 +127,7 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
           }
           case _ => selectShortestField(variableResolver(terms.Var(name, sort, b0)))
         }
-      case terms.SortWrapper(t, sort) =>
+      case terms.SortWrapper(t, sort) => 
         Some(variableResolver(terms.SortWrapper(t, sort))(0))
       // how do we deal with snapshots? we need not {
       //
@@ -143,10 +144,26 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
       // case terms.Second(_)     => None
       // case terms.Combine(_, _) => None
       // }
+      case terms.App(applicable, args) => //sys.error(s"Unable to translate applicable: ${applicable} args: ${args}")
+        tryTranslating(pcs.getEquivalentExpressions(t))
+      // case terms.App(fun, ts) =>
+      //   Some(ast.FuncApp(fun.id.name, ts.flatMap(translate(_)))(NoPosition, NoInfo, typeOfSort(fun.resultSort), NoTrafos))
       case _ => sys.error(s"Unable to translate ${t}")
     }
   }
 
+  private def tryTranslating(ts: Seq[terms.Term]): Option[ast.Exp] = {
+    if (ts.isEmpty) {
+      return None
+    }
+    else {
+      translate(ts(0)) match {
+        case Some(e) => Some(e)
+        case None => if (ts.length == 0) None else tryTranslating(ts.slice(1,ts.length))
+      }
+    }
+  }
+  
   private def selectShortestField(candidateFields: Seq[ast.Exp]): Option[ast.Exp] = {
     if (candidateFields.exists(f => f.isInstanceOf[ast.FieldAccess])) {
       candidateFields.foldRight[Option[ast.Exp]](None)((currentField, shortestField) =>
@@ -167,7 +184,8 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
       // (they should all be equal in length!)
       Some(candidateFields(0))
     } else {
-      sys.error("List of translated variables is empty, aka the Translator has failed translation!")
+      None
+      //sys.error("List of translated variables is empty, aka the Translator has failed translation!")
     }
   }
 
@@ -201,11 +219,14 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
 
     // Retrieve aliasing information; add our
     // input variable to it
+    // println("reached variableResolver: " + variable) // debugging translate - Priyam
+    // println(s"oldHeaps: ${s.oldHeaps.map{case (id, h) => s"$id: ${h.values.mkString("[", ", ", "]")}"}.mkString("[", ", ", "]")}") // debugging translate - Priyam
     val heapAliases: Seq[(terms.Term, String)] =
-      (s.h + s.optimisticHeap).getChunksForValue(variable, lenient)
+      (s.h + s.optimisticHeap).getChunksForValue(variable, lenient) //  + s.oldHeaps.values.foldLeft(Heap())(_ + _) including oldHeaps here for help with translation - ASK JENNA if it might cause any unsoundness ( e.g. due to outdated values or other cases)
+    // val oldHeapAliases = s.oldHeaps.getOrElse(Verifier.PRE_STATE_LABEL, Heap()).getChunksForValue(variable, lenient) // Priyam - tracking oldHeapAliases here to fix translation for asserting/consuming an unfolding expression's framed part
     val pcsEquivalentVariables: Seq[terms.Term] =
       pcs.getEquivalentVariables(variable, lenient) :+ variable
-    
+        
     pcsEquivalentVariables.foldRight[Seq[ast.Exp]](Seq())(
       (term, candidateResolvedVariables) =>
           if (translatingVars.exists(t => t.toString == term.toString && t.sort == term.sort)) {
@@ -300,10 +321,10 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
     // I guess we may attempt to translate predicate instance arguments...?
 
     // TODO: The case where both the regular heap and optimistic heap have the
-    // variable should never happen, maybe
+    // variable should never happen, maybe -> it can happen due to optimizations in evaluating unfolding expressions - Priyam
+    // 
     //
-    // Ask Jenna about this?
-
+    // println("h (to find symvar) = " + s.h.values.mkString("[", ", ", "]")) // debugging translate - Priyam
     store.getKeyForValue(variable, lenient) match {
       case None =>
         // Search both heaps for the variable

@@ -36,7 +36,9 @@ class DefaultStateFormatter extends StateFormatter {
     val permissions = "Reconstructed permissions deprecated."
     val pcsStr = s"${format(pcs)}"
 
-    s"""Imprecise: $isImpStr,
+    s"""
+************************
+       |Imprecise: $isImpStr,
        |Store: $gStr,
        |Heap: $hStr,
        |OptHeap: $optHeapStr,
