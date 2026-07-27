@@ -7,15 +7,18 @@ package viper.silicon.rules
 
 import viper.silicon.Stack
 import viper.silicon.debugger.DebugExp
+import scala.reflect.ClassTag
+import viper.silver.ast
+import viper.silver.verifier.{PartialVerificationError, VerificationError}
 import viper.silicon.interfaces.state._
 import viper.silicon.interfaces.{Failure, Success, VerificationResult}
-import viper.silicon.resources.{NonQuantifiedPropertyInterpreter, Resources, FieldID, PredicateID}
+import viper.silicon.logger.SymbExLogger
+import viper.silicon.resources.{FieldID, NonQuantifiedPropertyInterpreter, PredicateID, Resources}
 import viper.silicon.state._
 import viper.silicon.state.terms._
 import viper.silicon.state.terms.perms.IsPositive
 import viper.silicon.supporters.Translator
 import viper.silicon.utils
-import viper.silicon.utils.ast.buildMinExp
 import viper.silicon.verifier.Verifier
 import viper.silver.ast
 import viper.silver.parser.PUnknown
@@ -116,6 +119,7 @@ object chunkSupporter extends ChunkSupportRules {
           Q(s2, h2, None, v2, false)
       })
   }
+//<<<<<<< HEAD
   
   private def consume2(s: State,
                        h: Heap,
@@ -134,7 +138,7 @@ object chunkSupporter extends ChunkSupportRules {
     val id = ChunkIdentifier(resource, s.program)
     if (s.exhaleExt) {
       val failure = createFailure(ve, v, s, "chunk consume in package")
-      magicWandSupporter.transfer(s, perms, permsExp, failure, Seq(), v)(consumeGreedy(_, _, id, resource, args, _, _, _))((s1, optCh, v1) =>
+      magicWandSupporter.transfer(s, perms, permsExp, failure, Seq(), v)(consumeGreedy(_, _, id, true, resource, args, _, _, _))((s1, optCh, v1) =>
         if (returnSnap){
           Q(s1, h, optCh.flatMap(ch => Some(ch.snap)), v1)
         } else {
@@ -153,7 +157,7 @@ object chunkSupporter extends ChunkSupportRules {
           if (consolidate) {
             s1 = v.stateConsolidator(s).consolidate(s.copy(h = h), v)
           }
-          consumeGreedy(s1, s1.h, id, resource, args, perms, permsExp, v1) match {
+          consumeGreedy(s1, s1.h, id, consolidate, resource, args, perms, permsExp, v1) match {
             case (Complete(), s2, h2, optCh2) =>
               val snap = optCh2 match {
                 case Some(ch) if returnSnap =>
@@ -172,12 +176,43 @@ object chunkSupporter extends ChunkSupportRules {
           }
         }
       //)(Q)
+/*=======
+
+  private def consume(s: State,
+                      h: Heap,
+                      consolidate: Boolean, // True when regular heap
+                      resource: ast.Resource,
+                      args: Seq[Term],
+                      perms: Term,
+                      ve: VerificationError,
+                      v: Verifier)
+                     (Q: (State, Heap, Option[Term], Verifier) => VerificationResult)
+                     : VerificationResult = {
+    var s1 = s.copy(h = h)
+    if (consolidate) {
+      s1 = stateConsolidator.consolidate(s.copy(h = h), v)
+    }
+    consumeGreedy(s1, s1.h, consolidate, resource, args, perms, v) match {
+      case (Complete(), s2, h2, optCh2) =>
+        Q(s2.copy(h = s.h), h2, optCh2.map(_.snap), v)
+
+      case _ if v.decider.checkSmoke() =>
+        Success()
+
+      case (Incomplete(p), s2, h2, None) =>
+        Q(s2.copy(h = s.h), h2, None, v)
+
+>>>>>>> upstream/master*/
     }
   }
 
   private def consumeGreedy(s: State,
                             h: Heap,
+//<<<<<<< HEAD
                             id: ChunkIdentifer,
+//=======
+                            isRegularHeap: Boolean,
+//>>>>>>> upstream/master
                             resource: ast.Resource,
                             args: Seq[Term],
                             perms: Term,
@@ -220,8 +255,33 @@ object chunkSupporter extends ChunkSupportRules {
         // tries to find the chunk in h
         findChunk[NonQuantifiedChunk](h.values, id, args, v) match {
           // I'm not sure if I need these checks but I included them to be safe - J
+/*<<<<<<< HEAD
           case Some(ch) if v.decider.check(ch.perm === perms, Verifier.config.checkTimeout()) && v.decider.check(perms === FullPerm, Verifier.config.checkTimeout()) =>
             (Complete(), s, newH, Some(ch))
+=======*/
+          case Some(ch) if v.decider.check(ch.perm === perms, Verifier.config.checkTimeout()) && v.decider.check(perms === FullPerm, Verifier.config.checkTimeout()) =>
+            // handles removing all predicates from OH when field chunk is in optimistic heap (Note: field chunk in regular heap handled by next case) - Priyam
+            if (!isRegularHeap){
+              var newH2: Heap = newH.values.foldLeft(Heap()) { (currHeap, chunk) =>
+                chunk match {
+                  case c: NonQuantifiedChunk =>
+                    c.resourceID match {
+                      case FieldID =>
+                        currHeap + c
+                      case _ =>
+                        currHeap
+                    }
+                  case _ =>
+                    currHeap
+                }
+              }
+              (Complete(), s, newH2, Some(ch))
+            }
+            else {
+              (Complete(), s, newH, Some(ch))
+            }
+
+//>>>>>>> upstream/master
 
           case _ => {
             var newH2: Heap = newH.values.foldLeft(Heap()) { (currHeap, chunk) =>
@@ -245,9 +305,21 @@ object chunkSupporter extends ChunkSupportRules {
       case p: ast.Predicate => {
         /* heap-rem-pred */
         findChunk[NonQuantifiedChunk](h.values, id, args, v) match {
+/*<<<<<<< HEAD
           case Some(ch) if v.decider.check(ch.perm === perms, Verifier.config.checkTimeout()) && v.decider.check(perms === FullPerm, Verifier.config.checkTimeout()) =>
             var newH = h - ch
             (Complete(), s, newH, Some(ch))
+=======*/
+          case Some(ch) if v.decider.check(perms === FullPerm, Verifier.config.checkTimeout()) =>
+            val toTake = PermMin(ch.perm, perms)
+            val newChunk = ch.withPerm(PermMinus(ch.perm, toTake), None)
+            val takenChunk = Some(ch.withPerm(toTake, None))
+            var newHeap = h - ch
+            if (!v.decider.check(newChunk.perm === NoPerm, Verifier.config.checkTimeout())) {
+              newHeap = newHeap + newChunk
+            }
+            (ConsumptionResult(PermMinus(perms, toTake), None, Seq(), v, 0), s, newHeap, takenChunk)
+//>>>>>>> upstream/master
           case _ =>
             (Incomplete(perms, permsExp), s, Heap(), None)
         }
@@ -354,16 +426,26 @@ object chunkSupporter extends ChunkSupportRules {
               case f: ast.Field => {
                 v.decider.assertgv(s.isImprecise, args.head !== Null) {
                   case true =>
+/*<<<<<<< HEAD
                     val snap = v.decider.fresh(s"${args.head}.$id", v.symbolConverter.toSort(f.typ), Option.when(withExp)(PUnknown()))
                     val ch = BasicChunk(FieldID, BasicChunkIdentifier(f.name), args, argsExp, snap, None, FullPerm, None)
+=======*/
+                    val snap = v.decider.fresh(s"${args.head}.$id", v.symbolConverter.toSort(f.typ), Option.when(withExp)(PUnknown()))
+                    val ch = BasicChunk(FieldID, BasicChunkIdentifier(f.name), args, argsExp, snap, None, FullPerm, None)
+                    if (SymbExLogger.enabled) {
+                      // add chunk created by trying to find nonexistent chunk in imprecise state to snaps
+                      SymbExLogger.populateSnaps(Vector(ch), s)
+                    }
+//>>>>>>> upstream/master
                     val s2 = s.copy(optimisticHeap = oh)
 
                     val runtimeCheckAstNode: CheckPosition =
-                      (s2.methodCallAstNode, s2.foldOrUnfoldAstNode, s2.loopPosition) match {
-                        case (None, None, None) => CheckPosition.GenericNode(runtimeCheckFieldTarget)
-                        case (Some(methodCallAstNode), None, None) => CheckPosition.GenericNode(methodCallAstNode)
-                        case (None, Some(foldOrUnfoldAstNode), None) => CheckPosition.GenericNode(foldOrUnfoldAstNode)
-                        case (None, None, Some(loopPosition)) => loopPosition
+                      (s2.methodCallAstNode, s2.foldOrUnfoldAstNode, s2.loopPosition, s2.unfoldingAstNode) match {
+                        case (None, None, None, None) => CheckPosition.GenericNode(runtimeCheckFieldTarget)
+                        case (Some(methodCallAstNode), None, None, _) => CheckPosition.GenericNode(methodCallAstNode)
+                        case (None, Some(foldOrUnfoldAstNode), None, _) => CheckPosition.GenericNode(foldOrUnfoldAstNode)
+                        case (None, None, Some(loopPosition), _) => loopPosition
+                        case (None, None, None, Some(unfoldingAstNode)) => CheckPosition.GenericNode(unfoldingAstNode)
                         case _ => sys.error("Conflicting positions found while adding runtime check!")
                       }
 
@@ -429,14 +511,24 @@ object chunkSupporter extends ChunkSupportRules {
               case f: ast.Field => {
                 v.decider.assertgv(s.isImprecise, args.head !== Null) {
                   case true => {
+/*<<<<<<< HEAD
                     val snap = v.decider.fresh(s"${args.head}.$id", v.symbolConverter.toSort(f.typ), Option.when(withExp)(PUnknown()))
+=======*/
+                    val snap = v.decider.fresh(s"${args.head}.$id", v.symbolConverter.toSort(f.typ), Option.when(withExp)(PUnknown()))
+                    if (SymbExLogger.enabled) {
+                      // add chunk created by trying to find nonexistent chunk in imprecise state to snaps
+                      val chonk = BasicChunk(FieldID, BasicChunkIdentifier(f.name), args, argsExp, snap, None, FullPerm, None)
+                      SymbExLogger.populateSnaps(Vector(chonk), s)
+                    }
+//>>>>>>> upstream/master
 
                     val runtimeCheckAstNode: CheckPosition =
-                      (s.methodCallAstNode, s.foldOrUnfoldAstNode, s.loopPosition) match {
-                        case (None, None, None) => CheckPosition.GenericNode(runtimeCheckFieldTarget)
-                        case (Some(methodCallAstNode), None, None) => CheckPosition.GenericNode(methodCallAstNode)
-                        case (None, Some(foldOrUnfoldAstNode), None) => CheckPosition.GenericNode(foldOrUnfoldAstNode)
-                        case (None, None, Some(loopPosition)) => loopPosition
+                      (s.methodCallAstNode, s.foldOrUnfoldAstNode, s.loopPosition, s.unfoldingAstNode) match {
+                        case (None, None, None, None) => CheckPosition.GenericNode(runtimeCheckFieldTarget)
+                        case (Some(methodCallAstNode), None, None, _) => CheckPosition.GenericNode(methodCallAstNode)
+                        case (None, Some(foldOrUnfoldAstNode), None, _) => CheckPosition.GenericNode(foldOrUnfoldAstNode)
+                        case (None, None, Some(loopPosition), _) => loopPosition
+                        case (None, None, None, Some(unfoldingAstNode)) => CheckPosition.GenericNode(unfoldingAstNode)
                         case _ => sys.error("Conflicting positions found while adding runtime check!")
                       }
 
@@ -484,8 +576,17 @@ object chunkSupporter extends ChunkSupportRules {
           case _ if s.isImprecise && !addToOh && !s.generateChecks =>
             resource match {
               case f: ast.Field => {
+/*<<<<<<< HEAD
                 val snap = v.decider.fresh(s"${args.head}.$id", v.symbolConverter.toSort(f.typ), Option.when(withExp)(PUnknown()))
                 val ch = BasicChunk(FieldID, BasicChunkIdentifier(f.name), args, argsExp, snap, None, FullPerm, None)
+=======*/
+                val snap = v.decider.fresh(s"${args.head}.$id", v.symbolConverter.toSort(f.typ), Option.when(withExp)(PUnknown()))
+                val ch = BasicChunk(FieldID, BasicChunkIdentifier(f.name), args, argsExp, snap, None, FullPerm, None)
+                if (SymbExLogger.enabled) {
+                  // add chunk created by trying to find nonexistent chunk in imprecise state to snaps
+                  SymbExLogger.populateSnaps(Vector(ch), s)
+                }
+//>>>>>>> upstream/master
                 val s2 = s.copy(optimisticHeap = oh)
 
                 if (!(s.needConditionFramingProduce &&

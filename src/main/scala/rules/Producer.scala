@@ -13,8 +13,17 @@ import scala.collection.mutable
 import viper.silver.ast
 import viper.silver.ast.utility.QuantifiedPermissions.QuantifiedPermissionAssertion
 import viper.silver.verifier.PartialVerificationError
+//<<<<<<< HEAD
 import viper.silicon.interfaces.{Unreachable, VerificationResult}
+import viper.silicon.interfaces.state.{ChunkIdentifer, NonQuantifiedChunk}
+import viper.silicon.logger.SymbExLogger
 import viper.silicon.logger.records.data.{CondExpRecord, ImpliesRecord, ProduceRecord}
+/*=======
+import viper.silicon.interfaces.{Failure, VerificationResult}
+import viper.silicon.interfaces.state.{ChunkIdentifer, NonQuantifiedChunk}
+import viper.silicon.logger.SymbExLogger
+import viper.silicon.logger.records.data.{CondExpRecord, ProduceRecord}
+>>>>>>> upstream/master*/
 import viper.silicon.resources.{FieldID, PredicateID}
 import viper.silicon.state._
 import viper.silicon.state.terms._
@@ -268,8 +277,14 @@ object producer extends ProductionRules {
         val uidCondExp = v.symbExLog.openScope(condExpRecord)
 
         val s_1 = s.copy(generateChecks = false, needConditionFramingProduce = true)
+//<<<<<<< HEAD
         evalpc(s_1, e0, pve, v, false)((s1, t0, e0New, v1) => {
-          val s1_1 = s.copy(generateChecks = true, needConditionFramingProduce = false)
+          val s1_1 = s.copy(generateChecks = true, needConditionFramingProduce = false, evalHeapsSet = s1.evalHeapsSet, oldHeaps = s1.oldHeaps)
+/*=======
+        evalpc(s_1, e0, pve, v, false)((s1, t0, v1) => {
+          val s1_1 = s.copy(generateChecks = true, needConditionFramingProduce = false, evalHeapsSet = s1.evalHeapsSet, oldHeaps = s1.oldHeaps) // updating evalHeapsSet and oldHeaps for getting heap information in unfolding case
+          // updating evalHeapsSet, oldHeaps is necessary to translate the branch condition when e0 is an unfolding expression
+>>>>>>> upstream/master*/
 
             // val branchPositionAstNode = s.methodCallAstNode match {
             //   case None => {
@@ -280,45 +295,72 @@ object producer extends ProductionRules {
             // }
             
             val branchPosition: Option[CheckPosition] =
-              (s1_1.methodCallAstNode, s1_1.foldOrUnfoldAstNode, s1_1.loopPosition) match {
-                case (None, None, None) => None
-                case (Some(methodCallAstNode), None, None) =>
+              (s1_1.methodCallAstNode, s1_1.foldOrUnfoldAstNode, s1_1.loopPosition, s1_1.unfoldingAstNode) match {
+                case (None, None, None, None) => None
+                case (Some(methodCallAstNode), None, None, _) =>
                   Some(CheckPosition.GenericNode(methodCallAstNode))
-                case (None, Some(foldOrUnfoldAstNode), None) =>
+                case (None, Some(foldOrUnfoldAstNode), None, _) =>
                   Some(CheckPosition.GenericNode(foldOrUnfoldAstNode))
-                case (None, None, Some(loopPosition)) =>
+                case (None, None, Some(loopPosition), _) =>
                   Some(loopPosition)
+                case (None, None, None, Some(unfoldingAstNode)) =>
+                  Some(CheckPosition.GenericNode(unfoldingAstNode))
                 case _ =>
-                  sys.error("We shouldn't need to consider this case until "
-                    + "we have unfoldings! We have an error here instead of a "
-                    + "temporary solution like enclosing both in ast.And because "
-                    + "we want to know if this occurs!")
+                  println((s1_1.methodCallAstNode, s1_1.foldOrUnfoldAstNode, s1_1.loopPosition, s1_1.unfoldingAstNode))
+                  sys.error("Error: _ match case when setting a branch condition origin!")
               }
 
+//<<<<<<< HEAD
             branch(s1_1, t0, (e0, e0New), branchPosition, v1)(
-              (s2, v2) => produceR(s2, sf, a1, pve, v2)((s3, v3) => {
+              (s2, v2) => {
+                val s2a = s2.copy(evalHeapsSet = s_1.evalHeapsSet, oldHeaps = s_1.oldHeaps) // reverting evalHeapsSet and oldHeaps that was updated for getting Heap information in unfolding case
+                produceR(s2a, sf, a1, pve, v2)((s3, v3) => {
                 v3.symbExLog.closeScope(uidCondExp)
                 Q(s3, v3)
-              }),
-              (s2, v2) => produceR(s2, sf, a2, pve, v2)((s3, v3) => {
+              })},
+              (s2, v2) => {
+                val s2a = s2.copy(evalHeapsSet = s_1.evalHeapsSet, oldHeaps = s_1.oldHeaps) // reverting evalHeapsSet and oldHeaps that was updated for getting Heap information in unfolding case
+                produceR(s2, sf, a2, pve, v2)((s3, v3) => {
                 v3.symbExLog.closeScope(uidCondExp)
+/*=======
+            branch(s1_1, t0, e0, branchPosition, v1)((s2, v2) => {
+                val s2a = s2.copy(evalHeapsSet = s_1.evalHeapsSet, oldHeaps = s_1.oldHeaps) // reverting evalHeapsSet and oldHeaps that was updated for getting Heap information in unfolding case
+                produceR(s2a, sf, a1, pve, v2)((s3, v3) => {
+                SymbExLogger.currentLog().closeScope(uidCondExp)
                 Q(s3, v3)
-              }))
+              })},
+              (s2, v2) => {
+                val s2a = s2.copy(evalHeapsSet = s_1.evalHeapsSet, oldHeaps = s_1.oldHeaps) // reverting evalHeapsSet and oldHeaps that was updated for getting Heap information in unfolding case
+                produceR(s2a, sf, a2, pve, v2)((s3, v3) => {
+                SymbExLogger.currentLog().closeScope(uidCondExp)
+>>>>>>> upstream/master*/
+                Q(s3, v3)
+              })})
         })
 
 /*      case let: ast.Let if !let.isPure =>
  *      letSupporter.handle[ast.Exp](s, let, pve, v)((s1, g1, body, v1) =>
  *        produceR(s1.copy(g = s1.g + g1), sf, body, pve, v1)(Q))
  */
+//<<<<<<< HEAD
       case accPred@ast.FieldAccessPredicate(ast.FieldAccess(eRcvr, field), _) =>
+/*=======
+      case loc @ ast.FieldAccessPredicate(locacc @ ast.FieldAccess(eRcvr, field), perm) =>
+>>>>>>> upstream/master*/
         val s0 = s.copy(generateChecks = false)
         val perm = accPred.perm
         evalpc(s0, eRcvr, pve, v, false)((s1, tRcvr, eRcvrNew, v1) =>
           evalpc(s1, perm, pve, v1, false)((s2, tPerm, ePermNew, v2) => {
             val s2_0 = s2.copy(generateChecks = true)
+//<<<<<<< HEAD
             if(chunkSupporter.inHeap(s2_0, s2_0.h, s2_0.h.values, field, Seq(tRcvr), v2)) {
               // NEED: Actually because it's in the heap, but don't know how to do that yet
               createFailure(pve dueTo NegativePermission(perm), v2, s2_0, "") }
+/*=======
+            if(chunkSupporter.inHeap(s2_0.h, s2_0.h.values, field, Seq(tRcvr), v2) && !v2.decider.checkSmoke()) {
+              createFailure(pve dueTo LocInHeap(locacc), v2, s2_0) 
+            }
+>>>>>>> upstream/master*/
             else {
               val snap = sf(v2.symbolConverter.toSort(field.typ), v2)
               val gain = PermTimes(tPerm, s2_0.permissionScalingFactor)
@@ -344,6 +386,7 @@ object producer extends ProductionRules {
         evalspc(s0, eArgs, _ => pve, v, false)((s1, tArgs, eArgsNew, v1) =>
           evalpc(s1, perm, pve, v1, false)((s2, tPerm, ePermNew, v2) => {
             val s2_0 = s2.copy(generateChecks = true)
+//<<<<<<< HEAD
             if (chunkSupporter.inHeap(s2_0, s2_0.h, s2_0.h.values, predicate, tArgs, v2)) {
               // Actually because it's in the heap, but don't know how to do that yet
               createFailure(pve dueTo NegativePermission(perm), v2, s2_0, "") }
@@ -353,13 +396,20 @@ object producer extends ProductionRules {
                             .getOrElse(sorts.Snap), v2)
               val gain = PermTimes(tPerm, s2_0.permissionScalingFactor)
               val gainExp = ePermNew.map(p => ast.PermMul(p, s2_0.permissionScalingFactorExp.get)(p.pos, p.info, p.errT))
+/*=======
+            val snap = sf(
+              predicate.body.map(v2.snapshotSupporter.optimalSnapshotSort(_, Verifier.program)._1)
+                          .getOrElse(sorts.Snap), v2)
+            val gain = PermTimes(tPerm, s2_0.permissionScalingFactor)
+>>>>>>> upstream/master*/
 /*            if (s2.qpPredicates.contains(predicate)) {
-              val formalArgs = s2.predicateFormalVarMap(predicate)
-              val trigger = (sm: Term) => PredicateTrigger(predicate.name, sm, tArgs)
-              quantifiedChunkSupporter.produceSingleLocation(
-                s2, predicate, formalArgs, tArgs, snap, gain, trigger, v2)(Q)
-            } else {
+            val formalArgs = s2.predicateFormalVarMap(predicate)
+            val trigger = (sm: Term) => PredicateTrigger(predicate.name, sm, tArgs)
+            quantifiedChunkSupporter.produceSingleLocation(
+              s2, predicate, formalArgs, tArgs, snap, gain, trigger, v2)(Q)
+          } else {
 */
+//<<<<<<< HEAD
               val snap1 = snap.convert(sorts.Snap)
               val ch = BasicChunk(PredicateID, BasicChunkIdentifier(predicate.name), tArgs, eArgsNew, snap1, None, gain, gainExp)
               chunkSupporter.produce(s2_0, s2_0.h, ch, v2)((s3, h3, v3) => {
@@ -368,6 +418,16 @@ object producer extends ProductionRules {
                 } */
                 Q(s3.copy(h = h3), v3)})
             }}))
+/*=======
+            val snap1 = snap.convert(sorts.Snap)
+            val ch = BasicChunk(PredicateID, BasicChunkIdentifier(predicate.name), tArgs, snap1, gain)
+            chunkSupporter.produce(s2_0, s2_0.h, ch, v2)((s3, h3, v3) => {
+              *//* if (Verifier.config.enablePredicateTriggersOnInhale() && s3.functionRecorder == NoopFunctionRecorder) {
+                v3.decider.assume(App(Verifier.predicateData(predicate).triggerFunction, snap1 +: tArgs))
+              } *//*
+              Q(s3.copy(h = h3), v3)})
+          }))
+>>>>>>> upstream/master*/
 
 /*
       case wand: ast.MagicWand if s.qpMagicWands.contains(MagicWandIdentifier(wand, Verifier.program)) =>

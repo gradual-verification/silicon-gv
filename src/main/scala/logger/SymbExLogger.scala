@@ -6,6 +6,10 @@
 
 package viper.silicon.logger
 
+import java.nio.file.{Files, Path, Paths}
+import spray.json._
+import LogConfigProtocol._
+import com.typesafe.scalalogging.Logger
 import org.slf4j.LoggerFactory
 import spray.json._
 import viper.silicon.common.collections.immutable.InsertionOrderedSet
@@ -21,9 +25,13 @@ import viper.silicon.logger.renderer.SimpleTreeRenderer
 import viper.silicon.resources.{FieldID, PredicateID}
 import viper.silicon.state._
 import viper.silicon.state.terms._
-import viper.silicon.{Config, Map}
+import viper.silicon.{Config, Map, Stack}
 import viper.silver.ast
+//<<<<<<< HEAD
 import viper.silver.ast.{Exp, Member}
+//=======
+import viper.silver.cfg.silver.SilverCfg
+//>>>>>>> upstream/master
 import viper.silver.verifier.AbstractError
 
 import java.nio.file.{Files, Path, Paths}
@@ -31,6 +39,7 @@ import java.nio.file.{Files, Path, Paths}
 import java.util.concurrent.atomic.AtomicInteger
 import scala.annotation.elidable
 import scala.annotation.elidable._
+import scala.collection.concurrent.TrieMap
 import scala.collection.mutable
 import scala.collection.immutable
 import scala.util.{Failure, Success, Try}
@@ -310,64 +319,151 @@ case object SymbExLogger {
 
   var errors: Seq[AbstractError] = Seq.empty
 
-  // we can have a single global snaps because fresh Vars starting with $t are globally unique
-  val snaps = mutable.Map[Term, BasicChunk]()
-  val freshPositions = mutable.Map[Term, ast.Position]()
+  // Alethiometer debugger has the following further restrictions
+  // - Parameters to methods cannot be re-assigned
+  // - Method calls must occur in a separate assignment statement
+
+  // TrieMaps are thread-safe
+  // fresh Vars starting with $t are globally unique, but we still need a map of maps to store each scope
+  // each scope is a tuple (method, stack of while loops)
+  val snaps: mutable.Map[(SilverCfg, Stack[(Boolean, Boolean, Heap, Heap)]), mutable.Map[Term, BasicChunk]] =
+    TrieMap[(SilverCfg, Stack[(Boolean, Boolean, Heap, Heap)]), mutable.Map[Term, BasicChunk]]()
+  val freshTerms: mutable.Map[Term, Term] = TrieMap[Term, Term]()
+  val ignoreSet: mutable.Map[Term, Boolean] = TrieMap[Term, Boolean]()
   // while loops are uniquely identified by their invariants, this is needed
   // to find the position of the while loops for displaying the state when
   // entering and leaving the loop
-  val whileLoops = mutable.Map[ast.Exp, ast.Stmt]()
+  val whileLoops: mutable.Map[ast.Exp, ast.Stmt] = TrieMap[ast.Exp, ast.Stmt]()
 
-  def formatTerm(term: Term): String =
+  def snapsFor(state: State): mutable.Map[Term, BasicChunk] =
+    snaps((state.methodCfg, state.invariantContexts))
+
+  def arePrefixesEqual(term1: Term, term2: Term): Boolean = {
+    (term1, term2) match {
+      case (Var(SuffixedIdentifier(prefix1, _, _), _, _), Var(SuffixedIdentifier(prefix2, _, _), _, _)) => prefix1 == prefix2
+      case (_, _) => false
+    }
+  }
+
+  // this is inefficient because it iterates through snaps every time
+  // this should be sound, but may cause superfluous old(...) in edge cases
+  def isFieldReassigned(basicChunk: BasicChunk, state: State): Boolean = {
+    if (basicChunk.resourceID == FieldID) {
+      // check if there is a different basic chunk in snaps with
+      // the same field id and the same variable name
+      snapsFor(state).values.exists((x: BasicChunk) => x.id == basicChunk.id && arePrefixesEqual(x.args(0), basicChunk.args(0)) && x != basicChunk)
+    } else {
+      false
+    }
+  }
+
+  def formatTerm(term: Term, state: State): String =
     term match {
       case Var(SuffixedIdentifier(prefix, _, _), _, _) if prefix == "$t" =>
-        formatBasicChunk(snaps(term), true)
-      case Var(SuffixedIdentifier(prefix, _, _), _, _) if !prefix.name.contains("$result") && prefix.name.contains("$") =>
-        if (freshPositions.contains(term) && freshPositions(term).isInstanceOf[ast.TranslatedPosition]) {
-          val pos = freshPositions(term).asInstanceOf[ast.TranslatedPosition].pos
-          formatBasicChunk(snaps(term), true) + "@" + pos.line.toString
+        // field of a struct if the permission came in the precondition
+        if (isFieldReassigned(snapsFor(state)(term), state)) {
+          if (state.invariantContexts.nonEmpty) { // in a loop, value before entering loop
+            "in(" + formatBasicChunk(snapsFor(state)(term), state) + ")"
+          } else { // outside of loop
+            "old(" + formatBasicChunk(snapsFor(state)(term), state) + ")"
+          }
         } else {
-          formatBasicChunk(snaps(term), true)
+          formatBasicChunk(snapsFor(state)(term), state)
         }
-      case Var(SuffixedIdentifier(prefix, _, suffix), _, _) =>
-        if (freshPositions.contains(term) && freshPositions(term).isInstanceOf[ast.TranslatedPosition]) {
-          val pos = freshPositions(term).asInstanceOf[ast.TranslatedPosition].pos
-          prefix + "@" + pos.line.toString
+      case Var(SuffixedIdentifier(prefix, _, _), _, _) if !prefix.name.contains("$result") && !prefix.name.contains("_result$") && prefix.name.contains("$") =>
+        // field of a struct if it has been re-assigned
+        if (freshTerms.contains(term)) {
+          if (state.h.getChunksForValue(term).nonEmpty) {
+            // permission for said field of struct exists in heap,
+            // refer to it by name
+            formatBasicChunk(snapsFor(state)(term), state)
+          } else {
+            // permission for said field of struct does not exist in heap,
+            // retrieve its definition
+            formatTerm(freshTerms(term), state)
+          }
         } else {
-          prefix.name
+          if (snapsFor(state).contains(term)) {
+            // chunk was assumed optimistically in an imprecise state
+            formatBasicChunk(snapsFor(state)(term), state)
+          } else {
+            // this should never happen but keep it just in case
+            "\uD83D\uDC09" + term.toString + "\uD83D\uDC09" // HIC SUNT DRACONES
+          }
         }
-      case SortWrapper(_, _) => formatBasicChunk(snaps(term), true)
+      case Var(SuffixedIdentifier(prefix, _, _), _, _) =>
+        // variable access
+        if (freshTerms.contains(term)) {
+          // variable has been assigned to
+          if (state.g.getKeyForValue(term).isDefined) {
+            // the variable referred to is the latest version in the store,
+            // refer to it by name
+            prefix.name
+          } else {
+            // the variable referred to is not the latest version, retrieve
+            // its definition
+            formatTerm(freshTerms(term), state)
+          }
+        } else {
+          // variable has not been assigned to yet
+          if (state.g.getKeyForValue(term).isDefined) {
+            // the variable referred to is the latest version in the store,
+            // refer to it by name
+            prefix.name
+          } else {
+            // the variable referred to is not the latest version, retrieve
+            // its definition
+            if (state.invariantContexts.nonEmpty) { // in a loop, value before entering loop
+              "in(" + prefix + ")"
+            } else { // outside of loop
+              "old(" + prefix + ")"
+            }
+          }
+        }
+      case SortWrapper(_, _) =>
+        // field of a struct if the permission was unfolded from a predicate
+        if (isFieldReassigned(snapsFor(state)(term), state)) {
+          if (state.invariantContexts.nonEmpty) { // in a loop; value before entering loop
+            "in(" + formatBasicChunk(snapsFor(state)(term), state) + ")"
+          } else { // outside of loop
+            "old(" + formatBasicChunk(snapsFor(state)(term), state) + ")"
+          }
+        } else {
+          formatBasicChunk(snapsFor(state)(term), state)
+        }
+      case Unit => "UNIT"
       case Null => "null"
       case True => "true"
       case False => "false"
       case IntLiteral(n) => n.toString
-      case Plus(p0, p1) => "(" + formatTerm(p0) + " + " + formatTerm(p1) + ")"
-      case Minus(p0, p1) => "(" + formatTerm(p0) + " - " + formatTerm(p1) + ")"
-      case Times(p0, p1) => "(" + formatTerm(p0) + " * " + formatTerm(p1) + ")"
-      case Div(p0, p1) => "(" + formatTerm(p0) + " / " + formatTerm(p1) + ")"
-      case Mod(p0, p1) => "(" + formatTerm(p0) + " % " + formatTerm(p1) + ")"
-      case BuiltinEquals(p0, p1) => "(" + formatTerm(p0) + " == " + formatTerm(p1) + ")"
-      case Less(p0, p1) => "(" + formatTerm(p0) + " < " + formatTerm(p1) + ")"
-      case AtMost(p0, p1) => "(" + formatTerm(p0) + " <= " + formatTerm(p1) + ")"
-      case Greater(p0, p1) => "(" + formatTerm(p0) + " > " + formatTerm(p1) + ")"
-      case AtLeast(p0, p1) => "(" + formatTerm(p0) + " >= " + formatTerm(p1) + ")"
-      case Not(p) => "(" + "!" + formatTerm(p) + ")"
-      case Or(ts) => "(" + ts.map(formatTerm).mkString(" || ") + ")"
-      case And(ts) => "(" + ts.map(formatTerm).mkString(" && ") + ")"
-      case Implies(p0, p1) => "(" + formatTerm(p0) + " ==> " + formatTerm(p1) + ")"
-      case _ => "'" + term.toString + "'"
+      case Plus(p0, p1) => "(" + formatTerm(p0, state) + " + " + formatTerm(p1, state) + ")"
+      case Minus(p0, p1) => "(" + formatTerm(p0, state) + " - " + formatTerm(p1, state) + ")"
+      case Times(p0, p1) => "(" + formatTerm(p0, state) + " * " + formatTerm(p1, state) + ")"
+      case Div(p0, p1) => "(" + formatTerm(p0, state) + " / " + formatTerm(p1, state) + ")"
+      case Mod(p0, p1) => "(" + formatTerm(p0, state) + " % " + formatTerm(p1, state) + ")"
+      case BuiltinEquals(p0, p1) => "(" + formatTerm(p0, state) + " == " + formatTerm(p1, state) + ")"
+      case Less(p0, p1) => "(" + formatTerm(p0, state) + " < " + formatTerm(p1, state) + ")"
+      case AtMost(p0, p1) => "(" + formatTerm(p0, state) + " <= " + formatTerm(p1, state) + ")"
+      case Greater(p0, p1) => "(" + formatTerm(p0, state) + " > " + formatTerm(p1, state) + ")"
+      case AtLeast(p0, p1) => "(" + formatTerm(p0, state) + " >= " + formatTerm(p1, state) + ")"
+      case Not(BuiltinEquals(p0, p1)) => "(" + formatTerm(p0, state) + " != " + formatTerm(p1, state) + ")" // syntactic sugar for !=
+      case Not(p) => "(" + "!" + formatTerm(p, state) + ")"
+      case Or(ts) => "(" + ts.map(formatTerm(_, state)).mkString(" || ") + ")"
+      case And(ts) => "(" + ts.map(formatTerm(_, state)).mkString(" && ") + ")"
+      case Implies(p0, p1) => "(" + formatTerm(p0, state) + " ==> " + formatTerm(p1, state) + ")"
+      case _ => "\uD83E\uDD81" + term.toString + "\uD83E\uDD81" // HIC SUNT LEONES
     }
 
-  def formatBasicChunk(basicChunk: BasicChunk, insideTerm: Boolean): String = {
+  def formatBasicChunk(basicChunk: BasicChunk, state: State): String = {
     val s = basicChunk.snap match {
-      case Unit => " == " + basicChunk.snap.toString
+      case Unit => " == UNIT"
       case Null => " == null"
       case IntLiteral(n) => " == " + n.toString
       case True => " == true"
       case False => " == false"
       case Var(SuffixedIdentifier(prefix, _, _), _, _) if prefix == "$t" => ""
       case Var(SuffixedIdentifier(prefix, _, _), _, _) if !prefix.name.contains("$result") && prefix.name.contains("$") => ""
-      case Var(SuffixedIdentifier(prefix, _, _), _, _) => " == " + prefix
+      case Var(SuffixedIdentifier(prefix, _, _), _, _) => "\u8B8A\u6578" + prefix
       case _ => ""
     }
     basicChunk.resourceID match {
@@ -378,102 +474,97 @@ case object SymbExLogger {
         } else {
           "?"
         }
-        val fieldAcc = formatTerm(basicChunk.args.head) + "->" + fieldName
-        if (insideTerm) {
-          fieldAcc + s
-        } else {
-          "acc(" + fieldAcc + ")" + s
-        }
+        val fieldAcc = formatTerm(basicChunk.args.head, state) + "->" + fieldName
+        fieldAcc + s
       case PredicateID =>
-        val argsAsString = basicChunk.args.map(formatTerm).mkString(", ")
+        val argsAsString = basicChunk.args.map(formatTerm(_, state)).mkString(", ")
         basicChunk.id.name + "(" + argsAsString + ")" + s
       case _ => ""
     }
   }
 
-  def populateSnaps(chunks: Seq[Chunk]): Unit =
+  def populateSnaps(chunks: Seq[Chunk], state: State): Unit = {
+    if (!snaps.contains((state.methodCfg, state.invariantContexts))) {
+      // create a new snaps map for a scope we have not seen before
+      snaps += (state.methodCfg, state.invariantContexts) -> TrieMap[Term, BasicChunk]()
+    }
     for (chunk <- chunks) {
       chunk match {
         case basicChunk: BasicChunk =>
           basicChunk.snap match {
             case Var(SuffixedIdentifier(prefix, _, _), _, _) if prefix == "$t" =>
-              snaps += basicChunk.snap -> basicChunk
+              snapsFor(state) += basicChunk.snap -> basicChunk
             case Var(SuffixedIdentifier(prefix, _, _), _, _) if !prefix.name.contains("$result") && prefix.name.contains("$")  =>
-              snaps += basicChunk.snap -> basicChunk
+              snapsFor(state) += basicChunk.snap -> basicChunk
             case SortWrapper(wrappedTerm, sort) =>
-              snaps += basicChunk.snap -> basicChunk
+              snapsFor(state) += basicChunk.snap -> basicChunk
             case _ => {}
           }
         case _ => {}
       }
     }
-
-  def diffChunks(oldChunks: Seq[Chunk], newChunks: Seq[Chunk]): (Seq[Chunk], Seq[Chunk]) = {
-    val consumed = for (chunk <- oldChunks if !newChunks.exists(_ == chunk)) yield chunk
-    val produced = for (chunk <- newChunks if !oldChunks.exists(_ == chunk)) yield chunk
-    (consumed, produced)
   }
 
-  def formatChunks(chunks: Seq[Chunk]): String = {
-    var result = ""
-    for (chunk <- chunks) {
-      chunk match {
-        case basicChunk: BasicChunk =>
-          result += formatBasicChunk(basicChunk, false) + "; "
-        case _ => { }
+  def partitionChunks(chunks: Seq[Chunk]): (Seq[Chunk], Seq[Chunk]) = {
+    chunks.partition {
+      case basicChunk: BasicChunk =>
+        basicChunk.resourceID match {
+          case FieldID => true
+          case _ => false
+        }
+      case _ => false
+    }
+  }
+
+  def formatChunks(chunks: Seq[Chunk], state: State): Seq[String] = {
+    chunks.map {
+      case basicChunk: BasicChunk =>
+        formatBasicChunk(basicChunk, state) + "; "
+      case _ => "\u22A5; "
+    }
+  }
+
+  def isPCVisible(term: Term, state: State): Boolean = {
+    if (ignoreSet.contains(term)) {
+      false
+    } else {
+      term match {
+        case App(_, _) => false
+        case Combine(_, _) => false
+        case First(_) => false
+        case Second(_) => false
+        case Var(SuffixedIdentifier(prefix, _, _), _, _) if prefix == "$t" => snapsFor(state).contains(term)
+        case Var(SuffixedIdentifier(prefix, _, _), _, _) => true
+        case SortWrapper(_, _) => snapsFor(state).contains(term)
+        case Null => true
+        case True => true
+        case False => true
+        case IntLiteral(_) => true
+        case Plus(p0, p1) => isPCVisible(p0, state) && isPCVisible(p1, state)
+        case Minus(p0, p1) => isPCVisible(p0, state) && isPCVisible(p1, state)
+        case Times(p0, p1) => isPCVisible(p0, state) && isPCVisible(p1, state)
+        case Div(p0, p1) => isPCVisible(p0, state) && isPCVisible(p1, state)
+        case Mod(p0, p1) => isPCVisible(p0, state) && isPCVisible(p1, state)
+        case BuiltinEquals(p0, p1) =>
+          // if latest version of variable or field access does not appear in PC, do not display it
+          (state.g.getKeyForValue(p0).isDefined || state.h.getChunksForValue(p0).nonEmpty) && isPCVisible(p1, state) ||
+            isPCVisible(p0, state) && (state.g.getKeyForValue(p1).isDefined || state.h.getChunksForValue(p1).nonEmpty)
+        case Less(p0, p1) => isPCVisible(p0, state) && isPCVisible(p1, state)
+        case AtMost(p0, p1) => isPCVisible(p0, state) && isPCVisible(p1, state)
+        case Greater(p0, p1) => isPCVisible(p0, state) && isPCVisible(p1, state)
+        case AtLeast(p0, p1) => isPCVisible(p0, state) && isPCVisible(p1, state)
+        case Not(p) => isPCVisible(p, state)
+        case Or(ts) => ts.map(isPCVisible(_, state)).reduce((x, y) => x && y)
+        case And(ts) => ts.map(isPCVisible(_, state)).reduce((x, y) => x && y)
+        case Implies(p0, p1) => isPCVisible(p0, state) && isPCVisible(p1, state)
+        case _ => true
       }
     }
-    result
   }
 
-  def formatDiff(oldChunks: Seq[Chunk], newChunks: Seq[Chunk]): (String, String) = {
-    val (consumed, produced) = diffChunks(oldChunks, newChunks)
-    (formatChunks(consumed), formatChunks(produced))
+  def formatPCs(currentPCs: InsertionOrderedSet[Term], state: State): Seq[String] = {
+    currentPCs.filter(isPCVisible(_, state)).map(formatTerm(_, state) + "; ").toSeq
   }
-
-  def pcVisible(term: Term): Boolean =
-    term match {
-      case App(_, _) => false
-      case Combine(_, _) => false
-      case First(_) => false
-      case Second(_) => false
-      case Var(SuffixedIdentifier(prefix, _, _), _, _) if prefix == "$t" => snaps.isDefinedAt(term)
-      case Var(SuffixedIdentifier(prefix, _, _), _, _) => true
-      case SortWrapper(_, _) => snaps.isDefinedAt(term)
-      case Null => true
-      case True => true
-      case False => true
-      case IntLiteral(n) => true
-      case Plus(p0, p1) => pcVisible(p0) && pcVisible(p1)
-      case Minus(p0, p1) => pcVisible(p0) && pcVisible(p1)
-      case Times(p0, p1) => pcVisible(p0) && pcVisible(p1)
-      case Div(p0, p1) => pcVisible(p0) && pcVisible(p1)
-      case Mod(p0, p1) => pcVisible(p0) && pcVisible(p1)
-      case BuiltinEquals(p0, p1) => pcVisible(p0) && pcVisible(p1)
-      case Less(p0, p1) => pcVisible(p0) && pcVisible(p1)
-      case AtMost(p0, p1) => pcVisible(p0) && pcVisible(p1)
-      case Greater(p0, p1) => pcVisible(p0) && pcVisible(p1)
-      case AtLeast(p0, p1) => pcVisible(p0) && pcVisible(p1)
-      case Not(p) => pcVisible(p)
-      case Or(ts) => ts.map(pcVisible).reduce((x, y) => x && y)
-      case And(ts) => ts.map(pcVisible).reduce((x, y) => x && y)
-      case Implies(p0, p1) => pcVisible(p0) && pcVisible(p1)
-      case _ => true
-    }
-
-  def isNotEquals(term: Term): Boolean =
-    term match {
-      case Not(BuiltinEquals(_, _)) => false
-      case _ => true
-    }
-
-  def formatPcs(oldPcs: InsertionOrderedSet[Term], newPcs: InsertionOrderedSet[Term]): String = {
-    val added = for (pc <- newPcs if !oldPcs.exists(_ == pc)) yield pc
-    added.filter(pcVisible).map(formatTerm).mkString(", ")
-  }
-
-  def formatStore(g: Store): Seq[(String, String)] =
-    g.values.map({ case (v, (term, _)) => (v.name, formatTerm(term)) }).toList
 
   def populateWhileLoops(stmts: Seq[ast.Stmt]): Unit = {
     for (stmt <- stmts) {
@@ -507,7 +598,8 @@ case object SymbExLogger {
 
   def resetMaps(): Unit = {
     snaps.clear()
-    freshPositions.clear()
+    freshTerms.clear()
+    ignoreSet.clear()
     whileLoops.clear()
   }
 
