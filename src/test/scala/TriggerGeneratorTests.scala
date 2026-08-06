@@ -6,27 +6,34 @@
 
 package viper.silicon.tests
 
-import org.scalatest.FunSuite
+import org.scalatest.BeforeAndAfter
+import org.scalatest.funsuite.AnyFunSuite
+import viper.silicon.Config
 import viper.silicon.state.Identifier
 import viper.silicon.state.terms._
+import viper.silicon.verifier.Verifier
 
-class TriggerGeneratorTests extends FunSuite {
+class TriggerGeneratorTests extends AnyFunSuite with BeforeAndAfter {
   val triggerGenerator = new TriggerGenerator()
 
+  before {
+    Verifier.config = new Config(Seq())
+  }
+
   test("Work in simple cases") {
-    val i = Var(Identifier("i"), sorts.Int)
-    val s = Var(Identifier("S"), sorts.Seq(sorts.Int))
+    val i = Var(Identifier("i"), sorts.Int, false)
+    val s = Var(Identifier("S"), sorts.Seq(sorts.Int), false)
     val t = SeqAt(s, i)
 
     assert(triggerGenerator.generateTriggerSetGroups(i :: Nil, t) match {
       case Seq((Seq(triggerGenerator.TriggerSet(Seq(`t`))), Seq())) => true
-      case other => false
+      case _ => false
     })
   }
 
   test("Fail in these cases") {
-    val i = Var(Identifier("i"), sorts.Int)
-    val s = Var(Identifier("S"), sorts.Seq(sorts.Int))
+    val i = Var(Identifier("i"), sorts.Int, false)
+    val s = Var(Identifier("S"), sorts.Seq(sorts.Int), false)
     val t = SeqAt(s, Plus(i, IntLiteral(1)))
 
     assert(triggerGenerator.generateTriggerSetGroups(i :: Nil, t).isEmpty)

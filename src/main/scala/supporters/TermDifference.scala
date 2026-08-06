@@ -8,12 +8,12 @@ import viper.silicon.verifier.Verifier
 object TermDifference {
 
   def visitor(expansionPhase: terms.Term => terms.Term, excludedTerms: Seq[String], term: terms.Term): terms.Term = term match {
-    case terms.Null() if excludedTerms.contains("Null") => expansionPhase(term)
-    case terms.Null() => term
-    case terms.False() if excludedTerms.contains("False") => expansionPhase(term)
-    case terms.False() => term
-    case terms.True() if excludedTerms.contains("True") => expansionPhase(term)
-    case terms.True() => term
+    case terms.Null if excludedTerms.contains("Null") => expansionPhase(term)
+    case terms.Null => term
+    case terms.False if excludedTerms.contains("False") => expansionPhase(term)
+    case terms.False => term
+    case terms.True if excludedTerms.contains("True") => expansionPhase(term)
+    case terms.True => term
     case terms.IntLiteral(_) if excludedTerms.contains("IntLiteral") => expansionPhase(term)
     case terms.IntLiteral(i) => term
     case terms.Unit if excludedTerms.contains("Unit") => expansionPhase(term)
@@ -56,8 +56,8 @@ object TermDifference {
     case terms.Greater(t0, t1) => terms.Greater(visitor(expansionPhase, excludedTerms, t0), visitor(expansionPhase, excludedTerms, t1))
     case terms.Ite(_, _, _) if excludedTerms.contains("Ite") => expansionPhase(term)
     case terms.Ite(t0, t1, t2) => terms.Ite(visitor(expansionPhase, excludedTerms, t0), visitor(expansionPhase, excludedTerms, t1), visitor(expansionPhase, excludedTerms, t2))
-    case terms.Var(_, _) if excludedTerms.contains("Var") => expansionPhase(term)
-    case terms.Var(name, sort) => terms.Var(name, sort)
+    case terms.Var(_, _, _) if excludedTerms.contains("Var") => expansionPhase(term)
+    case terms.Var(name, sort, b0) => terms.Var(name, sort, b0)
     case terms.SortWrapper(_, _) if excludedTerms.contains("SortWrapper") => expansionPhase(term)
     case terms.SortWrapper(t, sort) => terms.SortWrapper(visitor(expansionPhase, excludedTerms, t), sort)
     case terms.App(_, _) if excludedTerms.contains("App") => expansionPhase(term)
@@ -140,16 +140,17 @@ object TermDifference {
   }
 
   // testing transform
-  val makeVar: String => terms.Var = (varName: String) => terms.Var(viper.silicon.state.Identifier(varName), terms.sorts.Int)
+  val makeVarInt: String => terms.Var = (varName: String) => terms.Var(viper.silicon.state.Identifier(varName), terms.sorts.Int, false)
+  val makeVarBool: String => terms.Var = (varName: String) => terms.Var(viper.silicon.state.Identifier(varName), terms.sorts.Bool, false)
 
-  val simpleImplicationTerm = terms.Implies(makeVar("x"), makeVar("y"))
+  val simpleImplicationTerm = terms.Implies(makeVarBool("x"), makeVarBool("y"))
 
-  val simpleNegationTerm = terms.Not(makeVar("x"))
+  val simpleNegationTerm = terms.Not(makeVarBool("x"))
 
   val moreComplexNegationTerm = terms.Not(simpleImplicationTerm)
 
   // 3
-  val moreComplexImplicationTerm = terms.Iff(terms.Implies(makeVar("a"), makeVar("e")), moreComplexNegationTerm)
+  val moreComplexImplicationTerm = terms.Iff(terms.Implies(makeVarBool("a"), makeVarBool("e")), moreComplexNegationTerm)
 
   val evenMoreComplexNegationTerm = terms.Not(moreComplexNegationTerm)
 
@@ -157,13 +158,13 @@ object TermDifference {
 
   // 10
   val termWithIgnoredTerms =
-    terms.Iff(
-      terms.Plus(terms.Var(viper.silicon.state.Identifier("k"), terms.sorts.Int), makeVar("w")),
+    terms.Iff((
+      terms.Plus((terms.Var(viper.silicon.state.Identifier("k"), terms.sorts.Int, false), makeVarInt("w"))),
       terms.Not(terms.Implies(
-        terms.Plus(
+        terms.Plus((
           terms.Not(moreComplexImplicationTerm),
-          terms.Not(evenMoreComplexNegationTermForRealThisTime)),
-        terms.Not(evenMoreComplexNegationTerm))))
+          terms.Not(evenMoreComplexNegationTermForRealThisTime))),
+        terms.Not(evenMoreComplexNegationTerm)))))
 
   // 24
   val moreComplexTermWithIgnoredTerms = terms.Implies(terms.Plus(termWithIgnoredTerms, evenMoreComplexNegationTermForRealThisTime), termWithIgnoredTerms)

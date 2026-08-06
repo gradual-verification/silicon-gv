@@ -14,7 +14,7 @@ import viper.silicon.interfaces.{PreambleContributor, PreambleReader}
 import viper.silicon.interfaces.decider.{ProverLike, TermConverter}
 import viper.silicon.state.SymbolConverter
 import viper.silicon.state.terms.{SortDecl, sorts}
-import viper.silver.ast.{FieldAccess, Forall}
+import viper.silver.ast.{Exists, FieldAccess, Forall}
 
 trait FieldValueFunctionsContributor[SO, SY, AX] extends PreambleContributor[SO, SY, AX]
 
@@ -34,19 +34,19 @@ class DefaultFieldValueFunctionsContributor(preambleReader: PreambleReader[Strin
 
   /* Lifetime */
 
-  def reset() {
+  def reset(): Unit = {
     collectedFields = InsertionOrderedSet.empty
     collectedSorts = InsertionOrderedSet.empty
     collectedFunctionDecls = Seq.empty
     collectedAxioms = Seq.empty
   }
 
-  def stop() {}
-  def start() {}
+  def stop(): Unit = {}
+  def start(): Unit = {}
 
   /* Functionality */
 
-  def analyze(program: ast.Program) {
+  def analyze(program: ast.Program): Unit = {
     /* TODO: Use viper.silver.ast.utility.QuantifiedPermissions.quantifiedFields instead? */
     program visit {
       case QuantifiedPermissionAssertion(_, _, acc: ast.FieldAccessPredicate) =>
@@ -55,13 +55,16 @@ class DefaultFieldValueFunctionsContributor(preambleReader: PreambleReader[Strin
         val trigExps = triggers flatMap (_.exps)
         val fieldAccesses = trigExps flatMap (e => e.deepCollect {case fa: FieldAccess => fa})
         collectedFields ++= (fieldAccesses map (_.field))
+      case Exists(_, triggers, _) =>
+        val trigExps = triggers flatMap (_.exps)
+        val fieldAccesses = trigExps flatMap (e => e.deepCollect { case fa: FieldAccess => fa })
+        collectedFields ++= (fieldAccesses map (_.field))
     }
 
     // WARNING: DefaultSetsContributor contributes a sort that is due to QPs over fields
 
     collectedSorts = (
-        collectedFields.map(f => sorts.FieldValueFunction(symbolConverter.toSort(f.typ)))
-      + sorts.FieldValueFunction(sorts.Ref))
+        collectedFields.map(f => sorts.FieldValueFunction(symbolConverter.toSort(f.typ), f.name)))
 
     collectedFunctionDecls = generateFunctionDecls
     collectedAxioms = generateAxioms
@@ -83,7 +86,7 @@ class DefaultFieldValueFunctionsContributor(preambleReader: PreambleReader[Strin
     collectedFields map (f => {
       val sort = symbolConverter.toSort(f.typ)
       val id = f.name
-      val substitutions = Map("$FLD$" -> id, "$S$" -> termConverter.convert(sort))
+      val substitutions = Map("$FLD$" -> id, "$S$" -> termConverter.convert(sort), "$T$" -> termConverter.convertSanitized(sort))
       val declarations = preambleReader.readParametricPreamble(templateFile, substitutions)
 
       (s"$templateFile [$id: $sort]", declarations)
@@ -98,7 +101,7 @@ class DefaultFieldValueFunctionsContributor(preambleReader: PreambleReader[Strin
     collectedFields map (f => {
       val sort = symbolConverter.toSort(f.typ)
       val id = f.name
-      val substitutions = Map("$FLD$" -> id, "$S$" -> termConverter.convert(sort))
+      val substitutions = Map("$FLD$" -> id, "$S$" -> termConverter.convert(sort), "$T$" -> termConverter.convertSanitized(sort))
       val declarations = preambleReader.readParametricPreamble(templateFile, substitutions)
 
       (s"$templateFile [$id: $sort]", declarations)

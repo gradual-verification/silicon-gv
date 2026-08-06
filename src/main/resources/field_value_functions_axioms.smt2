@@ -5,35 +5,34 @@
 ; The axioms are parametric
 ;   - $FLD$ is a Silver field name
 ;   - $S$ is the sort corresponding to the type of the field
+;   - $T$ is the sanitized name of the sort corresponding to the type of the field
 
 ; ATTENTION: The triggers mention the sort wrappers introduced for FVFs.
 ; The axiom therefore needs to be emitted after the sort wrappers have
 ; been emitted.
 
-(assert (forall ((vs $FVF<$S$>) (ws $FVF<$S$>)) (!
-    (implies
+(assert (forall ((vs $FVF<$FLD$>) (ws $FVF<$FLD$>)) (!
+    (=>
       (and
         (Set_equal ($FVF.domain_$FLD$ vs) ($FVF.domain_$FLD$ ws))
         (forall ((x $Ref)) (!
-          (implies
+          (=>
             (Set_in x ($FVF.domain_$FLD$ vs))
             (= ($FVF.lookup_$FLD$ vs x) ($FVF.lookup_$FLD$ ws x)))
-          ; :pattern ((Set_in x ($FVF.domain_$FLD$ vs)))
           :pattern (($FVF.lookup_$FLD$ vs x) ($FVF.lookup_$FLD$ ws x))
-          :qid |qp.$FVF<$S$>-eq-inner|
+          :qid |qp.$FVF<$FLD$>-eq-inner|
           )))
       (= vs ws))
-    :pattern (($SortWrappers.$FVF<$S$>To$Snap vs)
-              ($SortWrappers.$FVF<$S$>To$Snap ws)
-;              ($FVF.after_$FLD$ vs ws)
+    :pattern (($SortWrappers.$FVF<$FLD$>To$Snap vs)
+              ($SortWrappers.$FVF<$FLD$>To$Snap ws)
               )
-    :qid |qp.$FVF<$S$>-eq-outer|
+    :qid |qp.$FVF<$FLD$>-eq-outer|
     )))
 
 (assert (forall ((r $Ref) (pm $FPM)) (!
     ($Perm.isValidVar ($FVF.perm_$FLD$ pm r))
-    :pattern ($FVF.perm_$FLD$ pm r))))
+    :pattern (($FVF.perm_$FLD$ pm r)))))
 
 (assert (forall ((r $Ref) (f $S$)) (!
     (= ($FVF.loc_$FLD$ f r) true)
-    :pattern ($FVF.loc_$FLD$ f r))))
+    :pattern (($FVF.loc_$FLD$ f r)))))

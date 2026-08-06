@@ -46,7 +46,10 @@ case class SnapshotMapCache private (
          : Option[SnapshotMapCache.Value] = {
 
     cache.get(key) match {
-      case Some((smDef, totalPermissions, `optSmDomainDefinitionCondition`)) =>
+      case Some((smDef, totalPermissions, cachedSmDomainDefinitionCondition))
+          if cachedSmDomainDefinitionCondition == optSmDomainDefinitionCondition ||  // defined under the same condition
+            (cachedSmDomainDefinitionCondition.contains(terms.True) && optSmDomainDefinitionCondition.isEmpty) // cached is always defined and we don't need a domain
+            =>
         Some((smDef, totalPermissions))
 
       case _ =>
@@ -75,7 +78,7 @@ case class SnapshotMapCache private (
 
     val (smDef, totalPermissions) = value
 
-    this + (key, (smDef, totalPermissions, None))
+    this + (key, (smDef, totalPermissions, optSmDomainDefinitionCondition))
   }
 
   def +(key: SnapshotMapCache.InternalKey, value: SnapshotMapCache.InternalValue)
