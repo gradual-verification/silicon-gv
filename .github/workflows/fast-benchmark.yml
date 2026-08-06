@@ -8,15 +8,15 @@ jobs:
     timeout-minutes: 4200
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v7
         with:
           repository: 'gradual-verification/gvc0'
           path: './gvc0'
           ssh-key: ${{ secrets.GVC0_DEPLOY_PRIVATE_KEY }}
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v7
         with:
           path: './gvc0/silicon'
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v7
         with:
           repository: 'gradual-verification/silver-gv'
           path: './gvc0/silicon/silver'
