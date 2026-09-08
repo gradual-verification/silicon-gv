@@ -310,7 +310,6 @@ object consumer extends ConsumptionRules {
         evalpc(s.copy(isImprecise = impr), e0, pve, v)((s1, t0, e0New, v1) => {
           val s2 = s1.copy(isImprecise = s.isImprecise)
       
-//<<<<<<< HEAD
           // what was happening here...?
           // we were unsetting the position in the state at the beginning of
           // consumeTlc, but we were not able to attach it to the branching info
@@ -332,34 +331,6 @@ object consumer extends ConsumptionRules {
                 sys.error("This should not happen, at least until we support "
                   + "unfoldings, maybe! We don't deal with this case at the "
                   + "moment because we want to know if this happens!")
-/*=======
-            // what was happening here...?
-            // we were unsetting the position in the state at the beginning of
-            // consumeTlc, but we were not able to attach it to the branching info
-            //
-            // we weren't seeing it at this point, where we were matching on it to see if
-            // it was None
-            //
-            // this has been changed since that point, but we should figure out what the
-            // issue was... it is commit with the message "Buggy changes to track branch positions
-            // for method call sites"
-
-            // unfolding can probably never be the origin here - Priyam
-            val branchPosition: Option[CheckPosition] =
-              (s.methodCallAstNode, s.foldOrUnfoldAstNode, s.loopPosition, s.unfoldingAstNode) match {
-                case (None, None, None, None) => None
-                case (Some(methodCallAstNode), None, None, _) =>
-                  Some(CheckPosition.GenericNode(methodCallAstNode))
-                case (None, Some(foldOrUnfoldAstNode), None, _) =>
-                  Some(CheckPosition.GenericNode(foldOrUnfoldAstNode))
-                case (None, None, Some(loopPosition), _) =>
-                  Some(loopPosition)
-                case (None, None, None, Some(unfoldingAstNode)) =>
-                  Some(CheckPosition.GenericNode(unfoldingAstNode))
-                case _ =>
-                  println((s.methodCallAstNode, s.foldOrUnfoldAstNode, s.loopPosition, s.unfoldingAstNode))
-                  sys.error("Error: _ match case when setting a branch condition origin!")
->>>>>>> upstream/master*/
               }
             }
 
@@ -734,15 +705,10 @@ object consumer extends ConsumptionRules {
                           profilingInfo.incrementEliminatedConjuncts
                         }
 
-/*<<<<<<< HEAD
-                        Q(s5, oh1, h1, snap2, v4)}})
-                  }
-=======*/
                         Q(s5, Heap(), Heap(), snap2, v4)}})
                         // replace oh1 and h1 with Heap() since OH and H should be emptied since predicate was in OH - Priyam
                   } 
 
-//>>>>>>> upstream/master
                   else if (chunkExisted) {
 
                     profilingInfo.incrementEliminatedConjuncts

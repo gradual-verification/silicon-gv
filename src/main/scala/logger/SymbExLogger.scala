@@ -27,11 +27,8 @@ import viper.silicon.state._
 import viper.silicon.state.terms._
 import viper.silicon.{Config, Map, Stack}
 import viper.silver.ast
-//<<<<<<< HEAD
 import viper.silver.ast.{Exp, Member}
-//=======
 import viper.silver.cfg.silver.SilverCfg
-//>>>>>>> upstream/master
 import viper.silver.verifier.AbstractError
 
 import java.nio.file.{Files, Path, Paths}

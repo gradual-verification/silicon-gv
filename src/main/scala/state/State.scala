@@ -174,7 +174,6 @@ object State {
   val OldHeaps = Map
 
   def merge(s1: State, s2: State): State = {
-//<<<<<<< HEAD
     s1 match {
       /* Decompose state s1 */
       case State(g1, oldStore1, h1,
@@ -183,19 +182,6 @@ object State {
                  functionData,
                  oldHeaps1,
                  isImprecise, optimisticHeap1,
-//=======
-    /* TODO: Instead of aborting with a pattern mismatch, all mismatches
-     *       should be detected first (and accumulated), and afterwards a meaningful
-     *       exception should be thrown. This would improve debugging significantly.
-     */
-    // completed above todo -> Priyam
-/*
-    val mismatches = scala.collection.mutable.ListBuffer[String]()
-
-    s1 match {
-      case State(g1, oldStore1, h1, oldHeaps1,
-                 isImprecise1, optimisticHeap1,
->>>>>>> upstream/master*/
                  gatherFrame1, frameArgHeap1,
                  parallelizeBranches1,
                  recordVisited1, visited1,
@@ -209,7 +195,6 @@ object State {
                  recordPossibleTriggers1, possibleTriggers1,
                  triggerExp1,
                  partiallyConsumedHeap1,
-//<<<<<<< HEAD
                  permissionScalingFactor1, permissionScalingFactorExp1, isEvalInOld,
                  reserveHeaps1, reserveCfgs1, conservedPcs1, recordPcs1, exhaleExt1, isInPackage1,
                  ssCache1, assertReadAccessOnly1,
@@ -219,21 +204,8 @@ object State {
                  methodCallAstNode1, foldOrUnfoldAstNode1, loopPosition1, unfoldingAstNode, forFraming, generateChecks,
                  needConditionFramingUnfold, needConditionFramingProduce,
                  madeOptimisticAssumptions1, evalHeapsSet1) =>
-/*=======
-                 permissionScalingFactor1,
-                 reserveHeaps1, reserveCfgs1, conservedPcs1, recordPcs1, exhaleExt1,
-                 applyHeuristics1, heuristicsDepth1, triggerAction1,
-                 ssCache1, hackIssue387DisablePermissionConsumption1,
-                 qpFields1, qpPredicates1, qpMagicWands1, smCache1, pmCache1, smDomainNeeded1,
-                 predicateSnapMap1, predicateFormalVarMap1, hack1,
-                 methodCallAstNode1, foldOrUnfoldAstNode1, loopPosition1, unfoldingAstNode1, forFraming1, generateChecks1,
-                 needConditionFramingUnfold1, needConditionFramingProduce1,
-                 madeOptimisticAssumptions1, evalHeapsSet1) =>
-        //sys.error("testing")
->>>>>>> upstream/master*/
 
         s2 match {
-//<<<<<<< HEAD
           // we do not care whether oldStore matches here; oldStore should not
           // stick around for that long?
           case State(`g1`, `oldStore1`, `h1`, 
@@ -263,76 +235,6 @@ object State {
                      `methodCallAstNode1`, `foldOrUnfoldAstNode1`, `loopPosition1`, `unfoldingAstNode`, `forFraming`,
                      `generateChecks`, `needConditionFramingUnfold`,
                      `needConditionFramingProduce`, madeOptimisticAssumptions2, evalHeapsSet2) =>
-/*=======
-          case State(g2, oldStore2, h2, oldHeaps2, // oldStore and oldHeaps shouldn't be checked
-                     isImprecise2, optimisticHeap2, // optimisticHeap not checked
-                     gatherFrame2, frameArgHeap2,
-                     parallelizeBranches2,
-                     recordVisited2, visited2,
-                     methodCfg2, invariantContexts2,
-                     constrainableARPs2, // not checked
-                     quantifiedVariables2,
-                     retrying2,
-                     underJoin2,
-                     functionRecorder2, // not checked
-                     conservingSnapshotGeneration2,
-                     recordPossibleTriggers2, possibleTriggers2, // triggers not checked
-                     triggerExp2, // not checked
-                     partiallyConsumedHeap2,
-                     permissionScalingFactor2,
-                     reserveHeaps2, reserveCfgs2, conservedPcs2, recordPcs2, exhaleExt2,
-                     applyHeuristics2, heuristicsDepth2, triggerAction2,
-                     ssCache2, hackIssue387DisablePermissionConsumption2, // sscache not checked
-                     qpFields2, qpPredicates2, qpMagicWands2, smCache2, pmCache2, smDomainNeeded2, // pmCache not checked
-                     predicateSnapMap2, predicateFormalVarMap2, hack2,
-                     methodCallAstNode2, foldOrUnfoldAstNode2, loopPosition2, unfoldingAstNode2, forFraming2,
-                     generateChecks2, needConditionFramingUnfold2, // needConditionFramingUnfold not checked
-                     needConditionFramingProduce2, madeOptimisticAssumptions2, evalHeapsSet2) => // needConditionFramingProduce, madeOptimisticAssumptions, evalHeapsSet, not checked
-            // only check relevant constructs
-            if (g1 != g2) mismatches += s"g mismatch: ${g1} != ${g2}"
-            if (h1 != h2) mismatches += s"heap mismatch: ${h1} != ${h2}"
-            if (isImprecise1 != isImprecise2) mismatches += s"isImprecise mismatch: ${isImprecise1} != ${isImprecise2}"
-            if (gatherFrame1 != gatherFrame2) mismatches += s"gatherFrame mismatch: ${gatherFrame1} != ${gatherFrame2}"
-            if (frameArgHeap1 != frameArgHeap2) mismatches += s"frameArgHeap mismatch: ${frameArgHeap1} != ${frameArgHeap2}"
-            if (parallelizeBranches1 != parallelizeBranches2) mismatches += s"parallelizeBranches mismatch: ${parallelizeBranches1} != ${parallelizeBranches2}"
-            if (recordVisited1 != recordVisited2) mismatches += s"recordVisited mismatch: ${recordVisited1} != ${recordVisited2}"
-            if (visited1 != visited2) mismatches += s"visited mismatch: ${visited1} != ${visited2}"
-            if (methodCfg1 != methodCfg2) mismatches += s"methodCfg mismatch: ${methodCfg1} != ${methodCfg2}"
-            if (invariantContexts1 != invariantContexts2) mismatches += s"invariantContexts mismatch: ${invariantContexts1} != ${invariantContexts2}"
-            if (quantifiedVariables1 != quantifiedVariables2) mismatches += s"quantifiedVariables mismatch: ${quantifiedVariables1} != ${quantifiedVariables2}"
-            if (retrying1 != retrying2) mismatches += s"retrying mismatch: ${retrying1} != ${retrying2}"
-            if (underJoin1 != underJoin2) mismatches += s"underJoin mismatch: ${underJoin1} != ${underJoin2}"
-            if (conservingSnapshotGeneration1 != conservingSnapshotGeneration2) mismatches += s"conservingSnapshotGeneration mismatch: ${conservingSnapshotGeneration1} != ${conservingSnapshotGeneration2}"
-            if (recordPossibleTriggers1 != recordPossibleTriggers2) mismatches += s"recordPossibleTriggers mismatch: ${recordPossibleTriggers1} != ${recordPossibleTriggers2}"
-            if (partiallyConsumedHeap1 != partiallyConsumedHeap2) mismatches += s"partiallyConsumedHeap mismatch: ${partiallyConsumedHeap1} != ${partiallyConsumedHeap2}"
-            if (permissionScalingFactor1 != permissionScalingFactor2) mismatches += s"permissionScalingFactor mismatch: ${permissionScalingFactor1} != ${permissionScalingFactor2}"
-            if (reserveHeaps1 != reserveHeaps2) mismatches += s"reserveHeaps mismatch: ${reserveHeaps1} != ${reserveHeaps2}"
-            if (reserveCfgs1 != reserveCfgs2) mismatches += s"reserveCfgs mismatch: ${reserveCfgs1} != ${reserveCfgs2}"
-            if (conservedPcs1 != conservedPcs2) mismatches += s"conservedPcs mismatch: ${conservedPcs1} != ${conservedPcs2}"
-            if (recordPcs1 != recordPcs2) mismatches += s"recordPcs mismatch: ${recordPcs1} != ${recordPcs2}"
-            if (exhaleExt1 != exhaleExt2) mismatches += s"exhaleExt mismatch: ${exhaleExt1} != ${exhaleExt2}"
-            if (applyHeuristics1 != applyHeuristics2) mismatches += s"applyHeuristics mismatch: ${applyHeuristics1} != ${applyHeuristics2}"
-            if (heuristicsDepth1 != heuristicsDepth2) mismatches += s"heuristicsDepth mismatch: ${heuristicsDepth1} != ${heuristicsDepth2}"
-            if (triggerAction1 != triggerAction2) mismatches += s"triggerAction mismatch: ${triggerAction1} != ${triggerAction2}"
-            if (hackIssue387DisablePermissionConsumption1 != hackIssue387DisablePermissionConsumption2) mismatches += s"hackIssue387DisablePermissionConsumption mismatch: ${hackIssue387DisablePermissionConsumption1} != ${hackIssue387DisablePermissionConsumption2}"
-            if (qpFields1 != qpFields2) mismatches += s"qpFields mismatch: ${qpFields1} != ${qpFields2}"
-            if (qpPredicates1 != qpPredicates2) mismatches += s"qpPredicates mismatch: ${qpPredicates1} != ${qpPredicates2}"
-            if (qpMagicWands1 != qpMagicWands2) mismatches += s"qpMagicWands mismatch: ${qpMagicWands1} != ${qpMagicWands2}"
-            if (smDomainNeeded1 != smDomainNeeded2) mismatches += s"smDomainNeeded mismatch: ${smDomainNeeded1} != ${smDomainNeeded2}"
-            if (predicateSnapMap1 != predicateSnapMap2) mismatches += s"predicateSnapMap mismatch: ${predicateSnapMap1} != ${predicateSnapMap2}"
-            if (predicateFormalVarMap1 != predicateFormalVarMap2) mismatches += s"predicateFormalVarMap mismatch: ${predicateFormalVarMap1} != ${predicateFormalVarMap2}"
-            if (hack1 != hack2) mismatches += s"hack mismatch: ${hack1} != ${hack2}"
-            if (methodCallAstNode1 != methodCallAstNode2) mismatches += s"methodCallAstNode mismatch: ${methodCallAstNode1} != ${methodCallAstNode2}"
-            if (foldOrUnfoldAstNode1 != foldOrUnfoldAstNode2) mismatches += s"foldOrUnfoldAstNode mismatch: ${foldOrUnfoldAstNode1} != ${foldOrUnfoldAstNode2}"
-            if (loopPosition1 != loopPosition2) mismatches += s"loopPosition mismatch: ${loopPosition1} != ${loopPosition2}"
-            if (unfoldingAstNode1 != unfoldingAstNode2) mismatches += s"unfoldingAstNode mismatch: ${unfoldingAstNode1} != ${unfoldingAstNode2}"
-            if (forFraming1 != forFraming2) mismatches += s"forFraming mismatch: ${forFraming1} != ${forFraming2}"
-            if (generateChecks1 != generateChecks2) mismatches += s"generateChecks mismatch: ${generateChecks1} != ${generateChecks2}"
-
-            if (mismatches.nonEmpty) {
-                throw new IllegalArgumentException("State merging failed due to mismatches: " + mismatches.mkString(", "))
-            }
->>>>>>> upstream/master*/
 
             val functionRecorder3 = functionRecorder1.merge(functionRecorder2)
             val triggerExp3 = triggerExp1 && triggerExp2
@@ -366,7 +268,6 @@ object State {
                     ssCache = ssCache3,
                     smCache = smCache3,
                     pmCache = pmCache3,
-//<<<<<<< HEAD
                     moreCompleteExhale = moreCompleteExhale3,
                     conservedPcs = conservedPcs3,
                     madeOptimisticAssumptions = madeOptimisticAssumptions3,
@@ -386,17 +287,6 @@ object State {
             sys.error(s"State merging failed: unexpected mismatch between symbolic states: $err")
       }
     }
-/*=======
-                    madeOptimisticAssumptions = madeOptimisticAssumptions3,
-                    evalHeapsSet = evalHeapsSet3,
-                    oldHeaps = oldHeaps3,
-                    optimisticHeap = optimisticHeap3)
-            // TODO: Should oldStore be updated here? what is oldStore for?
-
-          case _ =>
-            throw new IllegalArgumentException("State merging failed: unexpected mismatch between symbolic states")
-    }}
->>>>>>> upstream/master*/
   }
 
   // Lists all fields which do not match in two states.
