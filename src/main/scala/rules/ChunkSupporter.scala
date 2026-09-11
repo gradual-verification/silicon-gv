@@ -16,7 +16,7 @@ import viper.silicon.logger.SymbExLogger
 import viper.silicon.resources.{FieldID, NonQuantifiedPropertyInterpreter, PredicateID, Resources}
 import viper.silicon.state._
 import viper.silicon.state.terms._
-import viper.silicon.state.terms.perms.IsPositive
+import viper.silicon.state.terms.perms.{IsPositive, IsNonPositive, IsEpsilon}
 import viper.silicon.supporters.Translator
 import viper.silicon.utils
 import viper.silicon.verifier.Verifier
@@ -38,7 +38,8 @@ trait ChunkSupportRules extends SymbolicExecutionRules {
               returnSnap: Boolean,
               ve: VerificationError,
               v: Verifier,
-              description: String) 
+              description: String,
+              isOpt: Boolean) 
               (Q: (State, Heap, Option[Term], Verifier, Boolean) => VerificationResult)
              : VerificationResult
 
@@ -70,6 +71,15 @@ trait ChunkSupportRules extends SymbolicExecutionRules {
              v: Verifier)
             : Boolean
 
+  def permExceedsOne[CH <: NonQuantifiedChunk: ClassTag]
+            (s: State,
+             h: Heap,
+             resource: ast.Resource,
+             args: Seq[Term],
+             v: Verifier,
+             perm: Term)
+            : Boolean
+
 
   def findChunk[CH <: NonQuantifiedChunk: ClassTag]
                (chunks: Iterable[Chunk],
@@ -97,10 +107,11 @@ object chunkSupporter extends ChunkSupportRules {
               returnSnap: Boolean,
               ve: VerificationError,
               v: Verifier,
-              description: String)
+              description: String,
+              isPre: Boolean) // Additional parameter is flag signaling whether we are consuming from precise heap or optimistic heap, maybe make field in Heap trait?
              (Q: (State, Heap, Option[Term], Verifier, Boolean) => VerificationResult)
              : VerificationResult = {
-    consume2(s, h, consolidate, resource, args, argsExp, perms, permsExp, returnSnap, ve, v)((s2, h2, optSnap, v2) =>
+    consume2(s, h, consolidate, resource, args, argsExp, perms, permsExp, returnSnap, ve, v, isPre)((s2, h2, optSnap, v2) =>
       optSnap match {
         case Some(snap) =>
           Q(s2, h2, Some(snap.convert(sorts.Snap)), v2, true)
@@ -130,14 +141,15 @@ object chunkSupporter extends ChunkSupportRules {
                        permsExp: Option[ast.Exp],
                        returnSnap: Boolean,
                        ve: VerificationError,
-                       v: Verifier)
+                       v: Verifier,
+                       isPre: Boolean) 
                       (Q: (State, Heap, Option[Term], Verifier) => VerificationResult)
                       : VerificationResult = {
     
     val id = ChunkIdentifier(resource, s.program)
     if (s.exhaleExt) {
       val failure = createFailure(ve, v, s, "chunk consume in package")
-      magicWandSupporter.transfer(s, perms, permsExp, failure, Seq(), v)(consumeGreedy(_, _, id, true, resource, args, _, _, _))((s1, optCh, v1) =>
+      magicWandSupporter.transfer(s, perms, permsExp, failure, Seq(), v)(consumeGreedy(_, _, id, true, resource, args, _, _, _, isPre))((s1, optCh, v1) =>
         if (returnSnap){
           Q(s1, h, optCh.flatMap(ch => Some(ch.snap)), v1)
         } else {
@@ -156,7 +168,7 @@ object chunkSupporter extends ChunkSupportRules {
           if (consolidate) {
             s1 = v.stateConsolidator(s).consolidate(s.copy(h = h), v)
           }
-          consumeGreedy(s1, s1.h, id, consolidate, resource, args, perms, permsExp, v1) match {
+          consumeGreedy(s1, s1.h, id, consolidate, resource, args, perms, permsExp, v1, isPre) match {
             case (Complete(), s2, h2, optCh2) =>
               val snap = optCh2 match {
                 case Some(ch) if returnSnap =>
@@ -186,45 +198,81 @@ object chunkSupporter extends ChunkSupportRules {
                             args: Seq[Term],
                             perms: Term,
                             permsExp: Option[ast.Exp],
-                            v: Verifier)
+                            v: Verifier,
+                            isPre: Boolean)
                             : (ConsumptionResult, State, Heap, Option[NonQuantifiedChunk])= {
+    
 
     resource match {
       case f: ast.Field => {
+      
         /* heap-rem-acc */
-        /* the foldl portion of heap-rem-acc
-         * builds a new heap of chunks that definitely do not
-         * contain the acc pred to remove
-        */
-        var newH: Heap = h.values.foldLeft(Heap()) { (currHeap, chunk) =>
-          chunk match {
-            case c: NonQuantifiedChunk =>
+        val (newHeap, takenChunk, permDiff) = findChunk[NonQuantifiedChunk](h.values, id, args, v) match {
+          case Some(ch) if v.decider.check(IsEpsilon(ch.perm), Verifier.config.checkTimeout()) => {
+            (h, None, perms)
+          } 
+          case Some(ch) => { 
+            val toTake = PermMin(ch.perm, perms) // I don't know why Viper uses such a convoluted way to determine the necessary chunk.
+            val newChunk = ch.withPerm(PermMinus(ch.perm, toTake), permsExp)
+            val takenChunk = Some(ch.withPerm(toTake, permsExp))
+            var newHeap = h - ch
+            if (!v.decider.check(newChunk.perm === NoPerm, Verifier.config.checkTimeout())) { 
+              newHeap = newHeap + newChunk
+            }
+            
+            if (v.decider.check(IsNonPositive(PermMinus(perms, toTake)), 0)) { // essentially what ConsumptionResult does
+              (newHeap, takenChunk, NoPerm)
+            }
+            else {
+              (h, None, PermMinus(perms, ch.perm))
+            }
+          }
+          case _ => {
+            (h, None, perms)
+          }
+        }
 
-              // The term in checkgv uses infix notation I got from a different check to see if the args are equal
+        var newH: Heap = newHeap.values.foldLeft(Heap()) { (currHeap, chunk) =>
+          chunk match {
+            case c: NonQuantifiedChunk => 
+
+              // The term in checkgv uses infix notation I got from a different check to see if the args are equal - not CL
               var statusCheckgv = true
 
               if (id == c.id) {
-                // TODO;staticprofiling: this is responsible for the static profiling issue, maybe
+                // TODO;staticprofiling: this is responsible for the static profiling issue, maybe - not CL
                 statusCheckgv = v.decider.checkgv(s.isImprecise, And(c.args zip args map (x => x._1 === x._2)), Some(Verifier.config.checkTimeout())) match {
                   case (status, runtimeCheck) => status
                 }
               }
 
-              if ((id != c.id) || (!statusCheckgv)){
+              if ((id != c.id) || (!statusCheckgv)){ // if proven not equal, then continue to add to heap 
                 currHeap + c
               }
-              else {
+              else if (v.decider.check(PermLess(permDiff, c.perm), Verifier.config.checkTimeout())) { // if perm < c.perm, then add to heap with diff
+                /*
+                As long as there are only chunks with permission epsilon inside the heap, we do not need an isPre flag 
+                The isPre boolean flag is needed since when consuming from the optimistic heap, even if diff < ch.perm, we still want to remove full chunk
+                from the optimistic heap as it doesn't preserve perm <= 1 invariant.
+                */
+                currHeap + c.withPerm(PermMinus(c.perm, permDiff), permsExp) 
+              } else { // If perm >= c.perm, then remove it from the heap!
                 currHeap
               }
-            case _ =>
+            case _ => 
               currHeap
           }
         }
 
         // tries to find the chunk in h
-        findChunk[NonQuantifiedChunk](h.values, id, args, v) match {
+        //findChunk[NonQuantifiedChunk](h.values, id, args, v) match {
+        takenChunk match {
           // I'm not sure if I need these checks but I included them to be safe - J
+//<<<<<<< HEAD
+          case Some(ch) if v.decider.check(ch.perm === perms, Verifier.config.checkTimeout()) /*&& v.decider.check(perms === FullPerm, Verifier.config.checkTimeout())*/ =>
+/*=======
           case Some(ch) if v.decider.check(ch.perm === perms, Verifier.config.checkTimeout()) && v.decider.check(perms === FullPerm, Verifier.config.checkTimeout()) =>
+>>>>>>> upstream/frac-perm-final*/
             // handles removing all predicates from OH when field chunk is in optimistic heap (Note: field chunk in regular heap handled by next case) - Priyam
             if (!isRegularHeap){
               var newH2: Heap = newH.values.foldLeft(Heap()) { (currHeap, chunk) =>
@@ -247,10 +295,13 @@ object chunkSupporter extends ChunkSupportRules {
             }
 
 
-          case _ => {
+          // case None if (v.decider.check(perms === NoPerm(), Verifier.config.checkTimeout())) => // for special case consume acc(x.f, 0/1)
+          //   (Complete(), s, newH, None)
+
+          case None => {
             var newH2: Heap = newH.values.foldLeft(Heap()) { (currHeap, chunk) =>
               chunk match {
-                case c: NonQuantifiedChunk =>
+                case c: NonQuantifiedChunk => // Potential small refactor? Change case to c: NonQuantifiedChunk if c.resourceID != FieldID
                   c.resourceID match {
                     case FieldID =>
                       currHeap + c
@@ -265,11 +316,15 @@ object chunkSupporter extends ChunkSupportRules {
           }
         }
       }
-
+    
       case p: ast.Predicate => {
         /* heap-rem-pred */
         findChunk[NonQuantifiedChunk](h.values, id, args, v) match {
+//<<<<<<< HEAD
+          case Some(ch) if v.decider.check(ch.perm === perms, Verifier.config.checkTimeout()) =>
+/*=======
           case Some(ch) if v.decider.check(perms === FullPerm, Verifier.config.checkTimeout()) =>
+>>>>>>> upstream/frac-perm-final*/
             val toTake = PermMin(ch.perm, perms)
             val newChunk = ch.withPerm(PermMinus(ch.perm, toTake), None)
             val takenChunk = Some(ch.withPerm(toTake, None))
@@ -385,7 +440,7 @@ object chunkSupporter extends ChunkSupportRules {
                 v.decider.assertgv(s.isImprecise, args.head !== Null) {
                   case true =>
                     val snap = v.decider.fresh(s"${args.head}.$id", v.symbolConverter.toSort(f.typ), Option.when(withExp)(PUnknown()))
-                    val ch = BasicChunk(FieldID, BasicChunkIdentifier(f.name), args, argsExp, snap, None, FullPerm, None)
+                    val ch = BasicChunk(FieldID, BasicChunkIdentifier(f.name), args, argsExp, snap, None, EpsilonPerm, None)
                     if (SymbExLogger.enabled) {
                       // add chunk created by trying to find nonexistent chunk in imprecise state to snaps
                       SymbExLogger.populateSnaps(Vector(ch), s)
@@ -415,13 +470,14 @@ object chunkSupporter extends ChunkSupportRules {
 
                     if (s2.generateChecks) {
                       runtimeChecks.addChecks(runtimeCheckAstNode,
-                        ast.FieldAccessPredicate(ast.FieldAccess(translatedArgs.head, f)(), Some(ast.FullPerm()()))(),
+                        ast.FieldAccessPredicate(ast.FieldAccess(translatedArgs.head, f)(), Some(ast.EpsilonPerm()()))(), // change this to check for epsilon perm ?
+//>>>>>>> upstream/frac-perm
                         viper.silicon.utils.zip3(v.decider.pcs.branchConditionsSemanticAstNodes,
                           v.decider.pcs.branchConditionsAstNodes,
                           v.decider.pcs.branchConditionsOrigins).map(bc => BranchCond(bc._1, bc._2, bc._3)),
                         runtimeCheckFieldTarget,
                         s2.forFraming)
-                      runtimeCheckFieldTarget.addCheck(ast.FieldAccessPredicate(ast.FieldAccess(translatedArgs.head, f)(), Some(ast.FullPerm()()))())
+                      runtimeCheckFieldTarget.addCheck(ast.FieldAccessPredicate(ast.FieldAccess(translatedArgs.head, f)(), Some(ast.EpsilonPerm()()))())
                     }
 
                     v.decider.assume(args.head !== Null, None)
@@ -493,13 +549,13 @@ object chunkSupporter extends ChunkSupportRules {
                       })
 
                     runtimeChecks.addChecks(runtimeCheckAstNode,
-                      ast.FieldAccessPredicate(ast.FieldAccess(translatedArgs.head, f)(), Some(ast.FullPerm()()))(),
+                      ast.FieldAccessPredicate(ast.FieldAccess(translatedArgs.head, f)(), Some(ast.EpsilonPerm()()))(),
                       viper.silicon.utils.zip3(v.decider.pcs.branchConditionsSemanticAstNodes,
                         v.decider.pcs.branchConditionsAstNodes,
                         v.decider.pcs.branchConditionsOrigins).map(bc => BranchCond(bc._1, bc._2, bc._3)),
                       runtimeCheckFieldTarget,
                       s.forFraming)
-                    runtimeCheckFieldTarget.addCheck(ast.FieldAccessPredicate(ast.FieldAccess(translatedArgs.head, f)(), Some(ast.FullPerm()()))())
+                    runtimeCheckFieldTarget.addCheck(ast.FieldAccessPredicate(ast.FieldAccess(translatedArgs.head, f)(), Some(ast.EpsilonPerm()()))())
 
                     Q(s.copy(madeOptimisticAssumptions = true), snap, v)
                   }
@@ -526,7 +582,7 @@ object chunkSupporter extends ChunkSupportRules {
             resource match {
               case f: ast.Field => {
                 val snap = v.decider.fresh(s"${args.head}.$id", v.symbolConverter.toSort(f.typ), Option.when(withExp)(PUnknown()))
-                val ch = BasicChunk(FieldID, BasicChunkIdentifier(f.name), args, argsExp, snap, None, FullPerm, None)
+                val ch = BasicChunk(FieldID, BasicChunkIdentifier(f.name), args, argsExp, snap, None, EpsilonPerm, None)
                 if (SymbExLogger.enabled) {
                   // add chunk created by trying to find nonexistent chunk in imprecise state to snaps
                   SymbExLogger.populateSnaps(Vector(ch), s)
@@ -585,6 +641,35 @@ object chunkSupporter extends ChunkSupportRules {
     }
   }
 
+  def permExceedsOne[CH <: NonQuantifiedChunk: ClassTag]
+            (s: State,
+             h: Heap,
+             resource: ast.Resource,
+             args: Seq[Term],
+             v: Verifier,
+             perm: Term)
+            : Boolean = {
+    val id = ChunkIdentifier(resource, s.program)
+    
+    val permSum = findChunk[NonQuantifiedChunk](h.values, id, args, v) match {
+      case Some(ch) =>
+        PermPlus(ch.perm, perm)
+      case None =>
+        perm
+    }
+
+    if (v.decider.checkSmoke()) {
+      false
+    }
+    else if (v.decider.check(PermLess(FullPerm, permSum), Verifier.config.checkTimeout())) {
+      // println(v.decider.pcs)
+      // println(s"PermLess(FullPerm(), permSum) =  ${PermLess(FullPerm(), permSum)}")
+      true
+    }
+    else {
+      false
+    }
+  }
 
   def findChunk[CH <: NonQuantifiedChunk: ClassTag]
                (chunks: Iterable[Chunk],

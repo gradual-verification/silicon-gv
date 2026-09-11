@@ -147,20 +147,20 @@ object evaluator extends EvaluationRules {
       v1.symbExLog.closeScope(sepIdentifier)
       Q(s1, t, eNew, v1)})
   }
-
+  
   def eval3(s: State, e: ast.Exp, pve: PartialVerificationError, v: Verifier)
            (Q: (State, Term, Option[ast.Exp], Verifier) => VerificationResult)
            : VerificationResult = {
 
 
     /* For debugging only */
-    e match {
+    e match { 
       case  _: ast.TrueLit | _: ast.FalseLit | _: ast.NullLit | _: ast.IntLit | _: ast.FullPerm | _: ast.NoPerm
             | _: ast.AbstractLocalVar | _: ast.WildcardPerm | _: ast.FractionalPerm | _: ast.Result
-            | _: ast.WildcardPerm | _: ast.FieldAccess =>
-
+            | _: ast.WildcardPerm | _: ast.FieldAccess => // println(s"${e} is ${e.getClass}")
+        // why not add logger information when evaluating the above ast nodes?
       case _ =>
-        v.logger.debug(s"\nEVAL ${viper.silicon.utils.ast.sourceLineColumn(e)}: $e")
+        v.logger.debug(s"\nEVAL3 ${viper.silicon.utils.ast.sourceLineColumn(e)}: $e")
         v.logger.debug(v.stateFormatter.format(s, v.decider.pcs))
         if (s.partiallyConsumedHeap.nonEmpty)
           v.logger.debug("pcH = " + s.partiallyConsumedHeap.map(v.stateFormatter.format).mkString("", ",\n     ", ""))
@@ -214,7 +214,7 @@ object evaluator extends EvaluationRules {
             | _: ast.WildcardPerm | _: ast.FieldAccess =>
 
       case _ =>
-        v.logger.debug(s"\nEVAL ${viper.silicon.utils.ast.sourceLineColumn(e)}: $e")
+        v.logger.debug(s"\nEVAL3PC ${viper.silicon.utils.ast.sourceLineColumn(e)}: $e")
         v.logger.debug(v.stateFormatter.format(s, v.decider.pcs))
         if (s.partiallyConsumedHeap.nonEmpty)
           v.logger.debug("pcH = " + s.partiallyConsumedHeap.map(v.stateFormatter.format).mkString("", ",\n     ", ""))
@@ -416,7 +416,7 @@ object evaluator extends EvaluationRules {
                     Q(s3, smLookup, newFa, v1)
                 }
               }
-              }})
+            }})
 
       case fa: ast.FieldAccess =>
         evalLocationAccess(s, fa, pve, v)((s1, _, tArgs, eArgs, v1) => {

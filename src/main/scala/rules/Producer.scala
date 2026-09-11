@@ -320,6 +320,34 @@ object producer extends ProductionRules {
         val s0 = s.copy(generateChecks = false)
         val perm = accPred.perm
         evalpc(s0, eRcvr, pve, v, false)((s1, tRcvr, eRcvrNew, v1) =>
+//<<<<<<< HEAD
+          evalpc(s1, perm, pve, v1, false)((s1a, tPerm, ePermNew, v1a) => {
+            permissionSupporter.assertNotNegative(s1a, tPerm, perm, ePermNew, pve, v1a)((s2, v2) => {
+              val s2_0 = s2.copy(generateChecks = true)
+              /*if (chunkSupporter.permExceedsOne(s2_0.h, field, Seq(tRcvr), v2, tPerm)) {
+                createFailure(pve dueTo PermExceedsOne(locacc), v2, s2_0)
+              }*/
+              if(chunkSupporter.inHeap(s2_0, s2_0.h, s2_0.h.values, field, Seq(tRcvr), v2)) {
+                // NEED: Actually because it's in the heap, but don't know how to do that yet
+                createFailure(pve dueTo NegativePermission(perm), v2, s2_0, "") 
+              } else {
+                val snap = sf(v2.symbolConverter.toSort(field.typ), v2)
+                val gain = PermTimes(tPerm, s2_0.permissionScalingFactor)
+                val (debugHeapName, debugLabel) = v2.getDebugOldLabel(s2_0, accPred.pos)
+                val snapExp = Option.when(withExp)(ast.DebugLabelledOld(ast.FieldAccess(eRcvrNew.get, field)(), debugLabel)(accPred.pos, accPred.info, accPred.errT))
+                val gainExp = ePermNew.map(p => ast.PermMul(p, s2_0.permissionScalingFactorExp.get)(p.pos, p.info, p.errT))
+  /*            if (s2.qpFields.contains(field)) {
+   *            val trigger = (sm: Term) => FieldTrigger(field.name, sm, tRcvr)
+   *            quantifiedChunkSupporter.produceSingleLocation(s2, field, Seq(`?r`), Seq(tRcvr), snap, gain, trigger, v2)(Q)
+   *          } else {
+   */
+                val ch = BasicChunk(FieldID, BasicChunkIdentifier(field.name), Seq(tRcvr), Option.when(withExp)(Seq(eRcvrNew.get)), snap, snapExp, gain, gainExp)
+                chunkSupporter.produce(s2_0, s2_0.h, ch, v2)((s3, h3, v3) => {
+                  v3.decider.assume(tRcvr !== Null, None)
+                  Q(s3.copy(h = h3), v3)})
+              }
+            })
+/*=======
           evalpc(s1, perm, pve, v1, false)((s2, tPerm, ePermNew, v2) => {
             val s2_0 = s2.copy(generateChecks = true)
             if(chunkSupporter.inHeap(s2_0, s2_0.h, s2_0.h.values, field, Seq(tRcvr), v2) && !v2.decider.checkSmoke()) {
@@ -330,17 +358,18 @@ object producer extends ProductionRules {
               val gain = PermTimes(tPerm, s2_0.permissionScalingFactor)
               val (debugHeapName, debugLabel) = v2.getDebugOldLabel(s2_0, accPred.pos)
               val snapExp = Option.when(withExp)(ast.DebugLabelledOld(ast.FieldAccess(eRcvrNew.get, field)(), debugLabel)(accPred.pos, accPred.info, accPred.errT))
-              val gainExp = ePermNew.map(p => ast.PermMul(p, s2_0.permissionScalingFactorExp.get)(p.pos, p.info, p.errT))
+              val gainExp = ePermNew.map(p => ast.PermMul(p, s2_0.permissionScalingFactorExp.get)(p.pos, p.info, p.errT))*/
 /*            if (s2.qpFields.contains(field)) {
  *            val trigger = (sm: Term) => FieldTrigger(field.name, sm, tRcvr)
  *            quantifiedChunkSupporter.produceSingleLocation(s2, field, Seq(`?r`), Seq(tRcvr), snap, gain, trigger, v2)(Q)
  *          } else {
- */
+ *//*
               val ch = BasicChunk(FieldID, BasicChunkIdentifier(field.name), Seq(tRcvr), Option.when(withExp)(Seq(eRcvrNew.get)), snap, snapExp, gain, gainExp)
               chunkSupporter.produce(s2_0, s2_0.h, ch, v2)((s3, h3, v3) => {
                 v3.decider.assume(tRcvr !== Null, None)
                 Q(s3.copy(h = h3), v3)})
             }
+>>>>>>> upstream/frac-perm-final*/
         }))
 
       case accPred @ ast.PredicateAccessPredicate(ast.PredicateAccess(eArgs, predicateName), perm) =>
@@ -348,6 +377,34 @@ object producer extends ProductionRules {
         val s0 = s.copy(generateChecks = false)
         val perm = accPred.perm
         evalspc(s0, eArgs, _ => pve, v, false)((s1, tArgs, eArgsNew, v1) =>
+//<<<<<<< HEAD
+          evalpc(s1, perm, pve, v1, false)((s1a, tPerm, ePermNew, v1a) => {
+            permissionSupporter.assertNotNegative(s1a, tPerm, perm, ePermNew, pve, v1a) ((s2_0, v2) => {
+              if (chunkSupporter.inHeap(s2_0, s2_0.h, s2_0.h.values, predicate, tArgs, v2)) {
+                // Actually because it's in the heap, but don't know how to do that yet
+                createFailure(pve dueTo NegativePermission(perm), v2, s2_0, "") 
+              } else {
+                val snap = sf(
+                  predicate.body.map(v2.snapshotSupporter.optimalSnapshotSort(_, s2_0.program)._1)
+                              .getOrElse(sorts.Snap), v2)
+                val gain = PermTimes(tPerm, s2_0.permissionScalingFactor)
+                val gainExp = ePermNew.map(p => ast.PermMul(p, s2_0.permissionScalingFactorExp.get)(p.pos, p.info, p.errT))
+    /*            if (s2.qpPredicates.contains(predicate)) {
+                val formalArgs = s2.predicateFormalVarMap(predicate)
+                val trigger = (sm: Term) => PredicateTrigger(predicate.name, sm, tArgs)
+                quantifiedChunkSupporter.produceSingleLocation(
+                  s2, predicate, formalArgs, tArgs, snap, gain, trigger, v2)(Q)
+              } else {
+    */
+                val snap1 = snap.convert(sorts.Snap)
+                val ch = BasicChunk(PredicateID, BasicChunkIdentifier(predicate.name), tArgs, eArgsNew, snap1, None, gain, gainExp)
+                chunkSupporter.produce(s2_0, s2_0.h, ch, v2)((s3, h3, v3) => {
+                  /* if (Verifier.config.enablePredicateTriggersOnInhale() && s3.functionRecorder == NoopFunctionRecorder) {
+                    v3.decider.assume(App(Verifier.predicateData(predicate).triggerFunction, snap1 +: tArgs))
+                  } */
+                  Q(s3.copy(h = h3), v3)})
+              }})}))
+/*=======
           evalpc(s1, perm, pve, v1, false)((s2, tPerm, ePermNew, v2) => {
             val s2_0 = s2.copy(generateChecks = true)
             if (chunkSupporter.inHeap(s2_0, s2_0.h, s2_0.h.values, predicate, tArgs, v2)) {
@@ -358,22 +415,23 @@ object producer extends ProductionRules {
                 predicate.body.map(v2.snapshotSupporter.optimalSnapshotSort(_, s2_0.program)._1)
                             .getOrElse(sorts.Snap), v2)
               val gain = PermTimes(tPerm, s2_0.permissionScalingFactor)
-              val gainExp = ePermNew.map(p => ast.PermMul(p, s2_0.permissionScalingFactorExp.get)(p.pos, p.info, p.errT))
+              val gainExp = ePermNew.map(p => ast.PermMul(p, s2_0.permissionScalingFactorExp.get)(p.pos, p.info, p.errT))*/
 /*            if (s2.qpPredicates.contains(predicate)) {
             val formalArgs = s2.predicateFormalVarMap(predicate)
             val trigger = (sm: Term) => PredicateTrigger(predicate.name, sm, tArgs)
             quantifiedChunkSupporter.produceSingleLocation(
               s2, predicate, formalArgs, tArgs, snap, gain, trigger, v2)(Q)
           } else {
-*/
+*//*
               val snap1 = snap.convert(sorts.Snap)
               val ch = BasicChunk(PredicateID, BasicChunkIdentifier(predicate.name), tArgs, eArgsNew, snap1, None, gain, gainExp)
-              chunkSupporter.produce(s2_0, s2_0.h, ch, v2)((s3, h3, v3) => {
+              chunkSupporter.produce(s2_0, s2_0.h, ch, v2)((s3, h3, v3) => {*/
                 /* if (Verifier.config.enablePredicateTriggersOnInhale() && s3.functionRecorder == NoopFunctionRecorder) {
                   v3.decider.assume(App(Verifier.predicateData(predicate).triggerFunction, snap1 +: tArgs))
                 } */
-                Q(s3.copy(h = h3), v3)})
+                /*Q(s3.copy(h = h3), v3)})
             }}))
+>>>>>>> upstream/frac-perm-final*/
 
 /*
       case wand: ast.MagicWand if s.qpMagicWands.contains(MagicWandIdentifier(wand, Verifier.program)) =>
