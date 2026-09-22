@@ -1131,6 +1131,9 @@ object BuiltinEquals extends CondFlyweightFactory[(Term, Term), BooleanTerm, Bui
       // NOTE: The else-case (False) is only justified because permission literals are stored in a normal form
       // such that two literals are semantically equivalent iff they are syntactically equivalent.
       if (p0.literal == p1.literal) True else False
+    case (EpsilonPerm, EpsilonPerm) => True
+    case (p: Permissions, EpsilonPerm) => False
+    case (EpsilonPerm, p: Permissions) => False
     case _ => createIfNonExistent(v0)
   }
 
@@ -1231,6 +1234,19 @@ sealed abstract class PermLiteral(val literal: Rational) extends Permissions
 case object NoPerm extends PermLiteral(Rational.zero) { override lazy val toString = "Z" }
 case object FullPerm extends PermLiteral(Rational.one) { override lazy val toString = "W" }
 
+sealed abstract class SymbolicPerm extends Permissions // maybe more symbolic permissions in future
+// symbolic means that its a permission that doesn't actually have a fraction associated with it
+
+case object EpsilonPerm extends SymbolicPerm { override lazy val toString = "E" } 
+/* 
+ * Constraints:
+ * 1. For all permissions p > 0, p > epsilon
+ * 2. epsilon > 0 
+ * 3. For all p, p != epsilon. This follows since there is no such fraction p that can be epsilon.
+ * 4. epsilon should never occur in real code - only used in optimistic heap!
+ * 5. In no case should a formula containing epsilon ever be sent off to the SMT solver
+ */
+
 class FractionPermLiteral private[terms] (r: Rational) extends PermLiteral(r) with ConditionalFlyweight[Rational, FractionPermLiteral] {
   override val equalityDefiningMembers: Rational = r
   override lazy val toString = literal.toString
@@ -1328,7 +1344,7 @@ class IntPermTimes private[terms] (val p0: Term, val p1: Term)
       with BinaryOp[Term] {
 
   override val op = "*"
-}
+} 
 
 object IntPermTimes extends CondFlyweightTermFactory[(Term, Term), IntPermTimes] {
   import predef.{Zero, One}
@@ -1452,7 +1468,8 @@ object PermLess extends CondFlyweightTermFactory[(Term, Term), PermLess] {
     v0 match {
       case (t0, t1) if t0 == t1 => False
       case (p0: PermLiteral, p1: PermLiteral) => if (p0.literal < p1.literal) True else False
-
+      case (p, EpsilonPerm) => PermAtMost(p, NoPerm) // p cannot be epsilon
+      case (EpsilonPerm, p) => PermLess(NoPerm, p)
       case (t0, Ite(tCond, tIf, tElse)) =>
         /* The pattern p0 < b ? p1 : p2 arises very often in the context of quantified permissions.
          * Pushing the comparisons into the ite allows further simplifications.
@@ -1476,6 +1493,8 @@ object PermAtMost extends CondFlyweightTermFactory[(Term, Term), PermAtMost] {
   override def apply(v0: (Term, Term)) = v0 match {
     case (p0: PermLiteral, p1: PermLiteral) => if (p0.literal <= p1.literal) True else False
     case (t0, t1) if t0 == t1 => True
+    case (p, EpsilonPerm) => PermAtMost(p, NoPerm) 
+    case (EpsilonPerm, p) => PermLess(NoPerm, p) 
     case _ => createIfNonExistent(v0)
   }
 
@@ -2527,6 +2546,7 @@ object perms {
 
   def IsPositive(p: Term): Term = p match {
     case p: PermLiteral => if (p.literal > Rational.zero) True else False
+    case EpsilonPerm => True
     case _ => PermLess(NoPerm, p)
   }
 
@@ -2535,7 +2555,13 @@ object perms {
 
   def IsNonPositive(p: Term): Term = p match {
     case p: PermLiteral => if (p.literal <= Rational.zero) True else False
+    case EpsilonPerm => False
     case _ => Or(p === NoPerm, PermLess(p, NoPerm))
+  }
+  
+  def IsEpsilon(p: Term): Term = p match {
+    case EpsilonPerm => True
+    case _ => False
   }
 
   def IsNonPositive(e: ast.Exp)(pos: ast.Position = ast.NoPosition, info: ast.Info = ast.NoInfo, errT: ast.ErrorTrafo = ast.NoTrafos): ast.Exp =

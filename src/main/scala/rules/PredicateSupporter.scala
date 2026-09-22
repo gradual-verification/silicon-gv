@@ -196,7 +196,7 @@ object predicateSupporter extends PredicateSupportRules {
       val s3 = s1.copy(foldOrUnfoldAstNode = origin)
 
       // we attempt to consume the predicate from the heap
-      chunkSupporter.consume(s3, s3.h, true, predicate, tArgs, eArgs, s3.permissionScalingFactor, s1.permissionScalingFactorExp, true, ve, v, description)((s4, h1, snap1, v1, chunkExisted) => {
+      chunkSupporter.consume(s3, s3.h, true, predicate, tArgs, eArgs, s3.permissionScalingFactor, s1.permissionScalingFactorExp, true, ve, v, description, true)((s4, h1, snap1, v1, chunkExisted) => {
           
           profilingInfo.incrementTotalConjuncts
               
@@ -204,7 +204,7 @@ object predicateSupporter extends PredicateSupportRules {
 
           if (s4.isImprecise) {
             // and then we attempt to consume it from the optimistic heap
-            chunkSupporter.consume(s4, s4.optimisticHeap, true, predicate, tArgs, eArgs, s4.permissionScalingFactor, s1.permissionScalingFactorExp, false, ve, v1, description)((s5, oh1, snap2, v2, chunkExisted1) => {
+            chunkSupporter.consume(s4, s4.optimisticHeap, true, predicate, tArgs, eArgs, s4.permissionScalingFactor, s1.permissionScalingFactorExp, false, ve, v1, description, false)((s5, oh1, snap2, v2, chunkExisted1) => {
               if (!chunkExisted && !chunkExisted1) {
 
                 val runtimeCheckAstNode =
@@ -221,13 +221,13 @@ object predicateSupporter extends PredicateSupportRules {
 
                 if (s5.generateChecks) {
                   runtimeChecks.addChecks(runtimeCheckAstNode,
-                    ast.PredicateAccessPredicate(pa, Some(ast.FullPerm()()))(),
+                    ast.PredicateAccessPredicate(pa, ePerm)(),
                     viper.silicon.utils.zip3(v2.decider.pcs.branchConditionsSemanticAstNodes,
                       v2.decider.pcs.branchConditionsAstNodes,
                       v.decider.pcs.branchConditionsOrigins).map(bc => BranchCond(bc._1, bc._2, bc._3)),
                     pa,
                     s5.forFraming)
-                  pa.addCheck(ast.PredicateAccessPredicate(pa, Some(ast.FullPerm()()))())
+                  pa.addCheck(ast.PredicateAccessPredicate(pa, ePerm)())
                 }
               }
               

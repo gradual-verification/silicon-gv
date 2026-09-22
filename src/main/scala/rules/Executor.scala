@@ -356,8 +356,6 @@ object executor extends ExecutionRules {
              *   - Execute the statements in the loop head block
              *   - Follow the outgoing edges
              */
-            //val sepIdentifier = v.symbExLog.openScope(
-              //new LoopInRecord(invs.head, s, v.decider.pcs))
 
             /* Havoc local variables that are assigned to in the loop body */
             val wvs = s.methodCfg.writtenVars(block)
@@ -879,17 +877,12 @@ object executor extends ExecutionRules {
         val predicate = s.program.findPredicate(predicateName)
         val pve = FoldFailed(fold)
         evals(s, eArgs, _ => pve, v)((s1, tArgs, eArgsNew, v1) =>
-          eval(s1, ePerm, pve, v1)((s2, tPerm, ePermNew, v2) => {
-            v2.decider.assertgv(s2.isImprecise, IsPositive(tPerm)) { //The IsPositive check is redundant
-              case true =>
+          eval(s1, ePerm, pve, v1)((s1a, tPerm, ePermNew, v1a) => 
+            permissionSupporter.assertPositive(s1a, tPerm, ePerm, pve, v1a)((s2, v2) => {
                 val wildcards = s2.constrainableARPs -- s1.constrainableARPs
                 predicateSupporter.fold(s2, predicate, Some(fold), tArgs, eArgsNew, tPerm, ePermNew, wildcards, pve, v2)(Q)
-              case false =>
-                createFailure(pve dueTo NegativePermission(ePerm), v2, s2, "")
-            } match {
-              case (verificationResult, _) => verificationResult
-            }
-          }))
+            })
+          ))
 
       case unfold @ ast.Unfold(pap @ ast.PredicateAccessPredicate(pa @ ast.PredicateAccess(eArgs, predicateName), _)) =>
         assert(s.constrainableARPs.isEmpty)
@@ -916,16 +909,10 @@ object executor extends ExecutionRules {
               s2.smCache
             }
 
-            v2.decider.assertgv(s2.isImprecise, IsPositive(tPerm)) { //The IsPositive check is redundant
-              case true =>
-                val wildcards = s2.constrainableARPs -- s1.constrainableARPs
-                predicateSupporter.unfold(s2.copy(smCache = smCache1), predicate, Some(unfold), tArgs, eArgsNew, tPerm, ePermNew, wildcards, pve, v2, pa)(Q)
-              case false =>
-                createFailure(pve dueTo NegativePermission(ePerm), v2, s2, "")
-            } match {
-              case (verificationResult, _) => verificationResult
-            }
-          }))
+            permissionSupporter.assertPositive(s2, tPerm, ePerm, pve, v2)((s3, v3) => {
+                val wildcards = s3.constrainableARPs -- s1.constrainableARPs
+                predicateSupporter.unfold(s3.copy(smCache = smCache1), predicate, Some(unfold), tArgs, eArgsNew, tPerm, ePermNew, wildcards, pve, v2, pa)(Q)
+        })}))
 
       /*
       case pckg @ ast.Package(wand, proofScript) =>
