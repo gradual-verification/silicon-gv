@@ -45,6 +45,7 @@ class TermToSMTLib2Converter
     case sorts.Ref => "$Ref"
     case sorts.Map(keySort, valueSort) => text("Map") <> "<" <> doRender(keySort, true) <> "~_" <> doRender(valueSort, true) <> ">"
     case sorts.Seq(elementSort) => text("Seq<") <> doRender(elementSort, true) <> ">"
+    case sorts.Array(elementSort) => text("Array<") <> doRender(elementSort, true) <> ">"
     case sorts.Set(elementSort) => text("Set<") <> doRender(elementSort, true) <> ">"
     case sorts.Multiset(elementSort) => text("Multiset<") <> doRender(elementSort, true) <> ">"
     case sorts.UserSort(id) => render(id)

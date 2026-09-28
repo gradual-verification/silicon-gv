@@ -44,6 +44,11 @@ object sorts {
     val id = Identifier(s"Seq[$elementsSort]")
     override lazy val toString = id.toString
   }
+  
+  case class Array(elementsSort: Sort) extends Sort {
+    val id = Identifier(s"Array[$elementsSort]")
+    override lazy val toString = id.toString
+  }
 
   case class Set(elementsSort: Sort) extends Sort {
     val id = Identifier(s"Set[$elementsSort]")

@@ -104,6 +104,10 @@ class TermToZ3APIConverter
         val res = ctx.mkUninterpretedSort("Seq<" + convertSortName(elementSort) + ">")
         res
       }
+      case sorts.Array(elementSort) => {
+        val res = ctx.mkUninterpretedSort("Array<" + convertSortName(elementSort) + ">")
+        res
+      }
       case sorts.Set(elementSort) => ctx.mkUninterpretedSort("Set<" + convertSortName(elementSort) + ">")
       case sorts.Multiset(elementSort) => ctx.mkUninterpretedSort("Multiset<" + convertSortName(elementSort) + ">")
       case sorts.UserSort(id) => ctx.mkUninterpretedSort(convertId(id))
@@ -143,6 +147,7 @@ class TermToZ3APIConverter
       case sorts.Ref => Some(ctx.mkSymbol("$Ref"))
       case sorts.Map(keySort, valueSort) => Some(ctx.mkSymbol("Map<" + convertSortName(keySort) + "~_" + convertSortName(valueSort) + ">"))
       case sorts.Seq(elementSort) => Some(ctx.mkSymbol("Seq<" + convertSortName(elementSort) + ">"))
+      case sorts.Array(elementSort) => Some(ctx.mkSymbol("Array<" + convertSortName(elementSort) + ">"))
       case sorts.Set(elementSort) => Some(ctx.mkSymbol("Set<" + convertSortName(elementSort) + ">"))
       case sorts.Multiset(elementSort) => Some(ctx.mkSymbol("Multiset<" + convertSortName(elementSort) + ">"))
       case sorts.UserSort(id) => Some(ctx.mkSymbol(convertId(id)))

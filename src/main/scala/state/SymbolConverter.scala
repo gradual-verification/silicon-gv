@@ -28,6 +28,7 @@ class DefaultSymbolConverter extends SymbolConverter {
     case ast.Ref => sorts.Ref
 
     case ast.SeqType(elementType) => sorts.Seq(toSort(elementType))
+    case ast.ArrayType(elementType) => sorts.Array(toSort(elementType))
     case ast.SetType(elementType) => sorts.Set(toSort(elementType))
     case ast.MultisetType(elementType) => sorts.Multiset(toSort(elementType))
     case ast.MapType(keyType, valueType) => sorts.Map(toSort(keyType), toSort(valueType))

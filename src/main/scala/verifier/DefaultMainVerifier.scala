@@ -26,7 +26,7 @@ import viper.silicon.logger.{MemberSymbExLogger, SymbExLogger}
 import viper.silicon.reporting.{MultiRunRecorders, condenseToViperResult}
 import viper.silicon.state._
 import viper.silicon.state.terms.{Decl, Sort, Term, sorts}
-import viper.silicon.supporters.{DefaultDomainsContributor, DefaultMapsContributor, DefaultMultisetsContributor, DefaultPredicateVerificationUnitProvider, DefaultSequencesContributor, DefaultSetsContributor, MagicWandSnapFunctionsContributor, PredicateData}
+import viper.silicon.supporters.{DefaultDomainsContributor, DefaultMapsContributor, DefaultMultisetsContributor, DefaultPredicateVerificationUnitProvider, DefaultSequencesContributor, DefaultSetsContributor, MagicWandSnapFunctionsContributor, PredicateData, ArrayContributor}
 import viper.silicon.supporters.qps._
 import viper.silicon.supporters.functions.{DefaultFunctionVerificationUnitProvider, FunctionData}
 import viper.silicon.utils.Counter
@@ -74,6 +74,7 @@ class DefaultMainVerifier(config: Config,
 //  protected val multisetsContributor = new DefaultMultisetsContributor(domainTranslator, config)
 //  protected val mapsContributor = new DefaultMapsContributor(domainTranslator, config)
 //  protected val domainsContributor = new DefaultDomainsContributor(symbolConverter, domainTranslator)
+  protected val arrayContributor = new ArrayContributor(symbolConverter)
   protected val fieldValueFunctionsContributor = new DefaultFieldValueFunctionsContributor(preambleReader, symbolConverter, termConverter, config)
   protected val predSnapGenerator = new PredicateSnapGenerator(symbolConverter, snapshotSupporter)
   protected val predicateAndWandSnapFunctionsContributor = new DefaultPredicateAndWandSnapFunctionsContributor(preambleReader, termConverter, predSnapGenerator, config)
@@ -85,6 +86,7 @@ class DefaultMainVerifier(config: Config,
   private val statefulSubcomponents = List[StatefulComponent](
     uniqueIdCounter,
     //sequencesContributor, setsContributor, multisetsContributor, mapsContributor, domainsContributor,
+    arrayContributor,
     fieldValueFunctionsContributor,
     predSnapGenerator, predicateAndWandSnapFunctionsContributor,
     magicWandSnapFunctionsContributor,
@@ -470,6 +472,7 @@ class DefaultMainVerifier(config: Config,
     //multisetsContributor,
     //mapsContributor,
     //domainsContributor,
+    arrayContributor,
     fieldValueFunctionsContributor,
     predicateAndWandSnapFunctionsContributor,
     magicWandSnapFunctionsContributor,
@@ -483,6 +486,7 @@ class DefaultMainVerifier(config: Config,
     //multisetsContributor,
     //mapsContributor,
     //domainsContributor,
+    arrayContributor,
     fieldValueFunctionsContributor,
     predicateAndWandSnapFunctionsContributor,
     magicWandSnapFunctionsContributor,
@@ -496,6 +500,7 @@ class DefaultMainVerifier(config: Config,
     //multisetsContributor,
     //mapsContributor,
     //domainsContributor,
+    arrayContributor,
     fieldValueFunctionsContributor,
     predicateAndWandSnapFunctionsContributor,
     magicWandSnapFunctionsContributor,
@@ -514,6 +519,7 @@ class DefaultMainVerifier(config: Config,
     //sequencesContributor,
     //mapsContributor,
     //domainsContributor,
+    arrayContributor,
     fieldValueFunctionsContributor,
     predicateAndWandSnapFunctionsContributor,
     magicWandSnapFunctionsContributor,
@@ -527,6 +533,7 @@ class DefaultMainVerifier(config: Config,
     //multisetsContributor,
     //mapsContributor,
     //domainsContributor,
+    arrayContributor,
     fieldValueFunctionsContributor,
     predicateAndWandSnapFunctionsContributor,
     magicWandSnapFunctionsContributor,
