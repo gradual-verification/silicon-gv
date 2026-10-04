@@ -516,12 +516,17 @@ object evaluator extends EvaluationRules {
         val flattened = flattenOperator(oe, {case ast.Or(e0, e1) => Seq(e0, e1)})
         evalSeqShortCircuit(Or, s, flattened, pve, v)(Q)
 
-      
-      /*case implies @ ast.Implies(e0, e1) =>
-<<<<<<< HEAD
-        eval(s, e0, pve, v)((s1, t0, v1) =>
-          evalImplies(s1, t0, e1, implies.info == FromShortCircuitingAnd, pve, v1)(Q))
-
+      //This is the duplicate of the one in eval.
+      case implies @ ast.Implies(e0, e1) =>
+        val impliesRecord = new ImpliesRecord(implies, s, v.decider.pcs, "Implies")
+        val uidImplies = v.symbExLog.openScope(impliesRecord)
+        eval(s, e0, pve, v)((s1, t0, e0New, v1) =>
+          evalImplies(s1, t0, (e0, e0New), e1, implies.info == FromShortCircuitingAnd, pve, v1)((s2, t1, e1New, v2) => {
+            v2.symbExLog.closeScope(uidImplies)
+            val implExpP = e0New.map(ast.Implies(_, e1New.get)(e.pos, e.info, e.errT))
+            Q(s2, t1, implExpP, v2)
+          }))
+/*
       case ast.CondExp(e0, e1, e2) =>
         eval(s, e0, pve, v)((s1, t0, v1) =>
           joiner.join[Term, Term](s1, v1)((s2, v2, QB) =>
@@ -910,15 +915,15 @@ object evaluator extends EvaluationRules {
             Q(s3, And(ts), Option.when(withExp)(BigAnd(es.get)), v1)
           })
         }
+    */
 
-      case sourceQuant: ast.QuantifiedExp *//*if config.disableLocalEvaluations()*//* =>
+      case sourceQuant: ast.QuantifiedExp =>
         val (eQuant, qantOp, eTriggers) = sourceQuant match {
           case forall: ast.Forall =>
-            */
             /* It is expected that quantifiers have already been provided with triggers,
              * either explicitly or by using a trigger generator.
              */
-/*            (forall, Forall, forall.triggers)
+            (forall, Forall, forall.triggers)
           case exists: ast.Exists =>
             (exists, Exists, exists.triggers)
           case _: ast.ForPerm => sys.error(s"Unexpected quantified expression $sourceQuant")
@@ -971,7 +976,7 @@ object evaluator extends EvaluationRules {
             v1.decider.assume(tAuxGlobal, Option.when(withExp)(DebugExp.createInstance(description=commentGlobal, children=auxGlobalsExp.get)), enforceAssumption = false)
             val commentNonGlobals = "Nested auxiliary terms: non-globals (aux)"
             v1.decider.prover.comment(commentNonGlobals)
-            v1.decider.assume(tAuxHeapIndep*//*tAux*//*, Option.when(withExp)(DebugExp.createInstance(description=commentNonGlobals, children=auxNonGlobalsExp.get)), enforceAssumption = false)
+            v1.decider.assume(tAuxHeapIndep, Option.when(withExp)(DebugExp.createInstance(description=commentNonGlobals, children=auxNonGlobalsExp.get)), enforceAssumption = false)
 
             if (qantOp == Exists) {
               // For universal quantification, the non-global auxiliary assumptions will contain the information that
@@ -999,7 +1004,7 @@ object evaluator extends EvaluationRules {
               createFailure(pve.dueTo(InternalReason(sourceQuant, "Quantifier evaluation failed.")), v1, s1, "quantifier could be evaluated")
             }
         }
-
+/*
       case fapp @ ast.FuncApp(funcName, eArgs) =>
         val func = s.program.findFunction(funcName)
         evals2(s, eArgs, Nil, _ => pve, v)((s1, tArgs, eArgsNew, v1) => {
@@ -1783,12 +1788,8 @@ object evaluator extends EvaluationRules {
         val flattened = flattenOperator(oe, {case ast.Or(e0, e1) => Seq(e0, e1)})
         evalSeqShortCircuitPc(Or, s, flattened, pve, v, generateChecks)(Q)
 
-      
-      /*case implies @ ast.Implies(e0, e1) =>
-  <<<<<<< HEAD
-        eval(s, e0, pve, v)((s1, t0, v1) =>
-          evalImplies(s1, t0, e1, implies.info == FromShortCircuitingAnd, pve, v1)(Q))
-
+      //TODO: CONTINUE FROM HERE
+/*
       case ast.CondExp(e0, e1, e2) =>
         eval(s, e0, pve, v)((s1, t0, v1) =>
           joiner.join[Term, Term](s1, v1)((s2, v2, QB) =>
@@ -1808,7 +1809,12 @@ object evaluator extends EvaluationRules {
             (s2, result)
           })(Q))
        */
-  /*=======
+
+        //THese were mostly just recovered from comments.
+        //They looked good to me, but unlike other code ive recovered
+        //from commented out sectons, this required some work to make compilable,
+        //so YMMV - carvalj (2026/10/04)
+        case implies @ ast.Implies(e0, e1) =>
         val impliesRecord = new ImpliesRecord(implies, s, v.decider.pcs, "Implies")
         val uidImplies = v.symbExLog.openScope(impliesRecord)
         eval(s, e0, pve, v)((s1, t0, e0New, v1) =>
@@ -1817,7 +1823,7 @@ object evaluator extends EvaluationRules {
             val implExpP = e0New.map(ast.Implies(_, e1New.get)(e.pos, e.info, e.errT))
             Q(s2, t1, implExpP, v2)
           }))
-
+/*
       case condExp @ ast.CondExp(e0, e1, e2) =>
         val condExpRecord = new CondExpRecord(condExp, s, v.decider.pcs, "CondExp")
         val uidCondExp = v.symbExLog.openScope(condExpRecord)
@@ -1826,10 +1832,10 @@ object evaluator extends EvaluationRules {
             brancher.branch(s2.copy(parallelizeBranches = false), t0, (e0, e0New), v2)(
               (s3, v3) => eval(s3.copy(parallelizeBranches = s2.parallelizeBranches), e1, pve, v3)((s4, t4, e4, v4) => QB(s4, (t4, e4), v4)),
               (s3, v3) => eval(s3.copy(parallelizeBranches = s2.parallelizeBranches), e2, pve, v3)((s4, t4, e4, v4) => QB(s4, (t4, e4), v4)))
-          )(entries => {*/
+          )(entries => {
             /* TODO: If branch(...) took orElse-continuations that are executed if a branch is dead, then then
                 comparisons with t0/Not(t0) wouldn't be necessary. */
-            /*val (s2, result, resultExp) = entries match {
+            val (s2, result, resultExp) = entries match {
               case Seq(entry) => // One branch is dead
                 (entry.s, entry.data._1, entry.data._2)
               case Seq(entry1, entry2) => // Both branches are alive
@@ -1844,7 +1850,6 @@ object evaluator extends EvaluationRules {
             Q(s4, t3, eNew, v3)
           }))
   >>>>>>> upstream/master*/
-
       /* Integers */
 
       case ast.Add(e0, e1) =>
@@ -2272,15 +2277,14 @@ object evaluator extends EvaluationRules {
             Q(s3, And(ts), Option.when(withExp)(BigAnd(es.get)), v1)
           })
         }
-
-      case sourceQuant: ast.QuantifiedExp *//*if config.disableLocalEvaluations()*//* =>
+*/
+      case sourceQuant: ast.QuantifiedExp =>
         val (eQuant, qantOp, eTriggers) = sourceQuant match {
           case forall: ast.Forall =>
-            */
             /* It is expected that quantifiers have already been provided with triggers,
              * either explicitly or by using a trigger generator.
              */
-  /*            (forall, Forall, forall.triggers)
+             (forall, Forall, forall.triggers)
           case exists: ast.Exists =>
             (exists, Exists, exists.triggers)
           case _: ast.ForPerm => sys.error(s"Unexpected quantified expression $sourceQuant")
@@ -2309,6 +2313,7 @@ object evaluator extends EvaluationRules {
         val body = eQuant.exp
         // Remove whitespace in identifiers to avoid parsing problems for the axiom profiler.
         // TODO: add flag to enable old behavior for AxiomProfiler
+        // TODO: Figure out what the hell the person who wrote the above meant (carvalj, 2026/10/04)
         val fallbackName = "l" + viper.silicon.utils.ast.sourceLine(sourceQuant).replaceAll(" ", "")
         val posString = if (!sourceQuant.pos.isInstanceOf[ast.AbstractSourcePosition]) {
           fallbackName
@@ -2333,7 +2338,7 @@ object evaluator extends EvaluationRules {
             v1.decider.assume(tAuxGlobal, Option.when(withExp)(DebugExp.createInstance(description=commentGlobal, children=auxGlobalsExp.get)), enforceAssumption = false)
             val commentNonGlobals = "Nested auxiliary terms: non-globals (aux)"
             v1.decider.prover.comment(commentNonGlobals)
-            v1.decider.assume(tAuxHeapIndep*//*tAux*//*, Option.when(withExp)(DebugExp.createInstance(description=commentNonGlobals, children=auxNonGlobalsExp.get)), enforceAssumption = false)
+            v1.decider.assume(tAuxHeapIndep, Option.when(withExp)(DebugExp.createInstance(description=commentNonGlobals, children=auxNonGlobalsExp.get)), enforceAssumption = false)
 
             if (qantOp == Exists) {
               // For universal quantification, the non-global auxiliary assumptions will contain the information that
@@ -2361,7 +2366,7 @@ object evaluator extends EvaluationRules {
               createFailure(pve.dueTo(InternalReason(sourceQuant, "Quantifier evaluation failed.")), v1, s1, "quantifier could be evaluated")
             }
         }
-
+  /*
       case fapp @ ast.FuncApp(funcName, eArgs) =>
         val func = s.program.findFunction(funcName)
         evals2(s, eArgs, Nil, _ => pve, v)((s1, tArgs, eArgsNew, v1) => {
@@ -2804,7 +2809,7 @@ object evaluator extends EvaluationRules {
          | _: ast.PredicateAccessPredicate
          | _: ast.ExtensionExp =>
         sys.error(s"Unexpected expression $e cannot be symbolically evaluated")
-
+      //
       case _: ast.Exp =>
         createFailure(createUnexpectedNodeError(e, ""), v, s, "Unexpected Exp")
     }
