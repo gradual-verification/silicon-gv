@@ -20,6 +20,7 @@ silicon_classpath.txt
 lib/
 src/test/resources/symbExLogTests/*.alog
 .DS_Store
+notes/
 viper_tutorial_examples
 .bsp/
 .bloop/
