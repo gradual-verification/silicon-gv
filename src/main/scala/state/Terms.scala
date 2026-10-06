@@ -1706,6 +1706,68 @@ object SeqUpdate extends CondFlyweightTermFactory[(Term, Term, Term), SeqUpdate]
   override def actualCreate(args: (Term, Term, Term)): SeqUpdate = new SeqUpdate(args._1, args._2, args._3)
 }
 
+sealed trait ArrayTerm extends Term {
+  val elementsSort: Sort
+  val sort: sorts.Array
+}
+
+class ArrayLength private[terms] (val p: Term) extends Term
+    with ConditionalFlyweightUnaryOp[ArrayLength] {
+
+  val sort = sorts.Int
+  override lazy val toString = s"|$p|"
+}
+
+object ArrayLength extends CondFlyweightTermFactory [Term, ArrayLength] {
+  override def apply(t: Term) = {
+    utils.assertSort(t, "term", "Array", _.isInstanceOf[sorts.Array])
+    createIfNonExistent(t)
+  }
+
+  override def actualCreate(args: Term): ArrayLength = new ArrayLength(args)
+}
+
+class ArrayAt private[terms] (val p0: Term, val p1: Term) extends Term
+    with ConditionalFlyweightBinaryOp[ArrayAt] {
+
+  val sort = p0.sort.asInstanceOf[sorts.Array].elementsSort
+
+  override lazy val toString = s"$p0[$p1]"
+}
+
+object ArrayAt extends CondFlyweightTermFactory[(Term, Term), ArrayAt] {
+  override def apply(v0: (Term, Term)) = {
+    val (t0, t1) = v0
+    utils.assertSort(t0, "first operand", "Array", _.isInstanceOf[sorts.Array])
+    utils.assertSort(t1, "second operand", sorts.Int)
+    createIfNonExistent(v0)
+  }
+
+  override def actualCreate(args: (Term, Term)): ArrayAt = new ArrayAt(args._1, args._2)
+}
+
+class ArrayUpdate private[terms] (val t0: Term, val t1: Term, val t2: Term)
+    extends ArrayTerm
+       with ConditionalFlyweight[(Term, Term, Term), ArrayUpdate] {
+
+  val sort = t0.sort.asInstanceOf[sorts.Array]
+  val elementsSort = sort.elementsSort
+  val equalityDefiningMembers = (t0, t1, t2)
+  override lazy val toString = s"$t0[$t1] := $t2"
+}
+
+object ArrayUpdate extends CondFlyweightTermFactory[(Term, Term, Term), ArrayUpdate] {
+  override def apply(v0: (Term, Term, Term)) = {
+    val (t0, t1, t2) = v0
+    utils.assertSort(t0, "first operand", "Array", _.isInstanceOf[sorts.Array])
+    utils.assertSort(t1, "second operand", sorts.Int)
+    utils.assertSort(t2, "third operand", t0.sort.asInstanceOf[sorts.Array].elementsSort)
+    createIfNonExistent(v0)
+  }
+
+  override def actualCreate(args: (Term, Term, Term)): ArrayUpdate = new ArrayUpdate(args._1, args._2, args._3)
+}
+
 /* Sets */
 
 sealed trait SetTerm extends Term {

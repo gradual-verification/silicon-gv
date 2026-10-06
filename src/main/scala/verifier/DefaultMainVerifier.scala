@@ -74,7 +74,7 @@ class DefaultMainVerifier(config: Config,
 //  protected val multisetsContributor = new DefaultMultisetsContributor(domainTranslator, config)
 //  protected val mapsContributor = new DefaultMapsContributor(domainTranslator, config)
 //  protected val domainsContributor = new DefaultDomainsContributor(symbolConverter, domainTranslator)
-  protected val arrayContributor = new ArrayContributor(symbolConverter)
+  protected val arrayContributor = new ArrayContributor(symbolConverter, identifierFactory)
   protected val fieldValueFunctionsContributor = new DefaultFieldValueFunctionsContributor(preambleReader, symbolConverter, termConverter, config)
   protected val predSnapGenerator = new PredicateSnapGenerator(symbolConverter, snapshotSupporter)
   protected val predicateAndWandSnapFunctionsContributor = new DefaultPredicateAndWandSnapFunctionsContributor(preambleReader, termConverter, predSnapGenerator, config)

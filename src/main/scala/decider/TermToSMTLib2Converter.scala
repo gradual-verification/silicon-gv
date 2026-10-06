@@ -229,6 +229,13 @@ class TermToSMTLib2Converter
     case bop: SeqInTrigger => renderBinaryOp("Seq_contains_trigger", bop)
     case SeqUpdate(t0, t1, t2) => renderNAryOp("Seq_update", t0, t1, t2)
 
+    /* Arrays */
+   
+    case uop: ArrayLength => renderUnaryOp("Array_length", uop)
+    case bop: ArrayAt => renderBinaryOp("Array_index", bop)
+    case ArrayUpdate(t0, t1, t2) => renderNAryOp("Array_update", t0, t1, t2)
+    
+
     /* Sets */
 
     case uop: SingletonSet => renderApp("Set_singleton", Seq(uop.p), uop.sort)

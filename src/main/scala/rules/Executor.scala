@@ -368,7 +368,7 @@ object executor extends ExecutionRules {
                * havoc variables will get a new suffix
                */
               val xNew = v.decider.fresh(x)
-              val existingTerm = map(x)
+              //val existingTerm = map(x)
               /* if the variable cannot be found in freshPositions, it means
                * that it has not been assigned to yet
                */

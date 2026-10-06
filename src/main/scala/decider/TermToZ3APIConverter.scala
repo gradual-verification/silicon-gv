@@ -376,6 +376,10 @@ class TermToZ3APIConverter
       case bop: SeqInTrigger => createApp("Seq_contains_trigger", Seq(bop.p0, bop.p1), term.sort)
       case SeqUpdate(t0, t1, t2) => createApp("Seq_update", Seq(t0, t1, t2), term.sort)
 
+      case uop: ArrayLength => createApp("Array_length", Seq(uop.p), term.sort)
+      case bop: ArrayAt => createApp("Array_index", Seq(bop.p0, bop.p1), term.sort)
+      case ArrayUpdate(t0, t1, t2) => createApp("Array_update", Seq(t0, t1, t2), term.sort)
+
       /* Sets */
 
       case uop: SingletonSet => createApp("Set_singleton", Seq(uop.p), uop.sort)

@@ -1339,6 +1339,86 @@ object evaluator extends EvaluationRules {
           Q(s1, tSeq, esNew.map(en => ast.ExplicitSeq(en)(e.pos, e.info, e.errT)), v1)})
 */
       /* Sets and multisets */
+      case ast.ArrayIndex(e0, e1) =>
+        evals2(s, Seq(e0, e1), Nil, _ => pve, v)({case (s1, Seq(t0, t1), esNew, v1) =>
+          val eNew = esNew.map(es => ast.ArrayIndex(es.head, es(1))(e.pos, e.info, e.errT))
+          if (s1.triggerExp) {
+            Q(s1, ArrayAt(t0, t1), eNew, v1)
+          } else {
+            v1.decider.assert(AtLeast(t1, IntLiteral(0))) {
+              case true =>
+                v1.decider.assert(Less(t1, ArrayLength(t0))) {
+                  case true =>
+                    Q(s1, ArrayAt(t0, t1), eNew, v1)
+                  case false =>
+                    val assertExp2 = Option.when(withExp)(ast.LtCmp(e1, ast.ArrayLength(e0)())(e1.pos, e1.info, e1.errT))
+                    val failure = createFailure(pve dueTo SeqIndexExceedsLength(e0, e1), v1, s1, Less(t1, ArrayLength(t0)), assertExp2)
+                    if (s1.retryLevel == 0 && v1.reportFurtherErrors()) {
+                      val assertExp2 = Option.when(withExp)(ast.LeCmp(e1, ast.ArrayLength(e0)())())
+                      val assertExp2New = esNew.map(es => ast.LeCmp(es(1), ast.ArrayLength(es.head)())())
+                      v1.decider.assume(Less(t1, ArrayLength(t0)), assertExp2, assertExp2New)
+                      failure combine Q(s1, ArrayAt(t0, t1), eNew, v1)
+                    } else failure}
+              case false =>
+                val assertExp1 = Option.when(withExp)(ast.GeCmp(e1, ast.IntLit(0)())(e1.pos, e1.info, e1.errT))
+                val assertExp1New = Option.when(withExp)(ast.GeCmp(esNew.get(1), ast.IntLit(0)())(e1.pos, e1.info, e1.errT))
+                val failure1 = createFailure(pve dueTo SeqIndexNegative(e0, e1), v1, s1, AtLeast(t1, IntLiteral(0)), assertExp1New)
+                if (s1.retryLevel == 0 && v1.reportFurtherErrors()) {
+                  v1.decider.assume(AtLeast(t1, IntLiteral(0)), assertExp1, assertExp1New)
+                  val assertExp2 = Option.when(withExp)(ast.LtCmp(e1, ast.ArrayLength(e0)())(e1.pos, e1.info, e1.errT))
+                  val assertExp2New = Option.when(withExp)(ast.LtCmp(esNew.get(1), ast.ArrayLength(esNew.get(0))())(e1.pos, e1.info, e1.errT))
+                  v1.decider.assert(Less(t1, ArrayLength(t0))) {
+                    case true =>
+                      failure1 combine Q(s1, ArrayAt(t0, t1), eNew, v1)
+                    case false =>
+                      val failure2 = failure1 combine createFailure(pve dueTo SeqIndexExceedsLength(e0, e1), v1, s1, Less(t1, ArrayLength(t0)), assertExp2New)
+                      if (v1.reportFurtherErrors()) {
+                        v1.decider.assume(Less(t1, ArrayLength(t0)), assertExp2, assertExp2New)
+                        failure2 combine Q(s1, ArrayAt(t0, t1), eNew, v1)
+                      } else failure2}
+                } else failure1}}})
+
+      case ast.ArrayUpdate(e0, e1, e2) =>
+        evals2(s, Seq(e0, e1, e2), Nil, _ => pve, v)({ case (s1, Seq(t0, t1, t2), esNew, v1) =>
+          val eNew = esNew.map(es => ast.ArrayUpdate(es.head, es(1), es(2))(e.pos, e.info, e.errT))
+          if (s1.triggerExp) {
+            Q(s1, ArrayUpdate(t0, t1, t2), eNew, v1)
+          } else {
+            val assertExp = Option.when(withExp)(ast.GeCmp(e1, ast.IntLit(0)())(e1.pos, e1.info, e1.errT))
+            val assertExpNew = Option.when(withExp)(ast.GeCmp(esNew.get(1), ast.IntLit(0)())(e1.pos, e1.info, e1.errT))
+            v1.decider.assert(AtLeast(t1, IntLiteral(0))) {
+              case true =>
+                val assertExp2New = Option.when(withExp)(ast.LtCmp(esNew.get(1), ast.ArrayLength(esNew.get(0))())(e1.pos, e1.info, e1.errT))
+                v1.decider.assert(Less(t1, ArrayLength(t0))) {
+                  case true =>
+                    Q(s1, ArrayUpdate(t0, t1, t2), eNew, v1)
+                  case false =>
+                    val failure = createFailure(pve dueTo SeqIndexExceedsLength(e0, e1), v1, s1, Less(t1, ArrayLength(t0)), assertExp2New)
+                    if (s1.retryLevel == 0 && v1.reportFurtherErrors()) {
+                      val assertExp3 = Option.when(withExp)(ast.LeCmp(e1, ast.ArrayLength(e0)())())
+                      val assertExp3New = Option.when(withExp)(ast.LeCmp(esNew.get(1), ast.ArrayLength(esNew.get(0))())())
+                      v1.decider.assume(Less(t1, ArrayLength(t0)), assertExp3, assertExp3New)
+                      failure combine Q(s1, SeqUpdate(t0, t1, t2), eNew, v1)}
+                    else failure}
+              case false =>
+                val failure1 = createFailure(pve dueTo SeqIndexNegative(e0, e1), v1, s1, AtLeast(t1, IntLiteral(0)), assertExpNew)
+                if (s1.retryLevel == 0 && v1.reportFurtherErrors()) {
+                  v1.decider.assume(AtLeast(t1, IntLiteral(0)), assertExp, assertExpNew)
+                  val assertExp2 = Option.when(withExp)(ast.LtCmp(e1, ast.ArrayLength(e0)())(e1.pos, e1.info, e1.errT))
+                  val assertExp2New = Option.when(withExp)(ast.LtCmp(esNew.get(1), ast.ArrayLength(esNew.get(0))())(e1.pos, e1.info, e1.errT))
+                  v1.decider.assert(Less(t1, ArrayLength(t0))) {
+                    case true =>
+                      failure1 combine Q(s1, ArrayUpdate(t0, t1, t2), eNew, v1)
+                    case false =>
+                      val failure2 = failure1 combine createFailure(pve dueTo SeqIndexExceedsLength(e0, e1), v1, s1, Less(t1, ArrayLength(t0)), assertExp2New)
+                      if (v1.reportFurtherErrors()) {
+                        v1.decider.assume(Less(t1, ArrayLength(t0)), assertExp2, assertExp2New)
+                        failure2 combine Q(s1, ArrayUpdate(t0, t1, t2), eNew, v1)
+                      } else failure2}
+            } else failure1}}})
+
+      case ast.ArrayLength(e0) => eval(s, e0, pve, v)((s1, t0, e0New, v1) =>
+        Q(s1, ArrayLength(t0), e0New.map(e0p => ast.ArrayLength(e0p)(e.pos, e.info, e.errT)), v1))
 /*
       case ast.EmptySet(typ) =>
         Q(s, EmptySet(v.symbolConverter.toSort(typ)), Option.when(withExp)(e), v)
@@ -2670,6 +2750,88 @@ object evaluator extends EvaluationRules {
           v1.decider.assume(SeqLength(tSeq) === IntLiteral(es.size), debugExp)
           Q(s1, tSeq, esNew.map(en => ast.ExplicitSeq(en)(e.pos, e.info, e.errT)), v1)})
   */
+
+      case ast.ArrayIndex(e0, e1) =>
+        evals2(s, Seq(e0, e1), Nil, _ => pve, v)({case (s1, Seq(t0, t1), esNew, v1) =>
+          val eNew = esNew.map(es => ast.ArrayIndex(es.head, es(1))(e.pos, e.info, e.errT))
+          if (s1.triggerExp) {
+            Q(s1, ArrayAt(t0, t1), eNew, v1)
+          } else {
+            v1.decider.assert(AtLeast(t1, IntLiteral(0))) {
+              case true =>
+                v1.decider.assert(Less(t1, ArrayLength(t0))) {
+                  case true =>
+                    Q(s1, ArrayAt(t0, t1), eNew, v1)
+                  case false =>
+                    val assertExp2 = Option.when(withExp)(ast.LtCmp(e1, ast.ArrayLength(e0)())(e1.pos, e1.info, e1.errT))
+                    val failure = createFailure(pve dueTo SeqIndexExceedsLength(e0, e1), v1, s1, Less(t1, ArrayLength(t0)), assertExp2)
+                    if (s1.retryLevel == 0 && v1.reportFurtherErrors()) {
+                      val assertExp2 = Option.when(withExp)(ast.LeCmp(e1, ast.ArrayLength(e0)())())
+                      val assertExp2New = esNew.map(es => ast.LeCmp(es(1), ast.ArrayLength(es.head)())())
+                      v1.decider.assume(Less(t1, ArrayLength(t0)), assertExp2, assertExp2New)
+                      failure combine Q(s1, ArrayAt(t0, t1), eNew, v1)
+                    } else failure}
+              case false =>
+                val assertExp1 = Option.when(withExp)(ast.GeCmp(e1, ast.IntLit(0)())(e1.pos, e1.info, e1.errT))
+                val assertExp1New = Option.when(withExp)(ast.GeCmp(esNew.get(1), ast.IntLit(0)())(e1.pos, e1.info, e1.errT))
+                val failure1 = createFailure(pve dueTo SeqIndexNegative(e0, e1), v1, s1, AtLeast(t1, IntLiteral(0)), assertExp1New)
+                if (s1.retryLevel == 0 && v1.reportFurtherErrors()) {
+                  v1.decider.assume(AtLeast(t1, IntLiteral(0)), assertExp1, assertExp1New)
+                  val assertExp2 = Option.when(withExp)(ast.LtCmp(e1, ast.ArrayLength(e0)())(e1.pos, e1.info, e1.errT))
+                  val assertExp2New = Option.when(withExp)(ast.LtCmp(esNew.get(1), ast.ArrayLength(esNew.get(0))())(e1.pos, e1.info, e1.errT))
+                  v1.decider.assert(Less(t1, ArrayLength(t0))) {
+                    case true =>
+                      failure1 combine Q(s1, ArrayAt(t0, t1), eNew, v1)
+                    case false =>
+                      val failure2 = failure1 combine createFailure(pve dueTo SeqIndexExceedsLength(e0, e1), v1, s1, Less(t1, ArrayLength(t0)), assertExp2New)
+                      if (v1.reportFurtherErrors()) {
+                        v1.decider.assume(Less(t1, ArrayLength(t0)), assertExp2, assertExp2New)
+                        failure2 combine Q(s1, ArrayAt(t0, t1), eNew, v1)
+                      } else failure2}
+                } else failure1}}})
+
+      case ast.ArrayUpdate(e0, e1, e2) =>
+        evals2(s, Seq(e0, e1, e2), Nil, _ => pve, v)({ case (s1, Seq(t0, t1, t2), esNew, v1) =>
+          val eNew = esNew.map(es => ast.ArrayUpdate(es.head, es(1), es(2))(e.pos, e.info, e.errT))
+          if (s1.triggerExp) {
+            Q(s1, ArrayUpdate(t0, t1, t2), eNew, v1)
+          } else {
+            val assertExp = Option.when(withExp)(ast.GeCmp(e1, ast.IntLit(0)())(e1.pos, e1.info, e1.errT))
+            val assertExpNew = Option.when(withExp)(ast.GeCmp(esNew.get(1), ast.IntLit(0)())(e1.pos, e1.info, e1.errT))
+            v1.decider.assert(AtLeast(t1, IntLiteral(0))) {
+              case true =>
+                val assertExp2New = Option.when(withExp)(ast.LtCmp(esNew.get(1), ast.ArrayLength(esNew.get(0))())(e1.pos, e1.info, e1.errT))
+                v1.decider.assert(Less(t1, ArrayLength(t0))) {
+                  case true =>
+                    Q(s1, ArrayUpdate(t0, t1, t2), eNew, v1)
+                  case false =>
+                    val failure = createFailure(pve dueTo SeqIndexExceedsLength(e0, e1), v1, s1, Less(t1, ArrayLength(t0)), assertExp2New)
+                    if (s1.retryLevel == 0 && v1.reportFurtherErrors()) {
+                      val assertExp3 = Option.when(withExp)(ast.LeCmp(e1, ast.ArrayLength(e0)())())
+                      val assertExp3New = Option.when(withExp)(ast.LeCmp(esNew.get(1), ast.ArrayLength(esNew.get(0))())())
+                      v1.decider.assume(Less(t1, ArrayLength(t0)), assertExp3, assertExp3New)
+                      failure combine Q(s1, SeqUpdate(t0, t1, t2), eNew, v1)}
+                    else failure}
+              case false =>
+                val failure1 = createFailure(pve dueTo SeqIndexNegative(e0, e1), v1, s1, AtLeast(t1, IntLiteral(0)), assertExpNew)
+                if (s1.retryLevel == 0 && v1.reportFurtherErrors()) {
+                  v1.decider.assume(AtLeast(t1, IntLiteral(0)), assertExp, assertExpNew)
+                  val assertExp2 = Option.when(withExp)(ast.LtCmp(e1, ast.ArrayLength(e0)())(e1.pos, e1.info, e1.errT))
+                  val assertExp2New = Option.when(withExp)(ast.LtCmp(esNew.get(1), ast.ArrayLength(esNew.get(0))())(e1.pos, e1.info, e1.errT))
+                  v1.decider.assert(Less(t1, ArrayLength(t0))) {
+                    case true =>
+                      failure1 combine Q(s1, ArrayUpdate(t0, t1, t2), eNew, v1)
+                    case false =>
+                      val failure2 = failure1 combine createFailure(pve dueTo SeqIndexExceedsLength(e0, e1), v1, s1, Less(t1, ArrayLength(t0)), assertExp2New)
+                      if (v1.reportFurtherErrors()) {
+                        v1.decider.assume(Less(t1, ArrayLength(t0)), assertExp2, assertExp2New)
+                        failure2 combine Q(s1, ArrayUpdate(t0, t1, t2), eNew, v1)
+                      } else failure2}
+            } else failure1}}})
+
+      case ast.ArrayLength(e0) => eval(s, e0, pve, v)((s1, t0, e0New, v1) =>
+        Q(s1, ArrayLength(t0), e0New.map(e0p => ast.ArrayLength(e0p)(e.pos, e.info, e.errT)), v1))
+
       /* Sets and multisets */
   /*
       case ast.EmptySet(typ) =>

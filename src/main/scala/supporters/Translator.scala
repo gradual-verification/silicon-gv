@@ -116,6 +116,11 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
           case (Some(e1), Some(e2), Some(e3)) => Some(ast.CondExp(e1, e2, e3)())
           case _                              => None
         }
+      case terms.ArrayAt(t0, t1) =>
+        (translate(t0), translate(t1)) match {
+          case (Some(e1), Some(e2)) => Some(ast.ArrayIndex(e1, e2)())
+          case _                    => None
+        }
       case terms.Var(name, sort, b0) =>
         sort match {
           case terms.sorts.Snap => {
@@ -203,6 +208,9 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
       case terms.Var(_, terms.sorts.Perm, _) |
           terms.SortWrapper(_, terms.sorts.Perm) =>
         ast.Perm
+      case terms.Var(_, terms.sorts.Array(terms.sorts.Int), _) |
+          terms.SortWrapper(_, terms.sorts.Array(terms.sorts.Int)) =>
+        ast.ArrayType(ast.Int)
       case _ => sys.error(s"Unable to match type for ${variable}!")
     }
   }

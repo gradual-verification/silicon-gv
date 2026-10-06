@@ -213,6 +213,8 @@ trait ExpressionTranslator {
         es.tail.foldLeft[SeqTerm](SeqSingleton(f(es.head)))((tSeq, e) =>
           SeqAppend(tSeq, SeqSingleton(f(e))))
 
+      case ast.ArrayLength(e) => ArrayLength(f(e))
+
       /* Sets and multisets */
 
       case ast.EmptySet(typ) => EmptySet(toSort(typ))
