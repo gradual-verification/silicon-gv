@@ -246,6 +246,19 @@ object chunkSupporter extends ChunkSupportRules {
               (Complete(), s, newH, Some(ch))
             }
 
+          case Some(ch) if v.decider.check(PermAtMost(perms, ch.perm), Verifier.config.checkTimeout()) =>
+            val remaining = ch.withPerm(PermMinus(ch.perm, perms), None)
+            var fracH = h - ch
+            if (!v.decider.check(remaining.perm === NoPerm, Verifier.config.checkTimeout())) {
+              fracH = fracH + remaining
+            }
+            if (!isRegularHeap) {
+              fracH = Heap(fracH.values.filter {
+                case c: NonQuantifiedChunk => c.resourceID == FieldID
+                case _ => false
+              })
+            }
+            (Complete(), s, fracH, Some(ch.withPerm(perms, None)))
 
           case _ => {
             var newH2: Heap = newH.values.foldLeft(Heap()) { (currHeap, chunk) =>
