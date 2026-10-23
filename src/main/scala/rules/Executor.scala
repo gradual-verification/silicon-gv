@@ -567,9 +567,9 @@ object executor extends ExecutionRules {
        */
 
       /* Assignment for a field that contains quantified chunks */
-      case ass @ ast.FieldAssign(fa @ ast.FieldAccess(eRcvr, field), rhs)
+      /*case ass @ ast.FieldAssign(fa @ ast.FieldAccess(eRcvr, field), rhs)
         if s.qpFields.contains(field) => sys.error(s"Quantified permissions not supported for the field in (${stmt.getClass.getName}): $stmt")
-      /*
+      */
       case ass @ ast.FieldAssign(fa @ ast.FieldAccess(eRcvr, field), rhs)
               if s.qpFields.contains(field) =>
 
@@ -625,7 +625,7 @@ object executor extends ExecutionRules {
                 Q(s5, v2)
               case (Incomplete(_, _), s3, _) =>
                 createFailure(pve dueTo InsufficientPermission(fa), v2, s3, "sufficient permission")}}))
-*/
+
       case ass @ ast.FieldAssign(fa @ ast.FieldAccess(eRcvr, field), rhs) =>
        
         assert(!s.exhaleExt)

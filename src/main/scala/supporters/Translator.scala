@@ -130,7 +130,9 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
             )
             None
           }
-          case _ => selectShortestField(variableResolver(terms.Var(name, sort, b0)))
+          case _ => { 
+            selectShortestField(variableResolver(terms.Var(name, sort, b0)))
+          }
         }
       case terms.SortWrapper(t, sort) => 
         Some(variableResolver(terms.SortWrapper(t, sort))(0))

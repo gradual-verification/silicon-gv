@@ -43,7 +43,7 @@ final class ListBackedHeap private[state] (chunks: Vector[Chunk])
             snap == value
           }
         }
-        case _ => sys.error(s"The chunk type ${chunk} is not supported yet!")
+        case _ => false //sys.error(s"The chunk type ${chunk} is not supported yet!")
       }
     }) match {
       case None => None
@@ -61,7 +61,7 @@ final class ListBackedHeap private[state] (chunks: Vector[Chunk])
             snap == value
           }
         }
-        case _ => sys.error(s"The chunk type ${chunk} is not supported yet!")
+        case _ => false //sys.error(s"The chunk type ${chunk} is not supported yet!")
       }
     }).foldLeft(Seq[(Term, String)]()) { (foundChunks, foundChunk) =>
       foundChunk match {

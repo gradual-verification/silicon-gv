@@ -26,10 +26,9 @@ class ArrayContributor(symbolConverter: SymbolConverter, identifierFactory: Iden
       case ast.ArrayUpdate(_, _, elem) => { collectedTypeInstances += elem.typ }
     }
 
-    println(collectedTypeInstances)
     
     collectedSorts = InsertionOrderedSet(collectedTypeInstances.map(typ => sorts.Array(symbolConverter.toSort(typ))))
-    println(collectedSorts)
+    
 
     /* Array_length */
     collectedSorts.foreach 
@@ -40,9 +39,22 @@ class ArrayContributor(symbolConverter: SymbolConverter, identifierFactory: Iden
     collectedSorts.foreach
       { sort =>
         val qvar = Var(identifierFactory.fresh("a"), sort, false)
-        collectedAxioms += Forall(qvar, AtMost((predef.Zero, ArrayLength(qvar))), Trigger(ArrayLength(qvar))) }
-    
-    println(collectedAxioms)
+        collectedAxioms += Forall(qvar, Less((predef.Zero, ArrayLength(qvar))), Trigger(ArrayLength(qvar))) }
+
+    //Axiom of injectivity for Array[Ref]
+    val qvar1 = Var(identifierFactory.fresh("a"), sorts.Array(sorts.Ref), false)
+    val qvar2 = Var(identifierFactory.fresh("i1"), sorts.Int, false)
+    val qvar3 = Var(identifierFactory.fresh("i2"), sorts.Int, false)
+    collectedAxioms += Forall(Seq(qvar1, qvar2, qvar3), Implies(
+      (And(Seq(
+        AtMost(predef.Zero, qvar2),
+        Less(qvar2, ArrayLength(qvar1)),
+        AtMost(predef.Zero, qvar3),
+        Less(qvar3, ArrayLength(qvar1)),
+        Not(BuiltinEquals((qvar2, qvar3)))
+      )),
+      Not(BuiltinEquals(ArrayAt(qvar1, qvar2), ArrayAt(qvar1, qvar3))))
+    ), Trigger(Seq())) 
   }
 
   override def sortsAfterAnalysis: Iterable[Sort] = collectedSorts

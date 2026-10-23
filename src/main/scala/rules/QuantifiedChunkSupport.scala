@@ -751,6 +751,7 @@ object quantifiedChunkSupporter extends QuantifiedChunkSupport {
                                  : Unit = {
 
       if (s.smDomainNeeded) {
+        println("smDomainNeeded is true")
         optQVarsInstantiations match {
           case None =>
             val comment = "Definitional axioms for snapshot map domain"
@@ -1159,7 +1160,7 @@ object quantifiedChunkSupporter extends QuantifiedChunkSupport {
               notInjectiveReason: => ErrorReason,
               insufficientPermissionReason: => ErrorReason,
               v: Verifier)
-             (Q: (State, Heap, Option[Term], Verifier) => VerificationResult)
+             (Q: (State, Heap, Heap, Option[Term], Verifier) => VerificationResult)
              : VerificationResult = {
 
     val (inverseFunctions, imagesOfFormalQVars) =
@@ -1350,10 +1351,10 @@ object quantifiedChunkSupporter extends QuantifiedChunkSupport {
                 (result, s4, h2, Some(consumedChunk))
               })((s4, optCh, v3) =>
                 optCh match {
-                  case Some(ch) if returnSnap => Q(s4, s4.h, Some(ch.snapshotMap.convert(sorts.Snap)), v3)
+                  case Some(ch) if returnSnap => Q(s4, s4.optimisticHeap, s4.h, Some(ch.snapshotMap.convert(sorts.Snap)), v3)
                   case None if returnSnap =>
-                    Q(s4, s4.h, Some(freshSnap(sorts.Snap, v3)), v3)
-                  case _ => Q(s4, s4.h, None, v3)
+                    Q(s4, s4.optimisticHeap, s4.h, Some(freshSnap(sorts.Snap, v3)), v3)
+                  case _ => Q(s4, s4.optimisticHeap, s4.h, None, v3)
                 }
               )
             } else {
@@ -1388,9 +1389,9 @@ object quantifiedChunkSupporter extends QuantifiedChunkSupport {
                       partiallyConsumedHeap = Some(h3),
                       constrainableARPs = s.constrainableARPs,
                       smCache = smCache2)
-                    Q(s3, h3, Some(smDef2.sm.convert(sorts.Snap)), v)
+                    Q(s3, s3.optimisticHeap, h3, Some(smDef2.sm.convert(sorts.Snap)), v)
                   } else {
-                    Q(s2, h3, None, v)
+                    Q(s2, s2.optimisticHeap, h3, None, v)
                   }
                 case (Incomplete(_, _), s2, _) =>
                   createFailure(pve dueTo insufficientPermissionReason, v, s2, "QP consume")}

@@ -11,19 +11,19 @@
 ; The axiom therefore needs to be emitted after the sort wrappers have
 ; been emitted.
 
-(assert (forall ((vs $FVF<$T$>) (ws $FVF<$T$>)) (!
-    (=>
-      (and
-        (Set_equal ($FVF.domain_$FLD$ vs) ($FVF.domain_$FLD$ ws))
-        (forall ((x $Ref)) (!
-          (=>
-            (Set_in x ($FVF.domain_$FLD$ vs))
-            (= ($FVF.lookup_$FLD$ vs x) ($FVF.lookup_$FLD$ ws x)))
-          :qid |qp.$FVF<$T$>-eq-inner|
-          )))
-      (= vs ws))
-    :qid |qp.$FVF<$T$>-eq-outer|
-    )))
+;(assert (forall ((vs $FVF<$T$>) (ws $FVF<$T$>)) (!
+;    (=>
+;      (and
+;        (Set_equal ($FVF.domain_$FLD$ vs) ($FVF.domain_$FLD$ ws))
+;        (forall ((x $Ref)) (!
+;          (=>
+;            (Set_in x ($FVF.domain_$FLD$ vs))
+;            (= ($FVF.lookup_$FLD$ vs x) ($FVF.lookup_$FLD$ ws x)))
+;          :qid |qp.$FVF<$T$>-eq-inner|
+;          )))
+;      (= vs ws))
+;    :qid |qp.$FVF<$T$>-eq-outer|
+;    )))
 
 (assert (forall ((r $Ref) (pm $FPM)) (!
     ($Perm.isValidVar ($FVF.perm_$FLD$ pm r))

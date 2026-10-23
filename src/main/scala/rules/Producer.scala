@@ -419,10 +419,10 @@ object producer extends ProductionRules {
         magicWandSupporter.createChunk(s, wand, MagicWandSnapshot(snap), pve, v)((s1, chWand, v1) =>
           chunkSupporter.produce(s1, s1.h, chWand, v1)((s2, h2, v2) =>
             Q(s2.copy(h = h2), v2)))
-
-       * TODO: Initial handling of QPs is identical/very similar in consumer
+*/
+       /* TODO: Initial handling of QPs is identical/very similar in consumer
        *       and producer. Try to unify the code.
-       *
+       */
       case QuantifiedPermissionAssertion(forall, cond, acc: ast.FieldAccessPredicate) =>
         val qid = acc.loc.field.name
         val optTrigger =
@@ -458,7 +458,7 @@ object producer extends ProductionRules {
             )(Q)
           case (s1, _, _, _, _, None, v1) => Q(s1.copy(constrainableARPs = s.constrainableARPs), v1)
         }
-
+/*
       case QuantifiedPermissionAssertion(forall, cond, acc: ast.PredicateAccessPredicate) =>
         val predicate = s.program.findPredicate(acc.loc.predicateName)
         val formalVars = s.predicateFormalVarMap(predicate)

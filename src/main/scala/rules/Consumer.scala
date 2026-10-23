@@ -268,7 +268,8 @@ object consumer extends ConsumptionRules {
     v.logger.debug("h = " + v.stateFormatter.format(h))
     if (s.reserveHeaps.nonEmpty)
       v.logger.debug("hR = " + s.reserveHeaps.map(v.stateFormatter.format).mkString("", ",\n     ", ""))
-    
+   
+
     val consumed = a match {
 
 /*
@@ -355,7 +356,7 @@ object consumer extends ConsumptionRules {
        *       and producer. Try to unify the code.
        */
 
-/*
+
       case QuantifiedPermissionAssertion(forall, cond, acc: ast.FieldAccessPredicate) =>
         val field = acc.loc.field
         val qid = BasicChunkIdentifier(acc.loc.field.name)
@@ -391,10 +392,10 @@ object consumer extends ConsumptionRules {
               negativePermissionReason = NegativePermission(acc.perm),
               notInjectiveReason = QPAssertionNotInjective(acc.loc),
               insufficientPermissionReason = InsufficientPermission(acc.loc),
-              v1)((s2, h2, snap, v2) => Q(s2.copy(constrainableARPs = s.constrainableARPs), h2, snap, v2))
-          case (s1, _, _, _, _, None, v1) => Q(s1, h, if (returnSnap) Some(Unit) else None, v1)
+              v1)((s2, oh2, h2, snap, v2) => Q(s2.copy(constrainableARPs = s.constrainableARPs), oh2, h2, snap, v2))
+          case (s1, _, _, _, _, None, v1) => Q(s1, oh, h, if (returnSnap) Some(Unit) else None, v1)
         }
-
+/*
       case QuantifiedPermissionAssertion(forall, cond, acc: ast.PredicateAccessPredicate) =>
 <<<<<<< HEAD
         val predicate = Verifier.program.findPredicate(acc.loc.predicateName)*/
@@ -968,7 +969,7 @@ object consumer extends ConsumptionRules {
             sys.error("Conflicting positions while looking for position! "
               + s"Position: ${(s.methodCallAstNode, s.foldOrUnfoldAstNode, s.loopPosition)}")
         }
-
+       
         evalAndAssert(s, impr, a, returnSnap, pve, v)((s1, t, v1) => {
 
           returnedState = Some((s1, v1.decider.pcs.duplicate()))
