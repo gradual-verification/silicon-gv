@@ -488,14 +488,8 @@ object consumer extends ConsumptionRules {
               /*v1)((s2, h2, snap, v2) => Q(s2.copy(constrainableARPs = s.constrainableARPs), h2, snap, v2))
           case (s1, _, _, _, _, None, v1) => Q(s1.copy(constrainableARPs = s.constrainableARPs), h, if (returnSnap) Some(Unit) else None, v1)
         }
-<<<<<<< HEAD
 */
-/*
-      case ast.AccessPredicate(loc @ ast.FieldAccess(eRcvr, field), ePerm)
-=======
-
       case accPred@ast.AccessPredicate(loc @ ast.FieldAccess(eRcvr, field), ePerm)
->>>>>>> upstream/master
               if s.qpFields.contains(field) =>
 
         eval(s, eRcvr, pve, v)((s1, tRcvr, eRcvrNew, v1) =>
@@ -536,7 +530,7 @@ object consumer extends ConsumptionRules {
               val s4 = s3.copy(constrainableARPs = s1.constrainableARPs,
                                partiallyConsumedHeap = Some(h3))
               Q(s4, oh, h3, snap, v3)})}))
-
+/*
       case ast.AccessPredicate(loc @ ast.PredicateAccess(eArgs, predname), ePerm)
               if s.qpPredicates.contains(s.program.findPredicate(predname)) =>
 
