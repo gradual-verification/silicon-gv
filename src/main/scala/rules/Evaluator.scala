@@ -3003,7 +3003,12 @@ object evaluator extends EvaluationRules {
     val varPairs: Seq[(Var, Option[ast.LocalVarWithVersion])] = localVars map v.decider.fresh
     val tVars: Seq[Var] = varPairs map (_._1)
     val gVars = Store(localVars zip varPairs)
+    val oldStoreGvars: Option[Store] = s.oldStore match {
+      case Some(s) => Some(s + gVars)
+      case None => None
+    }
     val s1 = s.copy(g = s.g + gVars,
+                    oldStore = oldStoreGvars,
                     quantifiedVariables = varPairs ++ s.quantifiedVariables,
                     recordPossibleTriggers = true,
                     possibleTriggers = Map.empty) // TODO: Why reset possibleTriggers if they are merged with s.possibleTriggers later anyway?

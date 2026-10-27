@@ -121,6 +121,11 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
           case (Some(e1), Some(e2)) => Some(ast.ArrayIndex(e1, e2)())
           case _                    => None
         }
+      case terms.ArrayLength(t0) =>
+        translate(t0) match {
+          case Some(e1) => Some(ast.ArrayLength(e1)())
+          case _        => None
+        }
       case terms.Var(name, sort, b0) =>
         sort match {
           case terms.sorts.Snap => {
@@ -196,6 +201,16 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
     }
   }
 
+  private def sortToType(sort: terms.Sort): ast.Type = {
+    sort match {
+      case terms.sorts.Int => ast.Int
+      case terms.sorts.Bool => ast.Bool
+      case terms.sorts.Ref => ast.Ref
+      case terms.sorts.Perm => ast.Perm
+      case _ => sys.error(s"Unable to match type for sort ${sort}!")
+    }
+  }
+
   private def resolveType(variable: terms.Term): ast.Type = {
     variable match {
       case terms.Var(_, terms.sorts.Int, _) |
@@ -210,9 +225,10 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
       case terms.Var(_, terms.sorts.Perm, _) |
           terms.SortWrapper(_, terms.sorts.Perm) =>
         ast.Perm
-      case terms.Var(_, terms.sorts.Array(terms.sorts.Int), _) |
-          terms.SortWrapper(_, terms.sorts.Array(terms.sorts.Int)) =>
-        ast.ArrayType(ast.Int)
+      case terms.Var(_, terms.sorts.Array(s), _) => 
+        ast.ArrayType(sortToType(s))
+      case terms.SortWrapper(_, terms.sorts.Array(s)) =>
+        ast.ArrayType(sortToType(s))
       case _ => sys.error(s"Unable to match type for ${variable}!")
     }
   }
