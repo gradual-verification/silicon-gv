@@ -1,0 +1,57 @@
+// This example is from Leveraging Rust Types for Modular Specification and Verification [Astrauskas 19]
+
+field x: Int
+field current: Ref
+
+// no runtime checks
+method count_inside(r: Ref, a: Ref, b: Ref) returns (res: Int)
+    requires acc(r.current, 1/100) && acc(r.current.x, 1/100) && acc(a.x, 1/100) && acc(b.x, 1/100)
+    ensures acc(r.current, 1/100) && acc(r.current.x, 1/100) && acc(a.x, 1/100) && acc(b.x, 1/100)
+{
+    res := a.x - b.x
+}
+
+method make_first_unique(r: Ref) 
+    requires ? && acc(r.current.x, write)
+    ensures acc(r.current, write) && acc(r.current.x, write) 
+    // runtime check for acc(r.current, write) in !(c > 1), runtime check for acc(r.current.x, write) in !(c > 1)
+    // runtime check for acc(r.current, write) in c > 1
+{
+    var first: Ref
+    first := r.current 
+
+    var first2: Ref
+    first2 := first
+
+    var c: Int
+    // heap before: [r@14@01.current@18@01.x -> (Second: $t@17@01) # W]
+    c := count_inside(r, first, first2) // runtime check for acc(r.current, 1/100)
+    // heap after: [r@14@01.current@18@01.x -> (Second: $t@17@01) # 99/100, (First: $t@30@01).x -> (First: (Second: $t@30@01)) # 1/100, r@14@01.current -> (First: $t@30@01) # 1/100]
+
+    /*
+    Explanation -
+    r is not being framed inside of the call to count_inside, so the verifier cannot prove that r.current before the call equals r.current after the call.
+    Then the old r.current.x only has 99/100 (from first and first2), and a fresh r.current with new r.current.x value is added to the heap.
+    */
+
+    if (c > 1) {
+        assert first.x == r.current.x // runtime check for first.x == r.current.x in c > 1
+        r.current.x := r.current.x + 1 // runtime check for acc(r.current.x, write) in c > 1
+    }
+}
+
+// no runtime checks
+method main()
+{
+    var point: Ref
+    point := new(x)
+    point.x := 27
+
+    var r: Ref
+    r := new(current)
+    r.current := point
+
+    make_first_unique(r)
+
+    r.current.x := 10
+}

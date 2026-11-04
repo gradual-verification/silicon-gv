@@ -1,0 +1,44 @@
+/*
+Mimics fork join concurrency using only predicates. Ideally inhale/exhale should be used 
+but is unsupported currently in silicon-gv.
+*/
+
+field f: Int
+
+predicate fork_assign(a: Ref, b: Ref)
+{
+    ? && true    
+}
+
+method assign(a: Ref, b: Ref)
+    requires fork_assign(a, b) 
+    ensures acc(a.f, 1/2) && acc(b.f, 1/1) // runtime check for acc(a.f, 1/2)
+{
+    unfold fork_assign(a, b)
+    b.f := a.f // runtime checks for acc(a.f, epsilon) && acc(b.f, 1/1)
+}
+
+method main()
+{
+    var x: Ref
+    x := new(f)
+
+    var y: Ref
+    y := new(f)
+
+    var z: Ref
+    z := new(f)
+
+    fold fork_assign(x, y) // empties heap 
+    fold fork_assign(x, z) // empties heap again
+
+    assign(x, y) // adds run-time check for fork_assign(x, y) and empties heap
+    assign(x, z) // adds run-time check for fork_assign(x, z) and empties heap
+
+    x.f := 1 // runtime check for write
+    y.f := 2 // runtime check for write
+    z.f := 3 
+}
+
+/*
+*/

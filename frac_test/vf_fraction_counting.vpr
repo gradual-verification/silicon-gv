@@ -1,0 +1,154 @@
+field x: Int 
+
+method create_C(x_: Int) returns (result_: Ref)
+    requires true
+    ensures acc(result_.x, 1/1) && result_.x == x_
+{
+    var c: Ref 
+    c := new(x)
+    c.x := x_
+
+    result_ := c
+}
+
+predicate counter(c: Ref, x_: Int, frac: Perm, nbTickets: Int) 
+{
+    (frac > 0/1 ? acc(c.x, frac) && c.x == x_ : true)
+}
+
+predicate ticket(c: Ref, x_: Int, frac: Perm) 
+{
+    frac > 0/1 ? acc(c.x, frac) && c.x == x_ : true
+}
+
+method create_counter(c: Ref, x_: Int, frac: Perm)  
+    requires frac > 0/1 && acc(c.x, frac) && c.x == x_
+    ensures counter(c, x_, frac, 0)
+{
+    fold counter(c, x_, frac, 0)
+}
+
+method create_ticket(c: Ref, x_: Int, frac: Perm, nTickets: Int) returns (f: Perm)
+    requires frac > 0/1 && counter(c, x_, frac, nTickets)
+    ensures f > 0/1 && f < frac 
+    ensures counter(c, x_, frac - f, nTickets + 1) && ticket(c, x_, f) 
+{
+    f := frac - (frac * 1/2)
+
+    assert f > 0/1
+    assert frac - f > 0/1
+
+    unfold counter(c, x_, frac, nTickets)
+
+    fold counter(c, x_, frac - f, nTickets + 1)
+    fold ticket(c, x_, f) 
+}
+
+method dispose_ticket(c: Ref, x_: Int, f: Perm, nTickets: Int, f2: Perm) 
+    requires f > 0/1 && f2 > 0/1 && f > f2
+    requires counter(c, x_, f, nTickets) && ticket(c, x_, f2)
+    ensures counter(c, x_, f + f2, nTickets - 1) 
+{
+    unfold counter(c, x_, f, nTickets)
+    unfold ticket(c, x_, f2)
+
+    fold counter(c, x_, f + f2, nTickets - 1)
+}
+
+method dispose_counter(c: Ref, x_: Int, f: Perm)
+    requires f > 0/1 && counter(c, x_, f, 0)
+    ensures acc(c.x, f) && c.x == x_ 
+{
+    unfold counter(c, x_, f, 0)
+}
+
+method random() returns (b: Bool)
+    requires true
+    ensures true
+{   
+}
+
+method ticketLemma(c: Ref, x_: Int, f1: Perm, f2: Perm)
+    requires ticket(c, x_, f1) && ticket(c, x_, f2)
+    ensures ticket(c, x_, f1 + f2)
+{
+    unfold ticket(c, x_, f1)
+    unfold ticket(c, x_, f2)
+    fold ticket(c, x_, f1 + f2)
+}
+
+method main()
+    requires true
+    ensures true
+{
+    var c: Ref
+    c := create_C(5)
+
+    create_counter(c, c.x, 1/1)
+    assert counter(c, 5, 1/1, 0)
+
+    var b: Bool
+    b := random()
+
+    var n: Int
+    n := 0
+
+    var total: Perm
+    total := 0/1
+    fold ticket(c, 5, 0/1)
+
+    while(b) 
+        invariant 0 <= n 
+        invariant 0/1 <= total 
+        invariant total < 1/1 
+        invariant counter(c, 5, 1/1 - total, n) 
+        invariant ticket(c, 5, total) 
+    {
+        var f: Perm
+        f := create_ticket(c, 5, 1/1 - total, n) 
+        ticketLemma(c, 5, total, f)
+        total := total + f
+
+        n := n + 1
+        b := random()
+    }
+    
+    if (total == 0/1) { // stupid hack! need to somehow show 0/1 <= total ==> n == 0 idk how
+        unfold counter(c, 5, 1/1, n)
+        unfold ticket(c, 5, 0/1)
+        fold counter(c, 5, 1/1, 0)
+    }
+    else {
+        if (n == 0) { // stupid hack 2! for same reason as above!
+           unfold counter(c, 5, 1/1 - total, 0)
+           unfold ticket(c, 5, total)
+           fold counter(c, 5, 1/1, 0)
+        } 
+        else {
+            unfold counter(c, 5, 1/1 - total, n)
+            unfold ticket(c, 5, total)
+            fold counter(c, 5, 1/1, 0)
+            /*
+            // Should be something like below, but I couldn't make it work! :(
+            var old_n: Int
+            old_n := n
+
+            while (0 < n)
+                invariant total >= (old_n - n) * (total/old_n)
+                invariant 0 <= n
+                invariant counter(c, 5, 1/1 - total + ((old_n - n) * total/old_n), n)
+                invariant ticket(c, 5, total - (old_n - n) * (total/old_n))
+            {
+                dispose_ticket(c, 5, 
+                1/1 - total + ((old_n - n) * total/old_n), n,
+                (old_n - n) * (total/old_n))
+                
+                n := n - 1
+            }
+            */
+        }
+    }
+    
+    dispose_counter(c, 5, 1/1)
+    c.x := 6
+}

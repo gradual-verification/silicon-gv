@@ -1,0 +1,65 @@
+/*
+Bad encoding of program in https://github.com/viperproject/silicon/edit/master/README.md 
+since we don't support inhale/exhale statements to model fork/join
+*/ 
+field val: Int 
+field t1: Int
+field t2: Int
+
+predicate guard_INV(c: Ref) {
+    acc(c.val) && acc(c.t1, 1/2) && acc(c.t2, 1/2) && 
+    c.val == c.t1 + c.t2
+}
+
+predicate inc_PRE(c: Ref, tid: Int, oldv: Int) {
+    (tid == 0 || tid == 1) && 
+    (tid == 0 ? acc(c.t1, 1/2) && oldv == c.t1 : acc(c.t2, 1/2) && oldv == c.t2)
+}
+
+predicate inc_POST(c: Ref, tid: Int, oldv: Int) {
+    tid == 0 ? (acc(c.t1, 1/2) && c.t1 == oldv + 1) 
+             : (acc(c.t2, 1/2) && c.t2 == oldv + 1)
+}
+
+method inc(c: Ref, tid: Int, oldv: Int)
+    requires ? && inc_PRE(c, tid, oldv) 
+    requires guard_INV(c)
+    ensures inc_POST(c, tid, oldv)
+    ensures guard_INV(c)
+{
+    unfold guard_INV(c)
+    unfold inc_PRE(c, tid, oldv)
+
+    c.val := c.val + 1
+    if (tid == 0) { c.t1 := c.t1 + 1}
+    else {c.t2 := c.t2 + 1}
+
+    fold guard_INV(c)
+    fold inc_POST(c, tid, oldv)
+}
+
+method main() 
+    requires true
+{
+    var c: Ref
+    c := new(val, t1, t2)
+    c.val := 0
+    c.t1 := 0
+    c.t2 := 0
+
+    fold guard_INV(c)
+
+    fold inc_PRE(c, 0, 0)
+    fold inc_PRE(c, 1, 0)
+
+    inc(c, 0, 0)
+    inc(c, 1, 0)
+
+    unfold inc_POST(c, 0, 0)
+    unfold inc_POST(c, 1, 0)
+
+    unfold guard_INV(c)
+
+    assert c.val == 2
+}
+

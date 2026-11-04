@@ -1,0 +1,36 @@
+field balance: Int
+
+
+method doubleBal(a: Ref) returns (res: Int)
+    requires acc(a.balance, 1/2) && true
+    ensures acc(a.balance, 1/2) && res == 2 * a.balance 
+{
+    var t1 : Int
+    var t2 : Int
+
+    t1 := a.balance 
+    t2 := a.balance
+    res := t1 + t2
+}
+
+method setBal(a: Ref, amount: Int)
+    requires acc(a.balance, 1/1)
+    ensures acc(a.balance, 1/1) && a.balance == amount
+{
+    a.balance := amount
+}
+
+method addBal(a: Ref, b: Ref) returns (res: Int)
+    requires acc(a.balance, 1/4) && acc(b.balance, 1/2) && acc(b.balance, 1/2)
+    ensures acc(b.balance, 1/2) && 
+    res == b.balance
+{
+    var balA: Int
+    balA := a.balance 
+    
+    var balB: Int
+    balB := b.balance
+
+    b.balance := balA + balB
+    res := b.balance    
+}

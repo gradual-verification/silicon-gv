@@ -1,0 +1,185 @@
+/*
+Exercise 21, 22, 23, and 24 combined into one in https://people.cs.kuleuven.be/~bart.jacobs/verifast/tutorial.pdf
+Cannot do exercise 24 fully since we do not support higher order functions/generics.
+
+Basically proves memory safety for concurrent binary tree reading. Program simulates forking two threads,
+each computing the sum of the factorial of each node. Memory safety is verified.
+*/
+
+// struct btree
+field left: Ref
+field right: Ref
+field value: Int
+
+// struct sum_data
+field thread: Ref
+field tree: Ref 
+field depth: Int // additional since height required
+field sum: Int
+
+method rand() returns (k: Int)
+    requires true
+    ensures true
+{}
+
+method fac(x: Int) returns (res: Int)
+    requires true
+    ensures true
+{
+    var temp: Int := x
+    res := 1
+    while (temp > 1)
+        invariant true
+    {
+        res := res * x 
+        temp := temp - 1
+    }
+}
+
+predicate btree(t: Ref, t_depth: Int) {
+    t == null ? t_depth == 0 : 
+    (acc(t.left) && acc(t.right) && acc(t.value) && 
+    btree(t.left, t_depth - 1) && btree(t.right, t_depth - 1))
+}
+
+method make_tree(t_depth: Int) returns (t: Ref)
+    requires true
+    ensures btree(t, t_depth)
+{
+    if (t_depth == 0) {
+        t := null
+        fold btree(t, t_depth)
+    } else {
+        var l: Ref
+        l := make_tree(t_depth - 1)
+        var r: Ref
+        r := make_tree(t_depth - 1)
+        var val: Int
+        val := rand()
+
+        t := new(left, right, value)
+        t.left := l
+        t.right := r
+        t.value := val % 2000
+        fold btree(t, t_depth)
+    }
+}
+
+method tree_compute_sum_facs(t: Ref, t_depth: Int, p: Perm) returns (res: Int)
+    requires p > 0/1 && acc(btree(t, t_depth), p)
+    ensures acc(btree(t, t_depth), p)
+{
+    if (t == null) {
+        res := 1 
+    }
+    else {
+        unfold acc(btree(t, t_depth), p)
+        var leftSum: Int
+        leftSum := tree_compute_sum_facs(t.left, t_depth - 1, p)
+        
+        var rightSum: Int
+        rightSum := tree_compute_sum_facs(t.right, t_depth - 1, p)
+
+        var f: Int
+        f := fac(t.value)
+
+        res := leftSum + rightSum + f
+        fold acc(btree(t, t_depth), p)
+    }
+}
+
+// threading.h definitions
+predicate thread_run_pre(data: Ref) {
+    acc(data.tree) && acc(data.depth) && 
+    acc(btree(data.tree, data.depth), 1/2) && 
+    acc(data.sum)
+}
+
+predicate thread_run_post(data: Ref, s: Int) {
+    acc(data.tree) && acc(data.depth) &&
+    acc(btree(data.tree, data.depth), 1/2) && 
+    acc(data.sum) && data.sum == s
+}
+
+field run: Ref // should be a function pointer to function for thread to run 
+// unused because basically pointless
+
+predicate _thread(thre: Ref, data: Ref) { // don't know yet what info this contains
+    acc(data.tree) && acc(data.depth) && acc(data.sum) && acc(btree(data.tree, data.depth), 1/2)
+}
+
+method thread_start_joinable(data: Ref) returns (thre: Ref)
+    requires thread_run_pre(data)
+    ensures _thread(thre, data)
+{
+    unfold thread_run_pre(data)
+    fold _thread(thre, data)
+}
+
+method thread_join(thre: Ref, data: Ref) returns (s: Int)
+    requires _thread(thre, data) 
+    ensures thread_run_post(data, s)
+{
+    unfold _thread(thre, data)
+    fold thread_run_pre(data)
+    
+    s := summator(data)
+}
+
+method summator(data: Ref) returns (s: Int)
+    requires thread_run_pre(data)
+    ensures thread_run_post(data, s)
+{
+    unfold thread_run_pre(data)
+    s := tree_compute_sum_facs(data.tree, data.depth, 1/2)
+    data.sum := s
+    fold thread_run_post(data, s)
+}
+
+method start_sum_thread(t: Ref, d: Int) returns (data: Ref, thre: Ref)
+    requires acc(btree(t, d), 1/2)
+    ensures acc(data.thread) && data.thread == thre && _thread(thre, data)
+{
+    data := new(thread, tree, depth, sum)
+
+    data.tree := t
+    data.depth := d
+
+    fold thread_run_pre(data)
+
+    thre := thread_start_joinable(data)
+
+    data.thread := thre
+}
+
+method join_sum_thread(data: Ref, thre: Ref) returns (res: Int)
+    requires acc(data.thread) && data.thread == thre && _thread(thre, data)
+    ensures true
+{
+    var s: Int
+    s := thread_join(thre, data)
+    unfold thread_run_post(data, s)
+    res := data.sum
+}
+
+
+method main() returns (res: Int)
+{
+    var t: Ref 
+    t := make_tree(21)
+
+    var sumData1: Ref
+    var thread1: Ref
+    sumData1, thread1 := start_sum_thread(t, 21)
+    var sumData2: Ref
+    var thread2: Ref
+    sumData2, thread2 := start_sum_thread(t, 21)
+
+    var sum1: Int
+    sum1 := join_sum_thread(sumData1, thread1)
+
+    var sum2: Int
+    sum2 := join_sum_thread(sumData2, thread2)
+
+    res := 0
+}

@@ -1,0 +1,198 @@
+// try to translate some of this https://viperproject.github.io/prusti-dev/user-guide/tour/final.html into viper (only verify memory safety)
+
+// Link struct 
+field elem: Int
+field next: Ref
+
+// List struct (head points to a "Link" struct )
+field head: Ref 
+
+predicate acyclicSeg(from: Ref, to: Ref) {
+    (from == to) ? true : acc(from.elem) && acc(from.next) && acyclicSeg(from.next, to)
+}
+
+predicate acyclic(list: Ref) {
+    acc(list.head) && acyclicSeg(list.head, null)
+}
+
+method len(list: Ref) returns (length: Int) 
+    requires acc(acyclic(list), 1/100)
+    ensures acc(acyclic(list), 1/100)
+{
+    unfold acc(acyclic(list), 1/100)
+    length := link_len(list.head)
+    fold acc(acyclic(list), 1/100)
+}
+
+method link_len(link: Ref) returns (length: Int) 
+    requires acc(acyclicSeg(link, null), 1/100)
+    ensures acc(acyclicSeg(link, null), 1/100)
+{
+    unfold acc(acyclicSeg(link, null), 1/100)
+
+    if (link == null) {
+        length := 0
+    } else {
+        var r: Int
+        r := link_len(link.next)
+        length := 1 + r
+    }
+    
+    fold acc(acyclicSeg(link, null), 1/100)
+}
+
+method is_empty(list: Ref) returns (b: Bool) 
+    requires acyclic(list)
+    ensures acyclic(list)
+{   
+    unfold acyclic(list)
+    b := list.head == null 
+    fold acyclic(list)
+}
+
+method new_l() returns (list: Ref) 
+    ensures acyclic(list)
+{
+    list := new(head)
+    list.head := null
+    fold acyclicSeg(list.head, null)
+    fold acyclic(list)
+}
+
+method lookup(list: Ref, index: Int) returns (link: Ref) 
+    requires acc(acyclic(list), 1/100)
+    ensures acc(acyclic(list), 1/100)
+{
+    unfold acc(acyclic(list), 1/100)
+    link := link_lookup(list.head, index)
+    fold acc(acyclic(list), 1/100)
+}
+
+method link_lookup(link: Ref, index: Int) returns (found_link: Ref)
+    requires acc(acyclicSeg(link, null), 1/100)
+    ensures acc(acyclicSeg(link, null), 1/100) // && acc(found_link.elem, 1/100) // i have skill issue and can't verify this right now
+{   
+    unfold acc(acyclicSeg(link, null), 1/100)
+
+    if (link == null) { // in prusti this case never happens since index is verified to be <= length of list
+        found_link := null
+    }
+    else {
+        if (index == 0) {
+            found_link := link
+        } else {
+            var l: Ref
+            l := link_lookup(link.next, index - 1)
+            found_link := l
+        }
+    }
+
+    fold acc(acyclicSeg(link, null), 1/100)
+} 
+
+method push(list: Ref, val: Int) 
+    requires acc(acyclic(list), write)
+    ensures acc(acyclic(list), write)
+{
+    unfold acyclic(list)
+
+    var new_node: Ref
+    new_node := new(elem, next)
+    new_node.elem := val
+    new_node.next := list.head
+    list.head := new_node
+
+    fold acyclicSeg(list.head, null)
+    fold acyclic(list)
+}
+
+method pop(list: Ref) returns (head_val: Int)
+    requires acc(acyclic(list), write)
+    ensures acc(acyclic(list), write)
+{
+    unfold acyclic(list)
+
+    if (list.head == null) {
+        head_val := -1
+        fold acyclic(list)
+    } else {
+        unfold acyclicSeg(list.head, null)
+        head_val := list.head.elem
+        list.head := list.head.next
+        fold acyclic(list)
+    }
+}
+
+/*
+method try_pop(list: Ref) returns (old_head: Ref)
+    requires acc(acyclic(list), write)
+    ensures acc(acyclic(list), write) 
+    ensures old_head != null ==> acc(old_head.elem) // why is this allowed?
+{ 
+    unfold acyclic(list)
+
+    if (list.head == null) {
+        old_head := null
+        fold acyclic(list)
+    }
+    else {
+        unfold acyclicSeg(list.head, null)
+        old_head := list.head
+        list.head := list.head.next
+        
+        fold acyclic(list)
+    }
+}
+
+method pop(list: Ref) returns (val: Int)
+    requires acc(acyclic(list), write)
+    ensures acc(acyclic(list), write)
+{
+    var old_head: Ref
+    old_head := try_pop(list)
+    if (old_head == null) 
+    {
+        val := -1
+    }
+    else {
+        val := old_head.elem
+    }
+}
+*/
+
+method peek(list: Ref) returns (h: Ref) 
+    requires acyclic(list)
+    ensures acyclic(list)
+{
+    h := lookup(list, 0)
+}
+
+// peek_mut not included since mutable reborrowing is probably just not possible to model
+
+method test_list() {
+    var list: Ref
+    list := new_l()
+    
+    var emp: Bool
+    emp := is_empty(list)
+
+    push(list, 5)
+    push(list, 10)
+
+    var length: Int
+    length := len(list)
+
+    var lookup1: Ref
+    var lookup2: Ref
+
+    lookup1 := lookup(list, 0)
+    lookup2 := lookup(list, 1)
+
+
+    var x: Int
+    x := pop(list)
+
+    var peek1: Ref
+    peek1 := peek(list)
+}
+

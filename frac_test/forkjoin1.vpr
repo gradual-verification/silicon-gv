@@ -1,0 +1,78 @@
+/*
+Mimics fork join concurrency using only predicates. Ideally inhale/exhale should be used 
+but is unsupported currently in silicon-gv.
+*/
+
+field f: Int
+
+predicate assign_pred(a: Ref, b: Ref)
+{
+    acc(a.f, 1/2) && acc(b.f, 1/1)
+}
+
+method assign(a: Ref, b: Ref)
+    requires acc(a.f, 1/2) && acc(b.f, 1/1) 
+    ensures acc(a.f, 1/2) && acc(b.f, 1/1)
+{
+    b.f := a.f
+}
+
+method main1()
+{
+    var x: Ref
+    x := new(f)
+
+    var y: Ref
+    y := new(f)
+
+    var z: Ref
+    z := new(f)
+
+    assign(x, y) 
+    fold assign_pred(x, y)
+
+    assign(x, z)
+    fold assign_pred(x, z)
+
+    unfold assign_pred(x, y)
+    unfold assign_pred(x, z)
+
+    x.f := 1
+    y.f := 2
+    z.f := 3
+}
+
+/*
+
+Method 1:
+tk := fork m(x) // consumes preconditions, delays postcondition 
+
+... (some other code)
+
+r := join tk // produces postcondition
+
+is equivalent to
+
+r := m(x) // consumes precondition, produces postcondition
+fold predicate with exact postcondition of m(x) // consumes postcondition
+
+... // DO NOT USE r until after unfold!
+
+unfold predicate with exact postcondition of m(x) // produces postcondition
+
+not actually similar if has return value since with imprecision r may affected
+
+Method 2:
+
+fold predicate with exact precondition of m(x) (at fork)
+
+...
+
+r := m(x) // consumes predicate, produces postcondition (should be at join)
+
+this is better aligned but now m(x) needs to unfold its precondition
+
+Method 3:
+
+
+*/

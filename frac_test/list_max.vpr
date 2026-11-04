@@ -1,0 +1,79 @@
+field val: Int
+field next: Ref
+
+predicate acyclic(s: Ref) {
+    s == null ? true : acc(s.val) && acc(s.next) && acyclic(s.next)
+}
+
+predicate maxSeg(s: Ref, e: Ref, m: Int) {
+    s == e ? true : acc(s.val) && acc(s.next) && s.val <= m && maxSeg(s.next, e, m)
+}
+
+predicate maximum(s: Ref, m: Int) {
+    maxSeg(s, null, m)
+}
+
+method maxLemma(a: Ref, b: Ref, oldMax: Int, newMax: Int) 
+    requires maxSeg(a, b, oldMax) && newMax >= oldMax
+    ensures maxSeg(a, b, newMax)
+{
+    unfold maxSeg(a, b, oldMax)
+    if (a == b) {
+        fold maxSeg(a, b, newMax)
+    }
+    else {
+        maxLemma(a.next, b, oldMax, newMax)
+        fold maxSeg(a, b, newMax)
+    }
+}
+
+method mergeLemma(a: Ref, b: Ref, c: Ref, m: Int)
+    requires maxSeg(a, b, m) && maxSeg(b, c, m)
+    ensures maxSeg(a, c, m)
+{
+    if (a == b) {
+    }
+    else {
+        unfold maxSeg(a, b, m)
+        mergeLemma(a.next, b, c, m)
+        fold maxSeg(a, c, m)
+    }
+}
+
+method findMax(list: Ref) returns (max: Int)
+    requires list != null && acyclic(list)
+    ensures maximum(list, max)
+{
+    unfold acyclic(list)
+    
+    var y: Ref
+    y := list
+    max := y.val
+    y := y.next
+    
+    fold maxSeg(y, y, max)
+    fold maxSeg(list, y, max)
+
+    while (y != null) 
+        invariant maxSeg(list, y, max) // already traversed is max
+        invariant acyclic(y)
+    {   
+        unfold acyclic(y)
+        var tmp: Ref
+        tmp := y
+        var prev_max: Int
+        prev_max := max
+        
+        if (y.val > max) {
+            max := y.val
+        }
+        y := y.next
+        
+        maxLemma(list, tmp, prev_max, max)
+        fold maxSeg(y, y, max)
+        fold maxSeg(tmp, y, max)
+        mergeLemma(list, tmp, y, max)
+    }
+    
+    fold maximum(list, max)
+}

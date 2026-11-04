@@ -1,0 +1,119 @@
+/*
+Translation of concurrent binary tree case from fractional permissions for Gillian thesis
+Only memory safety since it seems impossible to specify the postcondition predicates as given in Gillian.
+*/
+
+field left: Ref
+field right: Ref
+field val: Int
+
+predicate binary_tree(root: Ref) { 
+    root == null ? true :
+    acc(root.val) && acc(root.left) && acc(root.right) &&
+    binary_tree(root.left) && binary_tree(root.right) 
+}
+
+predicate join_height(root: Ref, p: Perm) {
+    p > 0/1 && acc(binary_tree(root), p)
+}
+
+method height(root: Ref, p: Perm) returns (h: Int)
+    requires p > 0/1 && acc(binary_tree(root), p)
+    ensures p > 0/1 && acc(binary_tree(root), p)
+{
+    if (root == null) {
+        h := 0
+    } else {
+        unfold acc(binary_tree(root), p) 
+
+        var lt: Ref := root.left
+        var rt: Ref := root.right
+
+        var lh: Int
+        var rh: Int        
+
+        lh := height(lt, p)
+        fold join_height(lt, p)
+
+        rh := height(rt, p)
+        fold join_height(rt, p)
+
+        unfold join_height(lt, p)
+        unfold join_height(rt, p)
+
+        if (lh > rh) {
+            h := lh
+        } else {
+            h := rh
+        }
+        h := h + 1
+
+        fold acc(binary_tree(root), p)
+    }
+}
+
+predicate fork_find(root: Ref, p: Perm) {
+    p > 0/1 && acc(binary_tree(root), p)
+}
+
+method find(root: Ref, v: Int, p: Perm) returns (is_found: Bool)
+    requires fork_find(root, p) 
+    ensures p > 0/1 && acc(binary_tree(root), p)
+{
+    unfold fork_find(root, p)
+    if (root == null) {
+        is_found := false
+    } else {
+        unfold acc(binary_tree(root), p)
+        var x : Int := root.val
+
+        if (x == v) {
+            is_found := true
+        } else {
+            var lt: Ref := root.left
+            var rt: Ref := root.right
+
+            fold fork_find(lt, p)
+            fold fork_find(rt, p) 
+
+            var in_left: Bool 
+            in_left := find(lt, v, p)
+            var in_right: Bool 
+            in_right := find(rt, v, p)
+
+            is_found := in_left || in_right 
+        }
+
+        fold acc(binary_tree(root), p)
+    }
+}
+
+predicate fork_replace(root: Ref) {
+    binary_tree(root)
+}
+
+method replace(root: Ref, v: Int) 
+    requires fork_replace(root)
+    ensures binary_tree(root) 
+{
+    unfold fork_replace(root)
+    if (root == null) {}
+    else {
+        unfold binary_tree(root)
+        var lt: Ref := root.left
+        var rt: Ref := root.right
+
+        fold fork_replace(lt)
+        fold fork_replace(rt)
+
+        replace(lt, v)
+        replace(rt, v)
+
+        if (v == root.val) {
+            root.val := v
+        }
+
+        fold binary_tree(root)
+    }
+}
+

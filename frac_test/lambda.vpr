@@ -1,0 +1,161 @@
+/*
+    Translation of parallel lambda term substitution in fractional permissions for Gillian
+    We change type discriminator from Int to two boolean fields.
+    Only memory safety is verified.
+*/
+
+field v: Int 
+field t1: Ref
+field t2: Ref
+field isVar: Bool // if isVar, then is variable 
+field isApp: Bool // if !isVar && isApp, then is application, if !isVar && !isApp, then is abstraction
+
+predicate lambda_term(x: Ref) {
+    acc(x.isVar) && acc(x.isApp) && acc(x.v) && acc(x.t1) && acc(x.t2) &&
+    (
+        x.isVar ? // variable, so just v
+        x.t1 == null && x.t2 == null :
+        (
+            x.isApp ? // application, so t_1 t_2
+            x.v == 0 && lambda_term(x.t1) && lambda_term(x.t2) : 
+            x.t2 == null && lambda_term(x.t1) // abstraction, so \lambda v. t1 
+        )
+    )
+}
+
+predicate fork_copy(x: Ref, p: Perm) {
+    p > 0/1 && acc(lambda_term(x), p)
+}
+
+method copy(x: Ref, p: Perm) returns (r: Ref)
+    requires fork_copy(x, p)
+    ensures p > 0/1 && acc(lambda_term(x), p) && lambda_term(r)
+{
+    unfold fork_copy(x, p)
+    unfold acc(lambda_term(x), p)
+
+    r := new(isVar, isApp, v, t1, t2)
+    if (x.isVar) {
+        r.isVar := true
+        r.v := x.v
+        r.t1 := null
+        r.t2 := null
+    } else {
+        if (x.isApp) {
+            fold fork_copy(x.t1, p)           
+            fold fork_copy(x.t2, p)
+
+            var r1: Ref
+            var r2: Ref
+            
+            r1 := copy(x.t1, p)
+            r2 := copy(x.t2, p)
+
+            r.isVar := false
+            r.isApp := true
+            r.v := 0
+
+            r.t1 := r1
+            r.t2 := r2
+        } else {
+            fold fork_copy(x.t1, p)
+
+            r.v := x.v
+            var r1 : Ref  
+            r1 := copy(x.t1, p)
+            r.t1 := r1
+            r.isVar := false
+            r.isApp := false 
+            r.t2 := null
+        }
+    }
+    fold acc(lambda_term(x), p)
+    fold lambda_term(r) 
+}
+
+predicate fork_subst(x: Ref, y: Ref, v_: Int, px: Perm, py: Perm) { 
+    px > 0/1 && py > 0/1 && acc(lambda_term(x), px) && acc(lambda_term(y), py) 
+}
+
+// substitutes lambda term y for every occurence of variable v_ in lambda term x 
+// returns r which is the described above term (is a copy of x), not in-place
+method subst(x: Ref, y: Ref, v_: Int, px: Perm, py: Perm) returns (r: Ref) 
+    requires fork_subst(x, y, v_, px, py)
+    ensures px > 0/1 && py > 0/1 
+    ensures acc(lambda_term(x), px)
+    ensures acc(lambda_term(y), py)
+    ensures acc(lambda_term(r))
+{
+    unfold fork_subst(x, y, v_, px, py)
+    unfold acc(lambda_term(x), px)
+
+    if (x.isVar) {
+        if (v_ == x.v) {
+            fold fork_copy(y, py)
+            r := copy(y, py)
+            fold acc(lambda_term(x), px)
+        } else {
+            fold acc(lambda_term(x), px)
+            fold fork_copy(x, px)
+            r := copy(x, px)
+        }
+        assert acc(lambda_term(x), px)
+    } else {
+        if (x.isApp) {
+            fold fork_subst(x.t1, y, v_, px, py/2) // fork 
+            fold fork_subst(x.t2, y, v_, px, py/2) // fork
+
+            var r1: Ref
+            var r2: Ref
+            r1 := subst(x.t1, y, v_, px, py/2) // join 
+            r2 := subst(x.t2, y, v_, px, py/2) // join
+
+            r := new(isVar, isApp, v, t1, t2)
+            r.isVar := false
+            r.isApp := true
+            r.v := 0
+            r.t1 := r1
+            r.t2 := r2
+
+            fold acc(lambda_term(x), px)
+            fold lambda_term(r)
+        }
+        else {
+            if (v_ == x.v) { // then v_ is bound in abstraction, so don't subst
+                fold acc(lambda_term(x), px)
+                fold fork_copy(x, px)
+                r := copy(x, px)
+            }
+            else {
+                r := new(isVar, isApp, v, t1, t2)
+                var ct: Ref
+
+                fold fork_subst(x.t1, y, v_, px, py)
+                ct := subst(x.t1, y, v_, px, py)
+
+                r := new(isVar, isApp, v, t1, t2)
+                r.v := x.v
+                r.t2 := x.t2 // null
+                r.t1 := ct
+                r.isVar := false
+                r.isApp := false
+
+                fold acc(lambda_term(x), px)
+                fold lambda_term(r)
+            }
+        }
+    }
+}
+
+// predicate substituted(x: Ref, y: Ref, v_: Int, px: Perm, py: Perm, r: Ref) {
+//     px > 0/1 && py > 0/1 &&
+//     acc(x.isVar, px) && acc(x.isApp, px) && acc(x.v, px) && acc(x.t1, px) && acc(x.t2, px) &&
+//     acc(y.isVar, py) && acc(y.isApp, py) && acc(y.v, py) && acc(y.t1, py) && acc(y.t2, py) && 
+//     acc(r.isVar, py) && acc(r.isApp, py) && acc(r.v, py) && acc(r.t1, py) && acc(r.t2, py) && 
+//     (
+//         x.isVar ? 
+//         (
+            
+//         )
+//     )
+// }

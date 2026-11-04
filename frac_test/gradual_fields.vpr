@@ -1,0 +1,64 @@
+field f: Int
+
+method exhal(a: Ref, p: Perm)  // helper method for mimicking exhale
+  requires p >= 0/1 && acc(a.f, p)  {}
+
+method add(x: Ref, y: Ref) returns (sum: Int)
+  requires ? && acc(x.f, 1/2)
+  ensures acc(y.f, 1/2) && acc(x.f, 1/2) // runtime check for acc(y.f, 1/2), runtime check for acc(x.f, 1/2)
+{
+  sum := x.f + y.f // runtime check for acc(y.f, epsilon)
+}
+
+method basic(x: Ref)
+    requires ? && true
+{
+    var j: Int
+    j := x.f // runtime check for acc(x.f, epsilon)
+    x.f := 20 // runtime check for acc(x.f, write)
+}
+
+method PermDiff(x: Ref, y: Ref, z: Ref, b: Ref) 
+    requires ? && acc(x.f, 5/10) && acc(y.f, 10/10) && acc(z.f, 8/10) && acc(b.f, 1/10) 
+
+{
+    exhal(b, 4/10) // runtime check for acc(b.f, 4/10)
+   // will remove 3/10 perm from all except y.f 
+
+    assert acc(y.f, 10/10) 
+    assert acc(x.f, 2/10)
+    assert acc(z.f, 5/10)
+}
+
+method evalp(x: Ref, y: Ref, z: Ref) 
+    requires ? && x.f == 1 && y.f == 2 && z.f == 3 // should all be epsilon in optimistic heap
+{
+    x.f := 20 // runtime check for acc(x.f, write)
+    y.f := 30 // runtime check for acc(y.f, write)
+    x.f := 40 // runtime check for acc(x.f, write) 
+}
+
+method testevalp(x: Ref, y: Ref, z: Ref)
+  requires ? && true
+{
+  evalp(x, y, z) 
+  /*
+  runtime check for acc(x.f, epsilon)
+  runtime check for x.f == 1
+  runtime check for acc(y.f, epsilon)
+  runtime check for y.f == 1
+  runtime check for acc(z.f, epsilon)
+  runtime check for z.f == 1
+  */  
+}
+
+/*
+keepEqual's precondition would fail statically since conjunct order is wrong.
+ */
+method keepEqual(x: Ref, y: Ref)
+    requires ? && y.f == 2 && acc(x.f) && x == y 
+    ensures true
+{
+    y.f := 20 // no run-time check
+    assert x == y
+}
