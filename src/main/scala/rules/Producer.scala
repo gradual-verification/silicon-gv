@@ -220,7 +220,6 @@ object producer extends ProductionRules {
 
     v.logger.debug(s"\nPRODUCE ${viper.silicon.utils.ast.sourceLineColumn(a)}: $a")
     v.logger.debug(v.stateFormatter.format(s, v.decider.pcs))
-
     val Q: (State, Verifier) => VerificationResult = (state, verifier) =>
       continuation(if (state.exhaleExt) state.copy(reserveHeaps = state.h +: state.reserveHeaps.drop(1)) else state, verifier)
 
@@ -331,15 +330,15 @@ object producer extends ProductionRules {
               val (debugHeapName, debugLabel) = v2.getDebugOldLabel(s2_0, accPred.pos)
               val snapExp = Option.when(withExp)(ast.DebugLabelledOld(ast.FieldAccess(eRcvrNew.get, field)(), debugLabel)(accPred.pos, accPred.info, accPred.errT))
               val gainExp = ePermNew.map(p => ast.PermMul(p, s2_0.permissionScalingFactorExp.get)(p.pos, p.info, p.errT))
-/*            if (s2.qpFields.contains(field)) {
- *            val trigger = (sm: Term) => FieldTrigger(field.name, sm, tRcvr)
- *            quantifiedChunkSupporter.produceSingleLocation(s2, field, Seq(`?r`), Seq(tRcvr), snap, gain, trigger, v2)(Q)
- *          } else {
- */
-              val ch = BasicChunk(FieldID, BasicChunkIdentifier(field.name), Seq(tRcvr), Option.when(withExp)(Seq(eRcvrNew.get)), snap, snapExp, gain, gainExp)
-              chunkSupporter.produce(s2_0, s2_0.h, ch, v2)((s3, h3, v3) => {
-                v3.decider.assume(tRcvr !== Null, None)
-                Q(s3.copy(h = h3), v3)})
+              if (s2.qpFields.contains(field)) {
+                val trigger = (sm: Term) => FieldTrigger(field.name, sm, tRcvr)
+                quantifiedChunkSupporter.produceSingleLocation(s2, field, Seq(`?r`), None, Seq(tRcvr), Option.when(withExp)(Seq(eRcvrNew.get)), snap, gain, gainExp, trigger, v2)(Q)
+              } else {
+                val ch = BasicChunk(FieldID, BasicChunkIdentifier(field.name), Seq(tRcvr), Option.when(withExp)(Seq(eRcvrNew.get)), snap, snapExp, gain, gainExp)
+                chunkSupporter.produce(s2_0, s2_0.h, ch, v2)((s3, h3, v3) => {
+                  v3.decider.assume(tRcvr !== Null, None)
+                  Q(s3.copy(h = h3), v3)})
+              }
             }
         }))
 

@@ -1,0 +1,40 @@
+[info] welcome to sbt 1.10.2 (Arch Linux Java 26.0.2)
+[info] loading settings for project silicon-gv-build from metals.sbt,plugins.sbt ...
+[info] loading project definition from /home/ruiz/Documents/pl/gv/new_gvc0/silicon-gv/project
+[info] loading settings for project silicon from build.sbt ...
+[info] loading settings for project silver from build.sbt ...
+[info] set current project to Silicon (in build file:/home/ruiz/Documents/pl/gv/new_gvc0/silicon-gv/)
+[info] compiling 1 Scala source to /home/ruiz/Documents/pl/gv/new_gvc0/silicon-gv/target/scala-2.13/classes ...
+[error] /home/ruiz/Documents/pl/gv/new_gvc0/silicon-gv/src/main/scala/supporters/Translator.scala:131:53: type mismatch;
+[error]  found   : String
+[error]  required: viper.silver.ast.Field
+[error]           case Some(e0) => Some(ast.FieldAccess(e0, field)())
+[error]                                                     ^
+[warn] /home/ruiz/Documents/pl/gv/new_gvc0/silicon-gv/src/main/scala/supporters/Translator.scala:5:29: Unused import
+[warn] import viper.silicon.state.{BasicChunk, Heap, Identifier, State, Store, terms}
+[warn]                             ^
+[warn] /home/ruiz/Documents/pl/gv/new_gvc0/silicon-gv/src/main/scala/supporters/Translator.scala:5:41: Unused import
+[warn] import viper.silicon.state.{BasicChunk, Heap, Identifier, State, Store, terms}
+[warn]                                         ^
+[warn] /home/ruiz/Documents/pl/gv/new_gvc0/silicon-gv/src/main/scala/supporters/Translator.scala:6:33: Unused import
+[warn] import viper.silicon.resources.{FieldID, PredicateID}
+[warn]                                 ^
+[warn] /home/ruiz/Documents/pl/gv/new_gvc0/silicon-gv/src/main/scala/supporters/Translator.scala:6:42: Unused import
+[warn] import viper.silicon.resources.{FieldID, PredicateID}
+[warn]                                          ^
+[warn] /home/ruiz/Documents/pl/gv/new_gvc0/silicon-gv/src/main/scala/supporters/Translator.scala:7:31: Unused import
+[warn] import viper.silicon.verifier.Verifier
+[warn]                               ^
+[warn] /home/ruiz/Documents/pl/gv/new_gvc0/silicon-gv/src/main/scala/supporters/Translator.scala:164:22: pattern var applicable in method translate is never used
+[warn]       case terms.App(applicable, args) => //sys.error(s"Unable to translate applicable: ${applicable} args: ${args}")
+[warn]                      ^
+[warn] /home/ruiz/Documents/pl/gv/new_gvc0/silicon-gv/src/main/scala/supporters/Translator.scala:164:34: pattern var args in method translate is never used
+[warn]       case terms.App(applicable, args) => //sys.error(s"Unable to translate applicable: ${applicable} args: ${args}")
+[warn]                                  ^
+[warn] /home/ruiz/Documents/pl/gv/new_gvc0/silicon-gv/src/main/scala/supporters/Translator.scala:398:12: pattern var term_variable in method regexVariableResolver is never used
+[warn]       case term_variable@terms.Var(
+[warn]            ^
+[warn] 8 warnings found
+[error] one error found
+[error] (Compile / compileIncremental) Compilation failed
+[error] Total time: 43 s, completed Nov 3, 2026, 3:06:09 PM

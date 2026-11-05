@@ -524,7 +524,7 @@ object executor extends ExecutionRules {
     val s = state.copy(h = magicWandSupporter.getExecutionHeap(state))
     val Q: (State, Verifier) => VerificationResult = (s, v) => {
       continuation(magicWandSupporter.moveToReserveHeap(s, v), v)}
-
+    
     /* For debugging-purposes only */
     stmt match {
       case _: ast.Seqn =>
@@ -606,6 +606,7 @@ object executor extends ExecutionRules {
               chunkOrderHeuristics,
               v2
             )
+
             result match {
               case (Complete(), s3, remainingChunks) =>
                 val h3 = Heap(remainingChunks ++ otherChunks)
@@ -624,7 +625,77 @@ object executor extends ExecutionRules {
                 val s5 = if (withExp) s4.copy(oldHeaps = s4.oldHeaps + (debugHeapName -> magicWandSupporter.getEvalHeap(s4))) else s4
                 Q(s5, v2)
               case (Incomplete(_, _), s3, _) =>
-                createFailure(pve dueTo InsufficientPermission(fa), v2, s3, "sufficient permission")}}))
+                val (relevantChunks, otherChunks) =
+                  quantifiedChunkSupporter.splitHeap[QuantifiedFieldChunk](s3.optimisticHeap, BasicChunkIdentifier(field.name))
+                val opresult = quantifiedChunkSupporter.removePermissionsOptimistic(
+                  s3,
+                  relevantChunks,
+                  Seq(`?r`),
+                  Option.when(withExp)(Seq(ast.LocalVarDecl(`?r`.id.name, ast.Ref)())),
+                  `?r` === tRcvr,
+                  eRcvrNew.map(r => ast.EqCmp(ast.LocalVar(`?r`.id.name, ast.Ref)(), r)()),
+                  Some(Seq(tRcvr)),
+                  field,
+                  FullPerm,
+                  Option.when(withExp)(ast.FullPerm()()),
+                  chunkOrderHeuristics,
+                  v2
+                )
+                opresult match {
+                  case (Complete(), s4, remainingChunks) =>
+                    val h4 = Heap(remainingChunks ++ otherChunks)
+                    val (sm, smValueDef) = quantifiedChunkSupporter.singletonSnapshotMap(s4, field, Seq(tRcvr), tRhs, v2)
+                    v1.decider.prover.comment("Definitional axioms for singleton-FVF's value")
+                    val debugExp = Option.when(withExp)(DebugExp.createInstance("Definitional axioms for singleton-FVF's value", isInternal_ = true))
+                    v1.decider.assumeDefinition(smValueDef, debugExp)
+                    val ch = quantifiedChunkSupporter.createSingletonQuantifiedChunk(Seq(`?r`), Option.when(withExp)(Seq(ast.LocalVarDecl("r", ast.Ref)(ass.pos, ass.info, ass.errT))),
+                      field, Seq(tRcvr), Option.when(withExp)(Seq(eRcvrNew.get)), FullPerm, Option.when(withExp)(ast.FullPerm()(ass.pos, ass.info, ass.errT)), sm, s.program)
+                    if (s4.heapDependentTriggers.contains(field)) {
+                      val debugExp2 = Option.when(withExp)(DebugExp.createInstance(s"FieldTrigger(${eRcvrNew.toString()}.${field.name})"))
+                      v1.decider.assume(FieldTrigger(field.name, sm, tRcvr), debugExp2)
+                    }
+                    val s5 = s4.copy(optimisticHeap = h4 + ch)
+                    val (debugHeapName, _) = v.getDebugOldLabel(s5, fa.pos)
+                    val s6 = if (withExp) s5.copy(oldHeaps = s5.oldHeaps + (debugHeapName -> magicWandSupporter.getEvalHeap(s5))) else s5
+                    Q(s6, v2)
+                  case (Incomplete(_,_), s4, _) =>
+                    if (s4.isImprecise) {
+                      val runtimeCheckAstNode: CheckPosition =
+                        (s4.methodCallAstNode, s4.foldOrUnfoldAstNode, s4.loopPosition) match {
+                          case (None, None, None) => CheckPosition.GenericNode(stmt)
+                          case (Some(methodCallAstNode), None, None) => CheckPosition.GenericNode(methodCallAstNode)
+                          case (None, Some(foldOrUnfoldAstNode), None) => CheckPosition.GenericNode(foldOrUnfoldAstNode)
+                          case (None, None, Some(loopPosition)) => loopPosition
+                          case _ => sys.error("Conflicting positions found while producing runtime check!")
+                        }
+                      
+                      val g = s4.oldStore match {
+                        case Some(g) => g
+                        case None => s4.g
+                      }
+                      val translatedRcvr: ast.Exp =
+                        (new Translator(s4.copy(g = g), v2.decider.pcs).translate(tRcvr)) match {
+                          case None => sys.error("Error translating! Exiting safely.")
+                          case Some(expr) => expr
+                        }
+                      
+                      if (s4.generateChecks) {
+                        runtimeChecks.addChecks(runtimeCheckAstNode,
+                          ast.FieldAccessPredicate(ast.FieldAccess(translatedRcvr, field)(), Some(ast.FullPerm()()))(),
+                          viper.silicon.utils.zip3(v2.decider.pcs.branchConditionsSemanticAstNodes,
+                            v2.decider.pcs.branchConditionsAstNodes,
+                            v.decider.pcs.branchConditionsOrigins).map(bc => BranchCond(bc._1, bc._2, bc._3)),
+                          fa,
+                          s4.forFraming)
+                      }
+                      Q(s4, v2)
+                    } else {
+                      createFailure(pve dueTo InsufficientPermission(fa), v2, s4, "sufficient permission")
+                    }
+                }
+            }
+          }))
+
 
       case ass @ ast.FieldAssign(fa @ ast.FieldAccess(eRcvr, field), rhs) =>
        
@@ -832,6 +903,8 @@ object executor extends ExecutionRules {
             recordVisited = true,
             methodCallAstNode = Some(call))
 
+          //println("METHOD PRECONDITIONS")
+          //println(meth.pres)
           consumes(s2, meth.pres, true, _ => pvePre, v1)((s3, _, v2) => {
             v2.symbExLog.closeScope(preCondId)
             val postCondLog = new CommentRecord("Postcondition", s3, v2.decider.pcs)

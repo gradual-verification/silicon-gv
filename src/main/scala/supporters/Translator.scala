@@ -126,6 +126,12 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
           case Some(e1) => Some(ast.ArrayLength(e1)())
           case _        => None
         }
+      case terms.Lookup(field, _, t0) =>
+        println(s"Sort=${sortToType(t.sort)}")
+        translate(t0) match {
+          case Some(e0) => Some(ast.FieldAccess(e0, ast.Field(field, sortToType(t.sort))())())
+          case _ => None
+        }
       case terms.Var(name, sort, b0) =>
         sort match {
           case terms.sorts.Snap => {
@@ -207,6 +213,7 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
       case terms.sorts.Bool => ast.Bool
       case terms.sorts.Ref => ast.Ref
       case terms.sorts.Perm => ast.Perm
+      case terms.sorts.Array(s) => ast.ArrayType(sortToType(s))
       case _ => sys.error(s"Unable to match type for sort ${sort}!")
     }
   }
