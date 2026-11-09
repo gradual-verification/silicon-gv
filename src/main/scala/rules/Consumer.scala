@@ -363,7 +363,6 @@ object consumer extends ConsumptionRules {
         val optTrigger =
           if (forall.triggers.isEmpty) None
           else Some(forall.triggers)
-
         evalQuantified(s, Forall, forall.variables, Seq(cond), Seq(acc.perm, acc.loc.rcv), optTrigger, qid.name, pve, v) {
           case (s1, qvars, qvarExps, Seq(tCond), condNew, Some((Seq(tPerm, tRcvr), permRcvrOpt, tTriggers, (auxGlobals, auxNonGlobals), auxExps)), v1) =>
             quantifiedChunkSupporter.consume(
@@ -514,6 +513,8 @@ object consumer extends ConsumptionRules {
             val lossExp = ePermNew.map(p => ast.PermMul(p, s2.permissionScalingFactorExp.get)(ePerm.pos, ePerm.info, ePerm.errT))
             quantifiedChunkSupporter.consumeSingleLocation(
               s2p,
+              a,
+              ePerm,
               h,
               Seq(`?r`),
               Option.when(withExp)(Seq(ast.LocalVarDecl("r", ast.Ref)(accPred.pos, accPred.info, accPred.errT))),
@@ -529,7 +530,7 @@ object consumer extends ConsumptionRules {
             )((s3, h3, snap, v3) => {
               val s4 = s3.copy(constrainableARPs = s1.constrainableARPs,
                                partiallyConsumedHeap = Some(h3))
-              Q(s4, oh, h3, snap, v3)})}))
+              Q(s4, s4.optimisticHeap, h3, snap, v3)})}))
 /*
       case ast.AccessPredicate(loc @ ast.PredicateAccess(eArgs, predname), ePerm)
               if s.qpPredicates.contains(s.program.findPredicate(predname)) =>

@@ -19,6 +19,7 @@ import viper.silicon.state.terms.perms.{BigPermSum, IsPositive}
 import viper.silicon.state.terms.predef.`?r`
 import viper.silicon.state.terms.utils.consumeExactRead
 import viper.silicon.supporters.functions.{FunctionRecorder, NoopFunctionRecorder}
+import viper.silicon.supporters.Translator
 import viper.silicon.utils.ast.{BigAnd, buildMinExp}
 import viper.silicon.utils.notNothing.NotNothing
 import viper.silicon.utils.freshSnap
@@ -1403,6 +1404,8 @@ object quantifiedChunkSupporter extends QuantifiedChunkSupport {
   }
 
   def consumeSingleLocation(s: State,
+                            a: ast.Exp,
+                            perm: ast.Exp,
                             h: Heap,
                             codomainQVars: Seq[Var], /* rs := r_1, ..., r_m */
                             codomainQVarsExp: Option[Seq[ast.LocalVarDecl]],
@@ -1521,11 +1524,113 @@ object quantifiedChunkSupporter extends QuantifiedChunkSupport {
           } else {
             Q(s1, h1, None, v)
           }
-        case (Incomplete(_, _), _, _) =>
-          resourceAccess match {
-            case locAcc: ast.LocationAccess => createFailure(pve dueTo InsufficientPermission(locAcc), v, s, "single QP consume")
-            case wand: ast.MagicWand => createFailure(pve dueTo MagicWandChunkNotFound(wand), v, s, "single QP consume")
-            case _ => sys.error(s"Found resource $resourceAccess, which is not yet supported as a quantified resource.")
+        case (Incomplete(_, _), s1, _) => 
+          val (relevantChunks, otherChunks) =
+            quantifiedChunkSupporter.splitHeap[QuantifiedBasicChunk](s1.optimisticHeap, chunkIdentifier)
+          val opresult = quantifiedChunkSupporter.removePermissionsOptimistic(
+            s1,
+            relevantChunks,
+            codomainQVars,
+            codomainQVarsExp,
+            And(codomainQVars.zip(arguments).map { case (r, e) => r === e }),
+            codomainQVarsExp.map(qv => BigAnd(qv.map(_.localVar).zip(argumentsExp.get).map { case (r, e) => ast.EqCmp(r, e)() })),
+            Some(arguments),
+            resource,
+            permissions,
+            permissionsExp,
+            chunkOrderHeuristics,
+            v
+          )
+          opresult match {
+            case (Complete(), s1, remainingChunks) =>
+              val h1 = Heap(remainingChunks ++ otherChunks)
+              if (returnSnap) {
+                val (smDef1, smCache1) =
+                  quantifiedChunkSupporter.summarisingSnapshotMap(
+                    s = s1,
+                    resource = resource,
+                    codomainQVars = codomainQVars,
+                    relevantChunks = relevantChunks,
+                    optSmDomainDefinitionCondition = None,
+                    optQVarsInstantiations = Some(arguments),
+                    v = v)
+                val s2 = s1.copy(functionRecorder = s1.functionRecorder.recordFvfAndDomain(smDef1),
+                  smCache = smCache1, optimisticHeap = h1)
+                val snap = ResourceLookup(resource, smDef1.sm, arguments, s2.program).convert(sorts.Snap)
+                Q(s2, s2.h, Some(snap), v)
+              } else {
+                Q(s1.copy(optimisticHeap = h1), s1.h, None, v)
+              }
+            case (Incomplete(_,_), s4, _) =>
+              if (s4.isImprecise) {
+                val runtimeCheckAstNode: CheckPosition =
+                  (s4.methodCallAstNode, s4.foldOrUnfoldAstNode, s4.loopPosition) match {
+                    case (None, None, None) => CheckPosition.GenericNode(a)
+                    case (Some(methodCallAstNode), None, None) => CheckPosition.GenericNode(methodCallAstNode)
+                    case (None, Some(foldOrUnfoldAstNode), None) => CheckPosition.GenericNode(foldOrUnfoldAstNode)
+                    case (None, None, Some(loopPosition)) => loopPosition
+                    case _ => sys.error("Conflicting positions found while producing runtime check!")
+                  }
+                
+                val g = s4.oldStore match {
+                  case Some(g) => g
+                  case None => s4.g
+                }
+                val translatedArgs: Seq[ast.Exp] =
+                  arguments.map(tArg => new Translator(s4.copy(g = g), v.decider.pcs).translate(tArg) match {
+                    case None => sys.error("Error translating! Exiting safely.")
+                    case Some(expr) => expr
+                  })
+                //Need to translate permissions
+                if (s4.generateChecks) {
+                  runtimeChecks.addChecks(runtimeCheckAstNode,
+                    ast.FieldAccessPredicate(ast.FieldAccess(translatedArgs.head, resource.asInstanceOf[ast.Field])(), Some(perm))(),
+                    viper.silicon.utils.zip3(v.decider.pcs.branchConditionsSemanticAstNodes,
+                      v.decider.pcs.branchConditionsAstNodes,
+                      v.decider.pcs.branchConditionsOrigins).map(bc => BranchCond(bc._1, bc._2, bc._3)),
+                    a,
+                    s4.forFraming)
+                }
+                //Add to optimistic heap quantified chunk single
+                val snap = freshSnap(v.symbolConverter.toSort((resource.asInstanceOf[ast.Field]).typ), v)
+                val (sm, _) = quantifiedChunkSupporter.singletonSnapshotMap(s4, resource, arguments, snap, v)
+                val ch = quantifiedChunkSupporter.createSingletonQuantifiedChunk(
+                  Seq(`?r`), 
+                  Option.when(withExp)(Seq(ast.LocalVarDecl(`?r`.id.name, ast.Ref)())), 
+                  resource, 
+                  arguments,
+                  argumentsExp,
+                  FullPerm,
+                  Option.when(withExp)(ast.FullPerm()()), 
+                  sm, 
+                  s4.program)
+                //println((s4.optimisticHeap + ch).values)
+                val s5 = s4.copy(optimisticHeap = s4.optimisticHeap + ch)
+                //Q(s4.copy(optimisticHeap = s4.optimisticHeap + ch), s4.h, sm, v)
+                if (returnSnap) {
+                  val (smDef1, smCache1) =
+                    quantifiedChunkSupporter.summarisingSnapshotMap(
+                      s = s5,
+                      resource = resource,
+                      codomainQVars = codomainQVars,
+                      relevantChunks = relevantChunks,
+                      optSmDomainDefinitionCondition = None,
+                      optQVarsInstantiations = Some(arguments),
+                      v = v)
+                  val s6 = s5.copy(functionRecorder = s5.functionRecorder.recordFvfAndDomain(smDef1),
+                    smCache = smCache1)
+                  val snap = ResourceLookup(resource, smDef1.sm, arguments, s6.program).convert(sorts.Snap)
+                  Q(s6, s6.h, Some(snap), v)
+                } else {
+                  Q(s5, s5.h, None, v)
+                }
+              } else {
+                resourceAccess match {
+                  case locAcc: ast.LocationAccess => createFailure(pve dueTo InsufficientPermission(locAcc), v, s, "single QP consume")
+                  case wand: ast.MagicWand => createFailure(pve dueTo MagicWandChunkNotFound(wand), v, s, "single QP consume")
+                  case _ => sys.error(s"Found resource $resourceAccess, which is not yet supported as a quantified resource.")
+                }
+              }
           }
       }
     }

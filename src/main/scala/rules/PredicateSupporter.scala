@@ -35,6 +35,8 @@ trait PredicateSupportRules extends SymbolicExecutionRules {
           : VerificationResult
 
   def unfold(s: State,
+             a: ast.Exp,
+             perm: ast.Exp,
              predicate: ast.Predicate,
              origin: Option[ast.Unfold],
              tArgs: List[Term],
@@ -138,6 +140,8 @@ object predicateSupporter extends PredicateSupportRules {
   }
 
   def unfold(s: State,
+             a: ast.Exp,
+             perm: ast.Exp,
              predicate: ast.Predicate,
              origin: Option[ast.Unfold],
              tArgs: List[Term],
@@ -162,6 +166,8 @@ object predicateSupporter extends PredicateSupportRules {
       val formalVars = s1.predicateFormalVarMap(predicate)
       quantifiedChunkSupporter.consumeSingleLocation(
         s1,
+        a,
+        perm,
         s1.h,
         formalVars,
         Option.when(withExp)(predicate.formalArgs),

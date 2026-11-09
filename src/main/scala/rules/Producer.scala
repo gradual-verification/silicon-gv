@@ -332,7 +332,7 @@ object producer extends ProductionRules {
               val gainExp = ePermNew.map(p => ast.PermMul(p, s2_0.permissionScalingFactorExp.get)(p.pos, p.info, p.errT))
               if (s2.qpFields.contains(field)) {
                 val trigger = (sm: Term) => FieldTrigger(field.name, sm, tRcvr)
-                quantifiedChunkSupporter.produceSingleLocation(s2, field, Seq(`?r`), None, Seq(tRcvr), Option.when(withExp)(Seq(eRcvrNew.get)), snap, gain, gainExp, trigger, v2)(Q)
+                quantifiedChunkSupporter.produceSingleLocation(s2, field, Seq(`?r`), Option.when(withExp)(Seq(ast.LocalVarDecl(`?r`.id.name, ast.Ref)())), Seq(tRcvr), Option.when(withExp)(Seq(eRcvrNew.get)), snap, gain, gainExp, trigger, v2)(Q)
               } else {
                 val ch = BasicChunk(FieldID, BasicChunkIdentifier(field.name), Seq(tRcvr), Option.when(withExp)(Seq(eRcvrNew.get)), snap, snapExp, gain, gainExp)
                 chunkSupporter.produce(s2_0, s2_0.h, ch, v2)((s3, h3, v3) => {

@@ -684,11 +684,25 @@ object executor extends ExecutionRules {
                           ast.FieldAccessPredicate(ast.FieldAccess(translatedRcvr, field)(), Some(ast.FullPerm()()))(),
                           viper.silicon.utils.zip3(v2.decider.pcs.branchConditionsSemanticAstNodes,
                             v2.decider.pcs.branchConditionsAstNodes,
-                            v.decider.pcs.branchConditionsOrigins).map(bc => BranchCond(bc._1, bc._2, bc._3)),
+                            v2.decider.pcs.branchConditionsOrigins).map(bc => BranchCond(bc._1, bc._2, bc._3)),
                           fa,
                           s4.forFraming)
                       }
-                      Q(s4, v2)
+                      //Add to optimistic heap quantified chunk single
+                      val snap = freshSnap(v2.symbolConverter.toSort(field.typ), v2)
+                      val (sm, _) = quantifiedChunkSupporter.singletonSnapshotMap(s4, field, Seq(tRcvr), snap, v2)
+                      val ch = quantifiedChunkSupporter.createSingletonQuantifiedChunk(
+                        Seq(`?r`), 
+                        Option.when(withExp)(Seq(ast.LocalVarDecl(`?r`.id.name, ast.Ref)())), 
+                        field, 
+                        Seq(tRcvr), 
+                        Option.when(withExp)(Seq(eRcvrNew.get)),
+                        FullPerm,
+                        Option.when(withExp)(ast.FullPerm()()), 
+                        sm, 
+                        s4.program)
+                      //println((s4.optimisticHeap + ch).values)
+                      Q(s4.copy(optimisticHeap = s4.optimisticHeap + ch), v2)
                     } else {
                       createFailure(pve dueTo InsufficientPermission(fa), v2, s4, "sufficient permission")
                     }
@@ -992,7 +1006,7 @@ object executor extends ExecutionRules {
             v2.decider.assertgv(s2.isImprecise, IsPositive(tPerm)) { //The IsPositive check is redundant
               case true =>
                 val wildcards = s2.constrainableARPs -- s1.constrainableARPs
-                predicateSupporter.unfold(s2.copy(smCache = smCache1), predicate, Some(unfold), tArgs, eArgsNew, tPerm, ePermNew, wildcards, pve, v2, pa)(Q)
+                predicateSupporter.unfold(s2.copy(smCache = smCache1), pap, ePerm, predicate, Some(unfold), tArgs, eArgsNew, tPerm, ePermNew, wildcards, pve, v2, pa)(Q)
               case false =>
                 createFailure(pve dueTo NegativePermission(ePerm), v2, s2, "")
             } match {
