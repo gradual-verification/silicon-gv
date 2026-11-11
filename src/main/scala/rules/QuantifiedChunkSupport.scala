@@ -1136,6 +1136,7 @@ object quantifiedChunkSupporter extends QuantifiedChunkSupport {
   }
 
   def consume(s: State,
+              a: ast.Exp,
               h: Heap,
               resource: ast.Resource,
               qvars: Seq[Var],
@@ -1395,7 +1396,120 @@ object quantifiedChunkSupporter extends QuantifiedChunkSupport {
                     Q(s2, s2.optimisticHeap, h3, None, v)
                   }
                 case (Incomplete(_, _), s2, _) =>
-                  createFailure(pve dueTo insufficientPermissionReason, v, s2, "QP consume")}
+                  //Add the code
+                  val (relevantChunks, otherChunks) =
+                    quantifiedChunkSupporter.splitHeap[QuantifiedBasicChunk](
+                      s2.optimisticHeap, ChunkIdentifier(resource, s.program))
+                  val opresult =
+                    quantifiedChunkSupporter.removePermissionsOptimistic(
+                      s.copy(smCache = smCache1),
+                      relevantChunks,
+                      formalQVars,
+                      formalQVarsExp,
+                      And(condOfInvOfLoc, And(imagesOfFormalQVars), argumentsMatch),
+                      eCond.map(c => ast.And(c, argumentsMatchExp.get)()),
+                      None,
+                      resource,
+                      lossOfInvOfLoc,
+                      lossExp,
+                      chunkOrderHeuristics,
+                      v
+                    )
+                  opresult match {
+                    case (Complete(), s3, remainingChunks) =>
+                      val h3 = Heap(remainingChunks ++ otherChunks)
+                      if (returnSnap) {
+                        val optSmDomainDefinitionCondition2 =
+                          if (s3.smDomainNeeded) Some(And(condOfInvOfLoc, IsPositive(lossOfInvOfLoc), And(And(imagesOfFormalQVars))))
+                          else None
+                        val (smDef2, smCache2) = quantifiedChunkSupporter.summarisingSnapshotMap(
+                          s3, resource, formalQVars, relevantChunks, v, optSmDomainDefinitionCondition2)
+                        val fr3 = s3.functionRecorder.recordFvfAndDomain(smDef2)
+                          .recordFieldInv(inverseFunctions)
+                        val s4 = s3.copy(functionRecorder = fr3,
+                          partiallyConsumedHeap = Some(h3),
+                          constrainableARPs = s.constrainableARPs,
+                          smCache = smCache2)
+                        Q(s4, s3.optimisticHeap, h3, Some(smDef2.sm.convert(sorts.Snap)), v)
+                      } else {
+                        Q(s3, s2.optimisticHeap, h3, None, v)
+                      }
+                    case (Incomplete(_, _), s3, _) =>
+                      if (s3.isImprecise) {
+                        val runtimeCheckAstNode: CheckPosition =
+                          (s3.methodCallAstNode, s3.foldOrUnfoldAstNode, s3.loopPosition) match {
+                            case (None, None, None) => CheckPosition.GenericNode(a)
+                            case (Some(methodCallAstNode), None, None) => CheckPosition.GenericNode(methodCallAstNode)
+                            case (None, Some(foldOrUnfoldAstNode), None) => CheckPosition.GenericNode(foldOrUnfoldAstNode)
+                            case (None, None, Some(loopPosition)) => loopPosition
+                            case _ => sys.error("Conflicting positions found while producing runtime check!")
+                          }
+                        
+                        val g = s3.oldStore match {
+                          case Some(g) => g
+                          case None => s3.g
+                        }
+                        val translatedArgs: Seq[ast.Exp] =
+                          tArgs.map(tArg => new Translator(s3.copy(g = g), v.decider.pcs).translate(tArg) match {
+                            case None => sys.error("Error translating! Exiting safely.")
+                            case Some(expr) => expr
+                          })
+                        if (s3.generateChecks) {
+                          runtimeChecks.addChecks(runtimeCheckAstNode,
+                            a,
+                            viper.silicon.utils.zip3(v.decider.pcs.branchConditionsSemanticAstNodes,
+                              v.decider.pcs.branchConditionsAstNodes,
+                              v.decider.pcs.branchConditionsOrigins).map(bc => BranchCond(bc._1, bc._2, bc._3)),
+                            a,
+                            s3.forFraming)
+                        }
+                        //Create quantified chunk full for optimistic heap 
+                        val snap = freshSnap(sorts.FieldValueFunction(v.snapshotSupporter.optimalSnapshotSort(resource, s3, v), resource.asInstanceOf[ast.Field].name), v)
+                        val (sm, _) = quantifiedChunkSupporter.singletonSnapshotMap(s3, resource, tArgs, snap, v)
+                        val (ch: QuantifiedBasicChunk, inverseFunctions: InverseFunctions) =
+                          quantifiedChunkSupporter.createQuantifiedChunk(
+                            qvars                = qvars,
+                            qvarExps             = qvarExps,
+                            condition            = tCond,
+                            conditionExp         = eCond,
+                            resource             = resource,
+                            arguments            = tArgs,
+                            argumentExps         = eArgs,
+                            permissions          = loss,
+                            permissionExps       = lossExp,
+                            codomainQVars        = formalQVars,
+                            codomainQVarExps     = formalQVarsExp,
+                            sm                   = sm,
+                            additionalInvArgs    = s.relevantQuantifiedVariables(tArgs).map(_._1),
+                            additionalInvArgExps = Option.when(withExp)(s.relevantQuantifiedVariables(tArgs).map(_._2.get)),
+                            userProvidedTriggers = optTrigger.map(_ => tTriggers),
+                            qidPrefix            = qid,
+                            v                    = v,
+                            program              = s.program)
+                        
+                        val s4 = s3.copy(optimisticHeap = s3.optimisticHeap + ch)
+
+                        if (returnSnap) {
+                          val optSmDomainDefinitionCondition2 =
+                            if (s4.smDomainNeeded) Some(And(condOfInvOfLoc, IsPositive(lossOfInvOfLoc), And(And(imagesOfFormalQVars))))
+                            else None
+                          val (smDef2, smCache2) = quantifiedChunkSupporter.summarisingSnapshotMap(
+                            s4, resource, formalQVars, relevantChunks, v, optSmDomainDefinitionCondition2)
+                          val fr3 = s4.functionRecorder.recordFvfAndDomain(smDef2)
+                            .recordFieldInv(inverseFunctions)
+                          val s5 = s4.copy(functionRecorder = fr3,
+                            //partiallyConsumedHeap = Some(h3),
+                            constrainableARPs = s.constrainableARPs,
+                            smCache = smCache2)
+                          Q(s5, s5.optimisticHeap, s5.h, Some(smDef2.sm.convert(sorts.Snap)), v)
+                        } else {
+                          Q(s4, s4.optimisticHeap, s4.h, None, v)
+                        }
+                      } else {
+                        createFailure(pve dueTo insufficientPermissionReason, v, s2, "QP consume")
+                      }
+                  }
+              }
             }
           case false =>
             createFailure(pve dueTo notInjectiveReason, v, s, receiverInjectivityCheck, "QP receiver injective")}

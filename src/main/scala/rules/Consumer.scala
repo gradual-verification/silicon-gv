@@ -367,6 +367,7 @@ object consumer extends ConsumptionRules {
           case (s1, qvars, qvarExps, Seq(tCond), condNew, Some((Seq(tPerm, tRcvr), permRcvrOpt, tTriggers, (auxGlobals, auxNonGlobals), auxExps)), v1) =>
             quantifiedChunkSupporter.consume(
               s = s1,
+              a = a,
               h = h,
               resource = field,
               qvars = qvars,
