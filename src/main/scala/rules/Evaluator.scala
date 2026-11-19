@@ -1835,7 +1835,7 @@ object evaluator extends EvaluationRules {
                 val toAssert = IsPositive(totalPermissions.replace(`?r`, tRcvr))
                 v1.decider.assert(toAssert) {
                   case false =>
-                    createFailure(pve dueTo InsufficientPermission(fa), v1, s1, toAssert, Option.when(withExp)(perms.IsPositive(ast.CurrentPerm(fa)())()))
+                    quant_fa_check_oh(s1, fa, tRcvr, eRcvr, newFa, debugHeapName, pve, v1)(Q)
                   case true =>
                     val fvfLookup = Lookup(fa.field.name, fvfDef.sm, tRcvr)
                     val fr1 = s1.functionRecorder.recordSnapshot(fa, v1.decider.pcs.branchConditions, fvfLookup).recordFvfAndDomain(fvfDef)
@@ -1865,7 +1865,7 @@ object evaluator extends EvaluationRules {
                   }
                 v1.decider.assert(permCheck) {
                   case false =>
-                    createFailure(pve dueTo InsufficientPermission(fa), v1, s1, permCheck, permCheckExp)
+                    quant_fa_check_oh(s1, fa, tRcvr, eRcvr, newFa, debugHeapName, pve, v1)(Q)
                   case true =>
                     val smLookup = Lookup(fa.field.name, relevantChunks.head.fvf, tRcvr)
                     val fr2 =
@@ -1897,7 +1897,7 @@ object evaluator extends EvaluationRules {
                   }
                 v1.decider.assert(permCheck) {
                   case false =>
-                    createFailure(pve dueTo InsufficientPermission(fa), v1, s2, permCheck, permCheckExp)
+                    quant_fa_check_oh(s1, fa, tRcvr, eRcvr, newFa, debugHeapName, pve, v1)(Q)
                   case true =>
                     val smLookup = Lookup(fa.field.name, smDef1.sm, tRcvr)
                     val fr2 =
