@@ -180,10 +180,10 @@ object predicateSupporter extends PredicateSupportRules {
         None,
         pve,
         v
-      )((s2, h2, snap, v1) => {
+      )((s2, oh2, h2, snap, v1) => {
         // TODO: ASK JENNA: we may not need to track the origin of any possible branches here; it looks like
         // this is for quantification? maybe
-        val s3 = s2.copy(g = gIns, h = h2)
+        val s3 = s2.copy(g = gIns, h = h2, optimisticHeap = oh2)
                    .setConstrainable(constrainableWildcards, false)
         produce(s3, toSf(snap.get), body, pve, v1)((s4, v2) => {
           v2.decider.prover.saturate(Verifier.config.proverSaturationTimeouts.afterUnfold)

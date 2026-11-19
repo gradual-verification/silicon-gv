@@ -127,7 +127,6 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
           case _        => None
         }
       case terms.Lookup(field, _, t0) =>
-        println(s"Sort=${sortToType(t.sort)}")
         translate(t0) match {
           case Some(e0) => Some(ast.FieldAccess(e0, ast.Field(field, sortToType(t.sort))())())
           case _ => None
@@ -141,7 +140,7 @@ final class Translator(s: State, pcs: RecordedPathConditions) {
             )
             None
           }
-          case _ => { 
+          case _ => {
             selectShortestField(variableResolver(terms.Var(name, sort, b0)))
           }
         }

@@ -1451,7 +1451,7 @@ object quantifiedChunkSupporter extends QuantifiedChunkSupport {
                         }
                         val translatedArgs: Seq[ast.Exp] =
                           tArgs.map(tArg => new Translator(s3.copy(g = g), v.decider.pcs).translate(tArg) match {
-                            case None => sys.error("Error translating! Exiting safely.")
+                            case None => sys.error(s"Error translating $tArg! Exiting safely.")
                             case Some(expr) => expr
                           })
                         if (s3.generateChecks) {
@@ -1464,7 +1464,7 @@ object quantifiedChunkSupporter extends QuantifiedChunkSupport {
                             s3.forFraming)
                         }
                         //Create quantified chunk full for optimistic heap 
-                        val snap = freshSnap(sorts.FieldValueFunction(v.snapshotSupporter.optimalSnapshotSort(resource, s3, v), resource.asInstanceOf[ast.Field].name), v)
+                        /*val snap = freshSnap(sorts.FieldValueFunction(v.snapshotSupporter.optimalSnapshotSort(resource, s3, v), resource.asInstanceOf[ast.Field].name), v)
                         val (sm, _) = quantifiedChunkSupporter.singletonSnapshotMap(s3, resource, tArgs, snap, v)
                         val (ch: QuantifiedBasicChunk, inverseFunctions: InverseFunctions) =
                           quantifiedChunkSupporter.createQuantifiedChunk(
@@ -1487,23 +1487,23 @@ object quantifiedChunkSupporter extends QuantifiedChunkSupport {
                             v                    = v,
                             program              = s.program)
                         
-                        val s4 = s3.copy(optimisticHeap = s3.optimisticHeap + ch)
+                        val s4 = s3.copy(optimisticHeap = s3.optimisticHeap + ch)*/
 
                         if (returnSnap) {
                           val optSmDomainDefinitionCondition2 =
-                            if (s4.smDomainNeeded) Some(And(condOfInvOfLoc, IsPositive(lossOfInvOfLoc), And(And(imagesOfFormalQVars))))
+                            if (s3.smDomainNeeded) Some(And(condOfInvOfLoc, IsPositive(lossOfInvOfLoc), And(And(imagesOfFormalQVars))))
                             else None
                           val (smDef2, smCache2) = quantifiedChunkSupporter.summarisingSnapshotMap(
-                            s4, resource, formalQVars, relevantChunks, v, optSmDomainDefinitionCondition2)
-                          val fr3 = s4.functionRecorder.recordFvfAndDomain(smDef2)
+                            s3, resource, formalQVars, relevantChunks, v, optSmDomainDefinitionCondition2)
+                          val fr3 = s3.functionRecorder.recordFvfAndDomain(smDef2)
                             .recordFieldInv(inverseFunctions)
-                          val s5 = s4.copy(functionRecorder = fr3,
+                          val s4 = s3.copy(functionRecorder = fr3,
                             //partiallyConsumedHeap = Some(h3),
                             constrainableARPs = s.constrainableARPs,
                             smCache = smCache2)
-                          Q(s5, s5.optimisticHeap, s5.h, Some(smDef2.sm.convert(sorts.Snap)), v)
+                          Q(s4, s4.optimisticHeap, s4.h, Some(smDef2.sm.convert(sorts.Snap)), v)
                         } else {
-                          Q(s4, s4.optimisticHeap, s4.h, None, v)
+                          Q(s3, s3.optimisticHeap, s3.h, None, v)
                         }
                       } else {
                         createFailure(pve dueTo insufficientPermissionReason, v, s2, "QP consume")
@@ -1532,7 +1532,7 @@ object quantifiedChunkSupporter extends QuantifiedChunkSupport {
                             optChunkOrderHeuristic: Option[Seq[QuantifiedBasicChunk] => Seq[QuantifiedBasicChunk]],
                             pve: PartialVerificationError,
                             v: Verifier)
-                           (Q: (State, Heap, Option[Term], Verifier) => VerificationResult)
+                           (Q: (State, Heap, Heap, Option[Term], Verifier) => VerificationResult)
                            : VerificationResult = {
 
     val resource = resourceAccess.res(s.program)
@@ -1594,10 +1594,10 @@ object quantifiedChunkSupporter extends QuantifiedChunkSupport {
         optCh match {
           case Some(ch) if returnSnap =>
             val snap = ResourceLookup(resource, ch.snapshotMap, arguments, s4.program).convert(sorts.Snap)
-            Q(s4, s4.h, Some(snap), v2)
+            Q(s4, s4.optimisticHeap, s4.h, Some(snap), v2)
           case None if returnSnap =>
-            Q(s4, s4.h, Some(freshSnap(sorts.Snap, v2)), v2)
-          case _ => Q(s4, s4.h, None, v2)
+            Q(s4, s4.optimisticHeap, s4.h, Some(freshSnap(sorts.Snap, v2)), v2)
+          case _ => Q(s4, s4.optimisticHeap, s4.h, None, v2)
         }
       )
     } else {
@@ -1634,9 +1634,9 @@ object quantifiedChunkSupporter extends QuantifiedChunkSupport {
             val s2 = s1.copy(functionRecorder = s1.functionRecorder.recordFvfAndDomain(smDef1),
               smCache = smCache1)
             val snap = ResourceLookup(resource, smDef1.sm, arguments, s2.program).convert(sorts.Snap)
-            Q(s2, h1, Some(snap), v)
+            Q(s2, s2.optimisticHeap, h1, Some(snap), v)
           } else {
-            Q(s1, h1, None, v)
+            Q(s1, s1.optimisticHeap, h1, None, v)
           }
         case (Incomplete(_, _), s1, _) => 
           val (relevantChunks, otherChunks) =
@@ -1657,7 +1657,7 @@ object quantifiedChunkSupporter extends QuantifiedChunkSupport {
           )
           opresult match {
             case (Complete(), s1, remainingChunks) =>
-              val h1 = Heap(remainingChunks ++ otherChunks)
+              val oh1 = Heap(remainingChunks ++ otherChunks)
               if (returnSnap) {
                 val (smDef1, smCache1) =
                   quantifiedChunkSupporter.summarisingSnapshotMap(
@@ -1669,11 +1669,11 @@ object quantifiedChunkSupporter extends QuantifiedChunkSupport {
                     optQVarsInstantiations = Some(arguments),
                     v = v)
                 val s2 = s1.copy(functionRecorder = s1.functionRecorder.recordFvfAndDomain(smDef1),
-                  smCache = smCache1, optimisticHeap = h1)
+                  smCache = smCache1)
                 val snap = ResourceLookup(resource, smDef1.sm, arguments, s2.program).convert(sorts.Snap)
-                Q(s2, s2.h, Some(snap), v)
+                Q(s2, oh1, s2.h, Some(snap), v)
               } else {
-                Q(s1.copy(optimisticHeap = h1), s1.h, None, v)
+                Q(s1, oh1, s1.h, None, v)
               }
             case (Incomplete(_,_), s4, _) =>
               if (s4.isImprecise) {
@@ -1706,7 +1706,7 @@ object quantifiedChunkSupporter extends QuantifiedChunkSupport {
                     s4.forFraming)
                 }
                 //Add to optimistic heap quantified chunk single
-                val snap = freshSnap(v.symbolConverter.toSort((resource.asInstanceOf[ast.Field]).typ), v)
+                /*val snap = freshSnap(v.symbolConverter.toSort((resource.asInstanceOf[ast.Field]).typ), v)
                 val (sm, _) = quantifiedChunkSupporter.singletonSnapshotMap(s4, resource, arguments, snap, v)
                 val ch = quantifiedChunkSupporter.createSingletonQuantifiedChunk(
                   Seq(`?r`), 
@@ -1717,26 +1717,28 @@ object quantifiedChunkSupporter extends QuantifiedChunkSupport {
                   FullPerm,
                   Option.when(withExp)(ast.FullPerm()()), 
                   sm, 
-                  s4.program)
+                  s4.program)*/
                 //println((s4.optimisticHeap + ch).values)
-                val s5 = s4.copy(optimisticHeap = s4.optimisticHeap + ch)
+
+                //val s5 = s4.copy(optimisticHeap = s4.optimisticHeap + ch)
                 //Q(s4.copy(optimisticHeap = s4.optimisticHeap + ch), s4.h, sm, v)
                 if (returnSnap) {
                   val (smDef1, smCache1) =
                     quantifiedChunkSupporter.summarisingSnapshotMap(
-                      s = s5,
+                      s = s4,
                       resource = resource,
                       codomainQVars = codomainQVars,
                       relevantChunks = relevantChunks,
                       optSmDomainDefinitionCondition = None,
                       optQVarsInstantiations = Some(arguments),
                       v = v)
-                  val s6 = s5.copy(functionRecorder = s5.functionRecorder.recordFvfAndDomain(smDef1),
+                  val s5 = s4.copy(functionRecorder = s4.functionRecorder.recordFvfAndDomain(smDef1),
                     smCache = smCache1)
-                  val snap = ResourceLookup(resource, smDef1.sm, arguments, s6.program).convert(sorts.Snap)
-                  Q(s6, s6.h, Some(snap), v)
+                  val snap = ResourceLookup(resource, smDef1.sm, arguments, s5.program).convert(sorts.Snap)
+                  //Understand more about aliases and when to remove them
+                  Q(s5, s5.optimisticHeap, s5.h, Some(snap), v)
                 } else {
-                  Q(s5, s5.h, None, v)
+                  Q(s4, s4.optimisticHeap, s4.h, None, v)
                 }
               } else {
                 resourceAccess match {

@@ -269,7 +269,6 @@ object consumer extends ConsumptionRules {
     if (s.reserveHeaps.nonEmpty)
       v.logger.debug("hR = " + s.reserveHeaps.map(v.stateFormatter.format).mkString("", ",\n     ", ""))
    
-
     val consumed = a match {
 
 /*
@@ -491,7 +490,6 @@ object consumer extends ConsumptionRules {
 */
       case accPred@ast.AccessPredicate(loc @ ast.FieldAccess(eRcvr, field), ePerm)
               if s.qpFields.contains(field) =>
-
         eval(s, eRcvr, pve, v)((s1, tRcvr, eRcvrNew, v1) =>
           eval(s1, ePerm, pve, v1)((s2, tPerm, ePermNew, v2) => {
             val s2p = if (s2.heapDependentTriggers.contains(field)){
@@ -528,10 +526,10 @@ object consumer extends ConsumptionRules {
               None,
               pve,
               v2
-            )((s3, h3, snap, v3) => {
+            )((s3, oh3, h3, snap, v3) => {
               val s4 = s3.copy(constrainableARPs = s1.constrainableARPs,
                                partiallyConsumedHeap = Some(h3))
-              Q(s4, s4.optimisticHeap, h3, snap, v3)})}))
+              Q(s4, oh3, h3, snap, v3)})}))
 /*
       case ast.AccessPredicate(loc @ ast.PredicateAccess(eArgs, predname), ePerm)
               if s.qpPredicates.contains(s.program.findPredicate(predname)) =>
@@ -741,7 +739,7 @@ object consumer extends ConsumptionRules {
                 val ve = pve dueTo InsufficientPermission(locacc)
                 val description = s"consume ${a.pos}: $a"
                 var s3 = s2.copy(isImprecise = s.isImprecise)
-
+                
                 chunkSupporter.consume(s3, h, true, resource, tArgs, eArgs, loss, lossExp, returnSnap, ve, v2, description)((s4, h1, snap1, v3, chunkExisted) => {
 
                   profilingInfo.incrementTotalConjuncts
@@ -751,7 +749,6 @@ object consumer extends ConsumptionRules {
                     chunkSupporter.consume(s4, oh, true, resource, tArgs, eArgs, loss, lossExp, returnSnap, ve, v3, description)((s5, oh1, snap2, v4, chunkExisted1) => {
                       
                       if (!chunkExisted && !chunkExisted1) {
-
                         // unfolding cannot be the origin here
                         val runtimeCheckAstNode: CheckPosition =
                           (s5.methodCallAstNode, s5.foldOrUnfoldAstNode, s5.loopPosition) match {
@@ -965,7 +962,7 @@ object consumer extends ConsumptionRules {
             sys.error("Conflicting positions while looking for position! "
               + s"Position: ${(s.methodCallAstNode, s.foldOrUnfoldAstNode, s.loopPosition)}")
         }
-       
+
         evalAndAssert(s, impr, a, returnSnap, pve, v)((s1, t, v1) => {
 
           returnedState = Some((s1, v1.decider.pcs.duplicate()))

@@ -620,6 +620,7 @@ object executor extends ExecutionRules {
                   val debugExp2 = Option.when(withExp)(DebugExp.createInstance(s"FieldTrigger(${eRcvrNew.toString()}.${field.name})"))
                   v1.decider.assume(FieldTrigger(field.name, sm, tRcvr), debugExp2)
                 }
+                //Produce in heap
                 val s4 = s3.copy(h = h3 + ch)
                 val (debugHeapName, _) = v.getDebugOldLabel(s4, fa.pos)
                 val s5 = if (withExp) s4.copy(oldHeaps = s4.oldHeaps + (debugHeapName -> magicWandSupporter.getEvalHeap(s4))) else s4
@@ -654,7 +655,7 @@ object executor extends ExecutionRules {
                       val debugExp2 = Option.when(withExp)(DebugExp.createInstance(s"FieldTrigger(${eRcvrNew.toString()}.${field.name})"))
                       v1.decider.assume(FieldTrigger(field.name, sm, tRcvr), debugExp2)
                     }
-                    val s5 = s4.copy(optimisticHeap = h4 + ch)
+                    val s5 = s4.copy(h = h4 + ch)
                     val (debugHeapName, _) = v.getDebugOldLabel(s5, fa.pos)
                     val s6 = if (withExp) s5.copy(oldHeaps = s5.oldHeaps + (debugHeapName -> magicWandSupporter.getEvalHeap(s5))) else s5
                     Q(s6, v2)
@@ -678,7 +679,6 @@ object executor extends ExecutionRules {
                           case None => sys.error("Error translating! Exiting safely.")
                           case Some(expr) => expr
                         }
-                      
                       if (s4.generateChecks) {
                         runtimeChecks.addChecks(runtimeCheckAstNode,
                           ast.FieldAccessPredicate(ast.FieldAccess(translatedRcvr, field)(), Some(ast.FullPerm()()))(),
@@ -688,8 +688,7 @@ object executor extends ExecutionRules {
                           fa,
                           s4.forFraming)
                       }
-                      //Add to optimistic heap quantified chunk single
-                      val snap = freshSnap(v2.symbolConverter.toSort(field.typ), v2)
+                      /*val snap = freshSnap(v2.symbolConverter.toSort(field.typ), v2)
                       val (sm, _) = quantifiedChunkSupporter.singletonSnapshotMap(s4, field, Seq(tRcvr), snap, v2)
                       val ch = quantifiedChunkSupporter.createSingletonQuantifiedChunk(
                         Seq(`?r`), 
@@ -701,8 +700,26 @@ object executor extends ExecutionRules {
                         Option.when(withExp)(ast.FullPerm()()), 
                         sm, 
                         s4.program)
-                      //println((s4.optimisticHeap + ch).values)
-                      Q(s4.copy(optimisticHeap = s4.optimisticHeap + ch), v2)
+                      //println((s4.optimisticHeap + ch).values)*/
+                      //Q(s4.copy(optimisticHeap = s4.optimisticHeap + ch), v2)
+                      val (sm, smValueDef) = quantifiedChunkSupporter.singletonSnapshotMap(s4, field, Seq(tRcvr), tRhs, v2)
+                      v1.decider.prover.comment("Definitional axioms for singleton-FVF's value")
+                      val debugExp = Option.when(withExp)(DebugExp.createInstance("Definitional axioms for singleton-FVF's value", isInternal_ = true))
+                      v1.decider.assumeDefinition(smValueDef, debugExp)
+                      val ch = quantifiedChunkSupporter.createSingletonQuantifiedChunk(
+                        Seq(`?r`), 
+                        Option.when(withExp)(Seq(ast.LocalVarDecl("r", ast.Ref)(ass.pos, ass.info, ass.errT))),
+                        field, 
+                        Seq(tRcvr), 
+                        Option.when(withExp)(Seq(eRcvrNew.get)), 
+                        FullPerm, 
+                        Option.when(withExp)(ast.FullPerm()(ass.pos, ass.info, ass.errT)), 
+                        sm, 
+                        s.program)
+                      val s5 = s4.copy(h = s4.h + ch)
+                      val (debugHeapName, _) = v.getDebugOldLabel(s5, fa.pos)
+                      val s6 = if (withExp) s5.copy(oldHeaps = s5.oldHeaps + (debugHeapName -> magicWandSupporter.getEvalHeap(s5))) else s5
+                      Q(s6, v2)
                     } else {
                       createFailure(pve dueTo InsufficientPermission(fa), v2, s4, "sufficient permission")
                     }
@@ -917,8 +934,6 @@ object executor extends ExecutionRules {
             recordVisited = true,
             methodCallAstNode = Some(call))
 
-          //println("METHOD PRECONDITIONS")
-          //println(meth.pres)
           consumes(s2, meth.pres, true, _ => pvePre, v1)((s3, _, v2) => {
             v2.symbExLog.closeScope(preCondId)
             val postCondLog = new CommentRecord("Postcondition", s3, v2.decider.pcs)

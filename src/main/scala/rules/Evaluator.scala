@@ -32,6 +32,7 @@ import viper.silicon.supporters.Translator
 import viper.silicon.utils.consistency.createUnexpectedNodeError
 import viper.silicon.utils.ast._
 import viper.silicon.utils.toSf
+import viper.silicon.utils.freshSnap
 import viper.silicon.verifier.Verifier
 import viper.silicon.{Map, TriggerSets}
 import viper.silicon.interfaces.state.{ChunkIdentifer, NonQuantifiedChunk}
@@ -256,10 +257,192 @@ object evaluator extends EvaluationRules {
       Q(s4, t, eNew, v1)})
   }
 
+  def quant_runtime_check(
+    s1: State, 
+    fa: ast.FieldAccess, 
+    tRcvr: Term, 
+    eRcvr: Option[ast.Exp], 
+    newFa: Option[ast.Exp],
+    //fvfDef: SnapshotMapDefinition, 
+    pve: PartialVerificationError,
+    v1: Verifier) 
+    (Q: (State, Term, Option[ast.Exp], Verifier) => VerificationResult): VerificationResult = {
+    val snap = freshSnap(sorts.FieldValueFunction(v1.snapshotSupporter.optimalSnapshotSort(fa.field, s1, v1), fa.field.name), v1)
+    val (sm, _) = quantifiedChunkSupporter.singletonSnapshotMap(s1, fa.field, Seq(tRcvr), snap, v1)
+    val ch = quantifiedChunkSupporter.createSingletonQuantifiedChunk(
+      Seq(`?r`), 
+      Option.when(withExp)(Seq(ast.LocalVarDecl(`?r`.id.name, ast.Ref)())), 
+      fa.field, 
+      Seq(tRcvr),
+      eRcvr.map(Seq(_)),
+      FullPerm,
+      Option.when(withExp)(ast.FullPerm()()), 
+      sm, 
+      s1.program)
+    val runtimeCheckAstNode: CheckPosition =
+      (s1.methodCallAstNode, s1.foldOrUnfoldAstNode, s1.loopPosition) match {
+        case (None, None, None) => CheckPosition.GenericNode(fa)
+        case (Some(methodCallAstNode), None, None) => CheckPosition.GenericNode(methodCallAstNode)
+        case (None, Some(foldOrUnfoldAstNode), None) => CheckPosition.GenericNode(foldOrUnfoldAstNode)
+        case (None, None, Some(loopPosition)) => loopPosition
+        case _ => sys.error("Conflicting positions found while producing runtime check!")
+      }
+    val g = s1.oldStore match {
+      case Some(g) => g
+      case None => s1.g
+    }
+    val translatedArgs: Seq[ast.Exp] =
+      new Translator(s1.copy(g = g), v1.decider.pcs).translate(tRcvr) match {
+        case None => sys.error("Error translating! Exiting safely.")
+        case Some(expr) => Seq(expr)
+      }
+
+    if (s1.generateChecks) {
+      runtimeChecks.addChecks(runtimeCheckAstNode,
+        ast.FieldAccessPredicate(ast.FieldAccess(translatedArgs.head, fa.field)(), Some(ast.FullPerm()()))(),
+        viper.silicon.utils.zip3(v1.decider.pcs.branchConditionsSemanticAstNodes,
+          v1.decider.pcs.branchConditionsAstNodes,
+          v1.decider.pcs.branchConditionsOrigins).map(bc => BranchCond(bc._1, bc._2, bc._3)),
+        fa,
+        s1.forFraming)
+    }
+    val fvfLookup = Lookup(fa.field.name, sm, tRcvr)
+    //val fr1 = s1.functionRecorder.recordSnapshot(fa, v1.decider.pcs.branchConditions, fvfLookup).recordFvfAndDomain(fvfDef)
+    
+    Q(s1.copy(optimisticHeap = s1.optimisticHeap + ch/*, functionRecorder = fr1*/), fvfLookup, newFa, v1)
+  }
+
+  def quant_fa_check_oh(s1: State, 
+    fa: ast.FieldAccess, 
+    tRcvr: Term, 
+    eRcvr: Option[ast.Exp],
+    newFa: Option[ast.Exp],
+    debugHeapName: String,
+    pve: PartialVerificationError,
+    v1: Verifier) 
+    (Q: (State, Term, Option[ast.Exp], Verifier) => VerificationResult): VerificationResult = {
+    val (relevantChunks, _) =
+      quantifiedChunkSupporter.splitHeap[QuantifiedFieldChunk](s1.optimisticHeap, BasicChunkIdentifier(fa.field.name))
+    s1.smCache.get((fa.field, relevantChunks)) match {
+      case Some((fvfDef: SnapshotMapDefinition, totalPermissions)) if !Verifier.config.disableValueMapCaching() =>
+        /* The next assertion must be made if the FVF definition is taken from the cache;
+         * in the other case it is part of quantifiedChunkSupporter.withValue.
+         */
+        /* Re-emit definition since the previous definition could be nested under
+         * an auxiliary quantifier (resulting from the evaluation of some Silver
+         * quantifier in whose body field 'fa.field' was accessed)
+         * which is protected by a trigger term that we currently don't have.
+         */
+        v1.decider.assume(And(fvfDef.valueDefinitions), Option.when(withExp)(DebugExp.createInstance("Value definitions", isInternal_ = true)))
+        if (s1.heapDependentTriggers.contains(fa.field)){
+          val trigger = FieldTrigger(fa.field.name, fvfDef.sm, tRcvr)
+          val triggerExp = Option.when(withExp)(DebugExp.createInstance(s"FieldTrigger(${eRcvr.toString()}.${fa.field.name})"))
+          v1.decider.assume(trigger, triggerExp)
+        }
+        if (s1.triggerExp) {
+          val fvfLookup = Lookup(fa.field.name, fvfDef.sm, tRcvr)
+          val fr1 = s1.functionRecorder.recordSnapshot(fa, v1.decider.pcs.branchConditions, fvfLookup)
+          val s2 = s1.copy(functionRecorder = fr1)
+          val s3 = if (Verifier.config.enableDebugging() && !s2.isEvalInOld) s2.copy(oldHeaps = s2.oldHeaps + (debugHeapName -> magicWandSupporter.getEvalHeap(s2))) else s2
+          Q(s3, fvfLookup, newFa, v1)
+        } else {
+          val toAssert = IsPositive(totalPermissions.replace(`?r`, tRcvr))
+          v1.decider.assert(toAssert) {
+            case false =>
+              //Check optimistic heap
+              //Here create runtime check and add to optimistic heap if imprecise
+              if(s1.isImprecise) {
+                quant_runtime_check(s1, fa, tRcvr, eRcvr, newFa, pve, v1)(Q)
+              } else {
+                createFailure(pve dueTo InsufficientPermission(fa), v1, s1, toAssert, Option.when(withExp)(perms.IsPositive(ast.CurrentPerm(fa)())()))
+              }
+            case true =>
+              val fvfLookup = Lookup(fa.field.name, fvfDef.sm, tRcvr)
+              val fr1 = s1.functionRecorder.recordSnapshot(fa, v1.decider.pcs.branchConditions, fvfLookup).recordFvfAndDomain(fvfDef)
+              val possTriggers = if (s1.heapDependentTriggers.contains(fa.field) && s1.recordPossibleTriggers)
+                s1.possibleTriggers + (fa -> FieldTrigger(fa.field.name, fvfDef.sm, tRcvr))
+              else
+                s1.possibleTriggers
+              val s2 = s1.copy(functionRecorder = fr1, possibleTriggers = possTriggers)
+              val s3 = if (Verifier.config.enableDebugging() && !s2.isEvalInOld) s2.copy(oldHeaps = s2.oldHeaps + (debugHeapName -> magicWandSupporter.getEvalHeap(s2))) else s2
+              Q(s3, fvfLookup, newFa, v1)}
+        }
+      case _ =>
+        if (relevantChunks.size == 1) {
+          // No need to create a summary since there is only one chunk to look at.
+          if (s1.heapDependentTriggers.contains(fa.field)) {
+            val trigger = FieldTrigger(fa.field.name, relevantChunks.head.fvf, tRcvr)
+            val triggerExp = Option.when(withExp)(DebugExp.createInstance(s"FieldTrigger(${eRcvr.toString()}.${fa.field.name})"))
+            v1.decider.assume(trigger, triggerExp)
+          }
+          val (permCheck, permCheckExp) =
+            if (s1.triggerExp) {
+              (True, Option.when(withExp)(TrueLit()()))
+            } else {
+              val permVal = relevantChunks.head.perm
+              val totalPermissions = permVal.replace(relevantChunks.head.quantifiedVars, Seq(tRcvr))
+              (IsPositive(totalPermissions), Option.when(withExp)(ast.PermGtCmp(ast.CurrentPerm(fa)(fa.pos, fa.info, fa.errT), ast.NoPerm()())(fa.pos, fa.info, fa.errT)))
+            }
+          v1.decider.assert(permCheck) {
+            case false =>
+              if(s1.isImprecise) {
+                quant_runtime_check(s1, fa, tRcvr, eRcvr, newFa, pve, v1)(Q)
+              } else {
+                createFailure(pve dueTo InsufficientPermission(fa), v1, s1, permCheck, permCheckExp)
+              }
+            case true =>
+              val smLookup = Lookup(fa.field.name, relevantChunks.head.fvf, tRcvr)
+              val fr2 =
+                s1.functionRecorder.recordSnapshot(fa, v1.decider.pcs.branchConditions, smLookup)
+              val s2 = s1.copy(functionRecorder = fr2)
+              Q(s2, smLookup, newFa, v1)
+          }
+        } else {
+          val (s2, smDef1, pmDef1) =
+            quantifiedChunkSupporter.heapSummarisingMaps(
+              s = s1,
+              resource = fa.field,
+              codomainQVars = Seq(`?r`),
+              relevantChunks = relevantChunks,
+              optSmDomainDefinitionCondition = None,
+              optQVarsInstantiations = None,
+              v = v1)
+          if (s2.heapDependentTriggers.contains(fa.field)) {
+            val trigger = FieldTrigger(fa.field.name, smDef1.sm, tRcvr)
+            val triggerExp = Option.when(withExp)(DebugExp.createInstance(s"FieldTrigger(${eRcvr.toString()}.${fa.field.name})"))
+            v1.decider.assume(trigger, triggerExp)
+          }
+          val (permCheck, permCheckExp) =
+            if (s2.triggerExp) {
+              (True, Option.when(withExp)(TrueLit()()))
+            } else {
+              val totalPermissions = PermLookup(fa.field.name, pmDef1.pm, tRcvr)
+              (IsPositive(totalPermissions), Option.when(withExp)(ast.PermGtCmp(ast.CurrentPerm(fa)(fa.pos, fa.info, fa.errT), ast.NoPerm()())(fa.pos, fa.info, fa.errT)))
+            }
+          v1.decider.assert(permCheck) {
+            case false =>
+              if(s1.isImprecise) {
+                quant_runtime_check(s1, fa, tRcvr, eRcvr, newFa, pve, v1)(Q)
+              } else {
+                createFailure(pve dueTo InsufficientPermission(fa), v1, s2, permCheck, permCheckExp)
+              }
+            case true =>
+              val smLookup = Lookup(fa.field.name, smDef1.sm, tRcvr)
+              val fr2 =
+                s2.functionRecorder.recordSnapshot(fa, v1.decider.pcs.branchConditions, smLookup)
+                  .recordFvfAndDomain(smDef1)
+              val s3 = s2.copy(functionRecorder = fr2)
+              Q(s3, smLookup, newFa, v1)
+          }
+        }
+    }
+  }
+
   protected def eval2(s: State, e: ast.Exp, pve: PartialVerificationError, v: Verifier)
                      (Q: (State, Term, Option[ast.Exp], Verifier) => VerificationResult)
                      : VerificationResult = {
     val eOpt = Option.when(withExp)(e)
+    
     val resultTerm = e match {
       case _: ast.TrueLit => Q(s, True, eOpt, v)
       case _: ast.FalseLit => Q(s, False, eOpt, v)
@@ -344,7 +527,7 @@ object evaluator extends EvaluationRules {
                 val toAssert = IsPositive(totalPermissions.replace(`?r`, tRcvr))
                 v1.decider.assert(toAssert) {
                   case false =>
-                    createFailure(pve dueTo InsufficientPermission(fa), v1, s1, toAssert, Option.when(withExp)(perms.IsPositive(ast.CurrentPerm(fa)())()))
+                    quant_fa_check_oh(s1, fa, tRcvr, eRcvr, newFa, debugHeapName, pve, v1)(Q)
                   case true =>
                     val fvfLookup = Lookup(fa.field.name, fvfDef.sm, tRcvr)
                     val fr1 = s1.functionRecorder.recordSnapshot(fa, v1.decider.pcs.branchConditions, fvfLookup).recordFvfAndDomain(fvfDef)
@@ -374,7 +557,7 @@ object evaluator extends EvaluationRules {
                   }
                 v1.decider.assert(permCheck) {
                   case false =>
-                    createFailure(pve dueTo InsufficientPermission(fa), v1, s1, permCheck, permCheckExp)
+                    quant_fa_check_oh(s1, fa, tRcvr, eRcvr, newFa, debugHeapName, pve, v1)(Q)
                   case true =>
                     val smLookup = Lookup(fa.field.name, relevantChunks.head.fvf, tRcvr)
                     val fr2 =
@@ -406,7 +589,7 @@ object evaluator extends EvaluationRules {
                   }
                 v1.decider.assert(permCheck) {
                   case false =>
-                    createFailure(pve dueTo InsufficientPermission(fa), v1, s2, permCheck, permCheckExp)
+                    quant_fa_check_oh(s1, fa, tRcvr, eRcvr, newFa, debugHeapName, pve, v1)(Q)
                   case true =>
                     val smLookup = Lookup(fa.field.name, smDef1.sm, tRcvr)
                     val fr2 =
@@ -3005,13 +3188,15 @@ object evaluator extends EvaluationRules {
     val gVars = Store(localVars zip varPairs)
     val oldStoreGvars: Option[Store] = s.oldStore match {
       case Some(s) => Some(s + gVars)
-      case None => None
+      case None => Some(gVars)
     }
     val s1 = s.copy(g = s.g + gVars,
                     oldStore = oldStoreGvars,
+                    oldHeaps = s.oldHeaps + (Verifier.PRE_HEAP_LABEL -> Heap()) + (Verifier.PRE_OPTHEAP_LABEL -> Heap()), 
                     quantifiedVariables = varPairs ++ s.quantifiedVariables,
                     recordPossibleTriggers = true,
                     possibleTriggers = Map.empty) // TODO: Why reset possibleTriggers if they are merged with s.possibleTriggers later anyway?
+
     type R = (State, Seq[Term], Option[Seq[ast.Exp]], Option[(Seq[Term], Option[Seq[ast.Exp]], Seq[Trigger], (Seq[Term], Seq[Quantification]), Option[(InsertionOrderedSet[DebugExp], InsertionOrderedSet[DebugExp])], Map[ast.Exp, Term])])
     executionFlowController.locallyWithResult[R](s1, v)((s2, v1, QB) => {
       val preMark = v1.decider.setPathConditionMark()
@@ -3029,7 +3214,6 @@ object evaluator extends EvaluationRules {
         val es2AndTriggerResult = evals(s3, es2, _ => pve, v2)((s4, ts2, es2New, v3) => {
           evalTriggers(s4, optTriggers.getOrElse(Nil), pve, v3)((s5, tTriggers, _) => { // TODO: v4 isn't forward - problem?
             val (auxGlobals, auxNonGlobalQuants) =
-//>>>>>>> upstream/master
               v3.decider.pcs.after(preMark).quantified(quant, tVars, tTriggers, s"$name-aux", isGlobal = false, bc)
             val auxExps =
               Option.when(withExp)(v3.decider.pcs.after(preMark).quantifiedExp(quant, varPairs map (_._2.get), tVars, optTriggers.getOrElse(Nil), tTriggers, s"$name-aux", isGlobal = false, bc))
@@ -3043,7 +3227,7 @@ object evaluator extends EvaluationRules {
       })
     }){
       case (s2, ts1, es1New1, Some((ts2, es2New1, tTriggers, (tAuxGlobal, tAux), eAuxExps, additionalPossibleTriggers))) =>
-        val s3 = s.copy(possibleTriggers = s.possibleTriggers ++ additionalPossibleTriggers)
+        val s3 = s.copy(possibleTriggers = s.possibleTriggers ++ additionalPossibleTriggers, oldStore = Some(s2.g))
                 .preserveAfterLocalEvaluation(s2)
         Q(s3, tVars, Option.when(withExp)(varPairs map (e => ast.LocalVarDecl(e._2.get.name, e._2.get.typ)(e._2.get.pos, e._2.get.info, e._2.get.errT))), ts1, es1New1, Some((ts2, es2New1, tTriggers, (tAuxGlobal, tAux), Option.when(withExp)((eAuxExps.get._1, eAuxExps.get._2)))), v)
       case (s2, ts1, es1New1, None) =>
